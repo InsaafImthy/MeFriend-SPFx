@@ -1,0 +1,7 @@
+export interface IMefrienddynamicsProps {
+  description: string;
+  isDarkTheme: boolean;
+  environmentMessage: string;
+  hasTeamsContext: boolean;
+  userDisplayName: string;
+}

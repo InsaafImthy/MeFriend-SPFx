@@ -1,0 +1,19 @@
+{
+  "@microsoft/generator-sharepoint": {
+    "useGulp": false,
+    "plusBeta": false,
+    "isCreatingSolution": true,
+    "nodeVersion": "22.22.3",
+    "sdksVersions": {},
+    "version": "1.23.0",
+    "libraryName": "mefriend",
+    "libraryId": "8eccecb8-c9d8-4c1d-add7-e4857d4426d0",
+    "environment": "spo",
+    "packageManager": "npm",
+    "solutionName": "mefriend",
+    "solutionShortDescription": "mefriend description",
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "componentType": "webpart"
+  }
+}
