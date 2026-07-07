@@ -1,99 +1,109 @@
 import type { IAppRouteDefinition } from '../models/common/AppRoute';
-import type { IModuleDefinition } from '../models/common/ModuleDefinition';
+import { customersModuleConfig } from './modules/customersModuleConfig';
+import { eventsModuleConfig } from './modules/eventsModuleConfig';
+import { invoicesModuleConfig } from './modules/invoicesModuleConfig';
+import { salesOrdersModuleConfig } from './modules/salesOrdersModuleConfig';
+import { salespersonsModuleConfig } from './modules/salespersonsModuleConfig';
 
-export const moduleDefinitions: readonly IModuleDefinition[] = [
-  {
-    key: 'customers',
-    title: 'Customer Master',
-    description: 'Customer listing, details, search, filtering, and creation.',
-    defaultRouteKey: 'customers',
-    status: 'ready'
-  },
-  {
-    key: 'events',
-    title: 'Event View',
-    description: 'Read-only event listing with search and filtering.',
-    defaultRouteKey: 'events',
-    status: 'pendingContract'
-  },
-  {
-    key: 'salespersons',
-    title: 'Salesperson View',
-    description: 'Read-only salesperson listing with search and filtering.',
-    defaultRouteKey: 'salespersons',
-    status: 'pendingContract'
-  },
-  {
-    key: 'invoices',
-    title: 'Invoice View',
-    description: 'Invoice listing, details, outstanding, and payment visibility.',
-    defaultRouteKey: 'invoices',
-    status: 'pendingContract'
-  },
-  {
-    key: 'salesOrders',
-    title: 'Sales Order',
-    description: 'Sales order listing, detail, creation, lines, and related invoices.',
-    defaultRouteKey: 'salesOrders',
-    status: 'pendingContract'
-  }
-];
+export const moduleDefinitions = [
+  customersModuleConfig,
+  eventsModuleConfig,
+  salespersonsModuleConfig,
+  invoicesModuleConfig,
+  salesOrdersModuleConfig
+] as const;
 
 export const routeDefinitions: readonly IAppRouteDefinition[] = [
   {
     key: 'customers',
-    path: 'customers',
-    title: 'Customer Master',
-    moduleKey: 'customers',
+    path: customersModuleConfig.route,
+    title: customersModuleConfig.title,
+    moduleKey: customersModuleConfig.key,
     showInNavigation: true
+  },
+  {
+    key: 'customerCreate',
+    path: `${customersModuleConfig.route}/create`,
+    title: 'Create Customer',
+    moduleKey: customersModuleConfig.key,
+    showInNavigation: false
+  },
+  {
+    key: 'customerDetail',
+    path: `${customersModuleConfig.route}/detail/:id`,
+    title: 'Customer Detail',
+    moduleKey: customersModuleConfig.key,
+    showInNavigation: false
   },
   {
     key: 'events',
-    path: 'events',
-    title: 'Event View',
-    moduleKey: 'events',
+    path: eventsModuleConfig.route,
+    title: eventsModuleConfig.title,
+    moduleKey: eventsModuleConfig.key,
     showInNavigation: true
+  },
+  {
+    key: 'eventDetail',
+    path: `${eventsModuleConfig.route}/detail/:id`,
+    title: 'Event Detail',
+    moduleKey: eventsModuleConfig.key,
+    showInNavigation: false
   },
   {
     key: 'salespersons',
-    path: 'salespersons',
-    title: 'Salesperson View',
-    moduleKey: 'salespersons',
+    path: salespersonsModuleConfig.route,
+    title: salespersonsModuleConfig.title,
+    moduleKey: salespersonsModuleConfig.key,
     showInNavigation: true
   },
   {
+    key: 'salespersonDetail',
+    path: `${salespersonsModuleConfig.route}/detail/:id`,
+    title: 'Salesperson Detail',
+    moduleKey: salespersonsModuleConfig.key,
+    showInNavigation: false
+  },
+  {
     key: 'invoices',
-    path: 'invoices',
-    title: 'Invoice View',
-    moduleKey: 'invoices',
+    path: invoicesModuleConfig.route,
+    title: invoicesModuleConfig.title,
+    moduleKey: invoicesModuleConfig.key,
     showInNavigation: true
   },
   {
     key: 'invoiceDetail',
-    path: 'invoices/detail/:id',
+    path: `${invoicesModuleConfig.route}/detail/:id`,
     title: 'Invoice Detail',
-    moduleKey: 'invoices',
+    moduleKey: invoicesModuleConfig.key,
     showInNavigation: false
   },
   {
     key: 'salesOrders',
-    path: 'sales-orders',
-    title: 'Sales Order',
-    moduleKey: 'salesOrders',
+    path: salesOrdersModuleConfig.route,
+    title: salesOrdersModuleConfig.title,
+    moduleKey: salesOrdersModuleConfig.key,
     showInNavigation: true
   },
   {
     key: 'salesOrderCreate',
-    path: 'sales-orders/create',
+    path: `${salesOrdersModuleConfig.route}/create`,
     title: 'Create Sales Order',
-    moduleKey: 'salesOrders',
+    moduleKey: salesOrdersModuleConfig.key,
     showInNavigation: false
   },
   {
     key: 'salesOrderDetail',
-    path: 'sales-orders/detail/:id',
+    path: `${salesOrdersModuleConfig.route}/detail/:id`,
     title: 'Sales Order Detail',
-    moduleKey: 'salesOrders',
+    moduleKey: salesOrdersModuleConfig.key,
     showInNavigation: false
   }
 ];
+
+export {
+  customersModuleConfig,
+  eventsModuleConfig,
+  invoicesModuleConfig,
+  salesOrdersModuleConfig,
+  salespersonsModuleConfig
+};

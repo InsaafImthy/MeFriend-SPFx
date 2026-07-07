@@ -1,0 +1,26 @@
+.amount {
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.normal {
+  color: #0f172a;
+}
+
+.paid {
+  color: #047857;
+}
+
+.outstanding {
+  color: #b91c1c;
+}
+
+.total {
+  color: #1d4ed8;
+}
+
+.fallback {
+  color: #94a3b8;
+}

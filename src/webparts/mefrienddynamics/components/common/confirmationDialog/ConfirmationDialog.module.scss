@@ -1,0 +1,46 @@
+.overlay {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.42);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 20px;
+  position: fixed;
+  z-index: 20;
+}
+
+.dialog {
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.3);
+  color: #334155;
+  max-width: 440px;
+  padding: 22px;
+  width: 100%;
+}
+
+.dialog h2 {
+  color: #0f172a;
+  font-size: 19px;
+  line-height: 1.3;
+  margin: 0 0 8px;
+}
+
+.dialog p {
+  font-size: 14px;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 22px;
+}
+
+@media (max-width: 480px) {
+  .actions {
+    flex-direction: column-reverse;
+  }
+}

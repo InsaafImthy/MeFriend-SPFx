@@ -5,11 +5,11 @@ import { App } from './App/App';
 
 export default class Mefrienddynamics extends React.Component<IMefrienddynamicsProps> {
   public render(): React.ReactElement<IMefrienddynamicsProps> {
-    const { hasTeamsContext, userDisplayName } = this.props;
+    const { aadHttpClientFactory, hasTeamsContext, httpClient, userDisplayName } = this.props;
 
     return (
       <section className={`${styles.mefrienddynamics} ${hasTeamsContext ? styles.teams : ''}`}>
-        <App userDisplayName={userDisplayName} />
+        <App aadHttpClientFactory={aadHttpClientFactory} httpClient={httpClient} userDisplayName={userDisplayName} />
       </section>
     );
   }

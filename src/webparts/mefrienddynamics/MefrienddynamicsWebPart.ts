@@ -29,7 +29,9 @@ export default class MefrienddynamicsWebPart extends BaseClientSideWebPart<IMefr
         isDarkTheme: this._isDarkTheme,
         environmentMessage: this._environmentMessage,
         hasTeamsContext: !!this.context.sdks.microsoftTeams,
-        userDisplayName: this.context.pageContext.user.displayName
+        userDisplayName: this.context.pageContext.user.displayName,
+        aadHttpClientFactory: this.context.aadHttpClientFactory,
+        httpClient: this.context.httpClient
       }
     );
 

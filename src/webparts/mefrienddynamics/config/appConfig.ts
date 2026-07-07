@@ -1,5 +1,24 @@
 export const appConfig = {
-  appTitle: 'MeFriend Business Central',
+  appName: 'MeFriend Business Central',
   appSubtitle: 'Madhyamam / MeFriend operations workspace',
-  defaultRoutePath: 'customers'
+  defaultCurrencyCode: 'INR',
+  defaultCountryCode: 'IN',
+  defaultRoutePath: 'customers',
+  environmentLabel: 'Local',
+  backendApiBaseUrl: '',
+  backendApi: {
+    baseUrl: '',
+    useAadHttpClient: false,
+    aadResourceUrl: ''
+  },
+  featureFlags: {
+    enableCustomerCreate: true,
+    enableSalesOrderCreate: true,
+    enableInvoiceDetails: true,
+    enableRelatedInvoices: true
+  },
+  sharePointSettings: {
+    settingsListName: 'MeFriend App Settings',
+    auditLogListName: 'MeFriend Audit Logs'
+  }
 };

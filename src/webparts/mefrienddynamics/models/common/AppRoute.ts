@@ -1,7 +1,11 @@
 export type AppRouteKey =
   | 'customers'
+  | 'customerCreate'
+  | 'customerDetail'
   | 'events'
+  | 'eventDetail'
   | 'salespersons'
+  | 'salespersonDetail'
   | 'invoices'
   | 'invoiceDetail'
   | 'salesOrders'

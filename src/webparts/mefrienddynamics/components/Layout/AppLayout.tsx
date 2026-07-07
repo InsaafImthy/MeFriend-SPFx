@@ -17,7 +17,7 @@ export const AppLayout: React.FC<IAppLayoutProps> = ({ activeRouteKey, userDispl
       <div className={styles.brand}>
         <span className={styles.brandMark}>MF</span>
         <div>
-          <h1>{appConfig.appTitle}</h1>
+          <h1>{appConfig.appName}</h1>
           <p>{appConfig.appSubtitle}</p>
         </div>
       </div>

@@ -1,0 +1,59 @@
+.errorState {
+  align-items: flex-start;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  color: #7c2d12;
+  display: flex;
+  gap: 14px;
+  padding: 18px;
+}
+
+.icon {
+  align-items: center;
+  background: #ffedd5;
+  border-radius: 999px;
+  color: #c2410c;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 16px;
+  font-weight: 800;
+  height: 30px;
+  justify-content: center;
+  width: 30px;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.content h2 {
+  color: #7c2d12;
+  font-size: 17px;
+  line-height: 1.3;
+  margin: 0;
+}
+
+.content p {
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.details {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid #fed7aa;
+  border-radius: 6px;
+  color: #7c2d12;
+  font-family: Consolas, Monaco, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0;
+  max-width: 100%;
+  overflow: auto;
+  padding: 10px;
+  white-space: pre-wrap;
+}

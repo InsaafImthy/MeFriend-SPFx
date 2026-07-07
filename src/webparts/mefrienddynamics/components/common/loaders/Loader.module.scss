@@ -1,0 +1,45 @@
+.loader {
+  align-items: center;
+  color: #475569;
+  display: inline-flex;
+  font-size: 14px;
+  gap: 10px;
+}
+
+.page,
+.table {
+  justify-content: center;
+  min-height: 180px;
+  width: 100%;
+}
+
+.button {
+  color: inherit;
+  gap: 0;
+}
+
+.inline {
+  min-height: 24px;
+}
+
+.spinner {
+  animation: spin 0.9s linear infinite;
+  border: 2px solid #cbd5e1;
+  border-radius: 50%;
+  border-top-color: #0f766e;
+  height: 18px;
+  width: 18px;
+}
+
+.button .spinner {
+  border-color: currentColor;
+  border-right-color: transparent;
+  height: 14px;
+  width: 14px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

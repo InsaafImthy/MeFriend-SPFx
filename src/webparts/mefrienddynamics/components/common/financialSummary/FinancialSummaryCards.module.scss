@@ -1,0 +1,47 @@
+.cards {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 16px;
+}
+
+.label {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.value {
+  color: #0f172a;
+  font-size: 21px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.paid {
+  border-left: 4px solid #10b981;
+}
+
+.outstanding {
+  border-left: 4px solid #ef4444;
+}
+
+.total {
+  border-left: 4px solid #3b82f6;
+}
+
+.normal {
+  border-left: 4px solid #94a3b8;
+}
