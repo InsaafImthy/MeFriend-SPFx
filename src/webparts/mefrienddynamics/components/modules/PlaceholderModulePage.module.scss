@@ -1,0 +1,36 @@
+.placeholder {
+  background: #ffffff;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+}
+
+.status {
+  align-self: flex-start;
+  background: #e0f2fe;
+  border: 1px solid #bae6fd;
+  border-radius: 999px;
+  color: #0369a1;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1;
+  padding: 7px 10px;
+}
+
+.placeholder p {
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.55;
+  margin: 0;
+  max-width: 720px;
+}
+
+.reference {
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+}

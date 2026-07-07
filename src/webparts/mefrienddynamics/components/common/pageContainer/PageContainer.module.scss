@@ -1,0 +1,43 @@
+.pageContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.header {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+
+  h2 {
+    color: #1f2937;
+    font-size: 24px;
+    font-weight: 650;
+    line-height: 1.2;
+    margin: 0;
+  }
+
+  p {
+    color: #64748b;
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 8px 0 0;
+    max-width: 760px;
+  }
+}
+
+.actions {
+  flex: 0 0 auto;
+}
+
+.body {
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .header {
+    flex-direction: column;
+  }
+}

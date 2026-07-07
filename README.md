@@ -1,77 +1,58 @@
-# mefriend
+# Madhyamam MeFriend Business Central Extension
 
-## Summary
+This repository contains the Madhyamam / MeFriend extension around an existing Microsoft Dynamics 365 Business Central implementation.
 
-Short summary on functionality and used technologies.
+The solution is split into two deployable parts:
 
-[picture of the solution in action, if possible]
+- SPFx React TypeScript frontend hosted in SharePoint Online.
+- Secure .NET Web API backend that proxies and maps Business Central API calls.
 
-## Used SharePoint Framework Version
+## Project Structure
 
-![version](https://img.shields.io/badge/version-1.23.0-green.svg)
+The target repository structure is:
 
-## Applies to
+```text
+Madhyamam-MeFriend/
+|-- mefriend-spfx/
+|-- mefriend-api/
+|-- docs/
+|   |-- architecture.md
+|   |-- implementation-notes.md
+|   |-- api-contract-status.md
+|-- README.md
+```
 
-- [SharePoint Framework](https://aka.ms/spfx)
-- [Microsoft 365 tenant](https://docs.microsoft.com/sharepoint/dev/spfx/set-up-your-developer-tenant)
+Current repository status:
 
-> Get your own free development tenant by subscribing to [Microsoft 365 developer program](http://aka.ms/o365devprogram)
+- The SPFx project already exists at the repository root.
+- The existing SPFx source entry point is `src/webparts/mefrienddynamics`.
+- The backend placeholder folder exists at `mefriend-api`.
+- Documentation exists under `docs`.
 
-## Prerequisites
+The SPFx project has not been moved into `mefriend-spfx` in this normalization pass, because the existing frontend project is already rooted here and must not be destroyed or disrupted.
 
-> Any special pre-requisites?
+## Build And Deployment Overview
 
-## Solution
+Frontend:
 
-| Solution    | Author(s)                                               |
-| ----------- | ------------------------------------------------------- |
-| folder name | Author details (name, company, twitter alias with link) |
+- Build with the SPFx toolchain from the existing repository root.
+- Current build script: `npm run build`.
+- Deploy the generated SPFx package to the SharePoint app catalog.
 
-## Version history
+Backend:
 
-| Version | Date             | Comments        |
-| ------- | ---------------- | --------------- |
-| 1.1     | March 10, 2021   | Update comment  |
-| 1.0     | January 29, 2021 | Initial release |
+- The .NET API project is not created yet.
+- The backend will be created under `mefriend-api` in a later implementation step.
+- Deploy the API separately from SPFx, for example to Azure App Service.
 
-## Disclaimer
+Integration:
 
-**THIS CODE IS PROVIDED _AS IS_ WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING ANY IMPLIED WARRANTIES OF FITNESS FOR A PARTICULAR PURPOSE, MERCHANTABILITY, OR NON-INFRINGEMENT.**
+- SPFx calls the .NET API only.
+- The .NET API authenticates to Business Central server-side.
+- Business Central payload mapping belongs in backend mappers or frontend service-layer adapters, not React UI components.
 
----
+## Security Note
 
-## Minimal Path to Awesome
+Business Central client secrets, OAuth client credentials, and access tokens must never be stored in SPFx source, frontend configuration, browser storage, or SharePoint-hosted assets.
 
-- Clone this repository
-- Ensure that you are at the solution folder
-- in the command-line run:
-  - `npm install -g @rushstack/heft`
-  - `npm install`
-  - `heft start`
-
-> Include any additional steps as needed.
-
-Other build commands can be listed using `heft --help`.
-
-## Features
-
-Description of the extension that expands upon high-level summary above.
-
-This extension illustrates the following concepts:
-
-- topic 1
-- topic 2
-- topic 3
-
-> Notice that better pictures and documentation will increase the sample usage and the value you are providing for others. Thanks for your submissions advance.
-
-> Share your web part with others through Microsoft 365 Patterns and Practices program to get visibility and exposure. More details on the community, open-source projects and other activities from http://aka.ms/m365pnp.
-
-## References
-
-- [Getting started with SharePoint Framework](https://docs.microsoft.com/sharepoint/dev/spfx/set-up-your-developer-tenant)
-- [Building for Microsoft teams](https://docs.microsoft.com/sharepoint/dev/spfx/build-for-teams-overview)
-- [Use Microsoft Graph in your solution](https://docs.microsoft.com/sharepoint/dev/spfx/web-parts/get-started/using-microsoft-graph-apis)
-- [Publish SharePoint Framework applications to the Marketplace](https://docs.microsoft.com/sharepoint/dev/spfx/publish-to-marketplace-overview)
-- [Microsoft 365 Patterns and Practices](https://aka.ms/m365pnp) - Guidance, tooling, samples and open-source controls for your Microsoft 365 development
-- [Heft Documentation](https://heft.rushstack.io/)
+Only the .NET API may request Business Central OAuth tokens. Use user-secrets locally and Azure App Service settings or Key Vault in production.
