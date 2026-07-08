@@ -194,6 +194,7 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
           <AppLayout
             activeRouteKey={route.key}
             canAccessModule={permissions.canAccessModule}
+            routeTransitionKey={`${route.key}:${routePath}`}
             userDisplayName={userDisplayName}
             onNavigate={handleNavigate}
           >

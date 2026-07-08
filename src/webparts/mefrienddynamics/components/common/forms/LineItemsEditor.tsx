@@ -153,6 +153,7 @@ export const LineItemsEditor = <TItem extends LineItemRecord>({
           required={field.required}
           errorMessage={errorMessage}
           onChange={nextValue => updateLine(rowIndex, field.key, nextValue)}
+          useCustomPicker
         />
       );
     }

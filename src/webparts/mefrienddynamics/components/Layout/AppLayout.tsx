@@ -13,6 +13,7 @@ export interface IAppLayoutProps {
   userDisplayName: string;
   canAccessModule: (moduleKey: string) => boolean;
   onNavigate: (path: string) => void;
+  routeTransitionKey: string;
   children: React.ReactNode;
 }
 
@@ -33,9 +34,10 @@ const getInitials = (displayName: string): string => {
   return `${nameParts[0].charAt(0)}${nameParts[nameParts.length - 1].charAt(0)}`.toUpperCase();
 };
 
-export const AppLayout: React.FC<IAppLayoutProps> = ({ activeRouteKey, canAccessModule, userDisplayName, onNavigate, children }) => {
+export const AppLayout: React.FC<IAppLayoutProps> = ({ activeRouteKey, canAccessModule, routeTransitionKey, userDisplayName, onNavigate, children }) => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState<boolean>(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = React.useState<boolean>(false);
+  const contentRef = React.useRef<HTMLDivElement | null>(null);
   const userPanelRef = React.useRef<HTMLDivElement | null>(null);
   const userInitials = getInitials(userDisplayName);
   const layoutClassName = isSidebarCollapsed ? `${styles.appLayout} ${styles.collapsed}` : styles.appLayout;
@@ -57,6 +59,12 @@ export const AppLayout: React.FC<IAppLayoutProps> = ({ activeRouteKey, canAccess
     document.addEventListener('mousedown', handleDocumentMouseDown);
     return () => document.removeEventListener('mousedown', handleDocumentMouseDown);
   }, [isUserMenuOpen]);
+
+  React.useEffect(() => {
+    if (contentRef.current) {
+      contentRef.current.scrollTo({ top: 0, left: 0 });
+    }
+  }, [routeTransitionKey]);
 
   const navigateToSettings = (event: React.MouseEvent<HTMLAnchorElement>): void => {
     event.preventDefault();
@@ -131,7 +139,11 @@ export const AppLayout: React.FC<IAppLayoutProps> = ({ activeRouteKey, canAccess
         </div>
       </aside>
       <main className={styles.main}>
-        <div className={styles.content}>{children}</div>
+        <div className={styles.content} ref={contentRef}>
+          <div className={styles.routeTransition} key={routeTransitionKey}>
+            {children}
+          </div>
+        </div>
       </main>
     </div>
   );

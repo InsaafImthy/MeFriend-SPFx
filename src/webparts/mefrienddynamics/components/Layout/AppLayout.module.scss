@@ -140,6 +140,28 @@
   padding: var(--mefriend-content-padding-top) var(--mefriend-content-padding-right) var(--mefriend-content-padding-bottom) var(--mefriend-content-padding-left);
 }
 
+.routeTransition {
+  animation: routeEnter 220ms ease-out;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  min-width: 0;
+  transform-origin: top center;
+  width: 100%;
+}
+
+@keyframes routeEnter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.995);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .userPanel {
   border-top: 1px solid rgba(255, 255, 255, 0.14);
   color: rgba(255, 255, 255, 0.7);
@@ -155,14 +177,16 @@
   background: transparent;
   border: 0;
   border-radius: 7px;
+  box-sizing: border-box;
   color: rgba(255, 255, 255, 0.72);
   cursor: pointer;
   display: flex;
   font-family: inherit;
-  gap: 10px;
-  margin: 11px 0;
-  min-height: 48px;
-  padding: 6px 0;
+  gap: 12px;
+  height: 54px;
+  margin: 10px 0;
+  min-height: 54px;
+  padding: 0 12px;
   text-align: left;
   transition: background-color 140ms ease, box-shadow 140ms ease, color 140ms ease;
   width: 100%;
@@ -350,11 +374,12 @@
   }
 
   .userButton {
+    height: 42px;
     justify-content: center;
     margin: 14px 0;
+    min-height: 42px;
     padding: 0;
-    gap: 0px;
-
+    width: 42px;
   }
 
   .userMenu {
@@ -419,9 +444,11 @@
   }
 
   .userButton {
+    height: 42px;
     margin: 0;
     min-height: 42px;
-    padding: 4px 0;
+    padding: 0 12px;
+    width: 100%;
   }
 
   .userMenu {
@@ -441,6 +468,12 @@
     height: auto;
     overflow: visible;
     padding: var(--mefriend-content-padding-top) var(--mefriend-content-padding-right) var(--mefriend-content-padding-bottom) var(--mefriend-content-padding-left);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .routeTransition {
+    animation: none;
   }
 }
 

@@ -81,6 +81,8 @@ const renderField = (
         readOnly={sharedReadOnly}
         errorMessage={errorMessage}
         onChange={nextValue => setValue(field.key, nextValue)}
+        showQuickActions
+        useCustomPicker
       />
     );
   }

@@ -1,4 +1,6 @@
 .entityForm {
+  --mefriend-form-footer-clearance: 76px;
+
   display: flex;
   flex: 1 0 auto;
   flex-direction: column;
@@ -15,7 +17,7 @@
   gap: 16px;
   min-height: auto;
   overflow: visible;
-  padding-bottom: 28px;
+  padding-bottom: calc(28px + var(--mefriend-form-footer-clearance));
 }
 
 .formActions,
@@ -40,7 +42,8 @@
   margin-right: calc(var(--mefriend-content-padding-right, 0px) * -1);
   flex: 0 0 auto;
   padding: 14px calc(var(--mefriend-content-padding-right, 0px) + 18px) 14px calc(var(--mefriend-content-padding-left, 0px) + 18px);
-  position: relative;
+  position: sticky;
+  bottom: calc(var(--mefriend-content-padding-bottom, 0px) * -1);
   width: calc(100% + var(--mefriend-content-padding-left, 0px) + var(--mefriend-content-padding-right, 0px));
   z-index: 8;
 }

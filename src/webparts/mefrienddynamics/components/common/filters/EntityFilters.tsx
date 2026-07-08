@@ -44,12 +44,16 @@ export const EntityFilters: React.FC<IEntityFiltersProps> = ({ filters, values, 
                 value={typeof values[`${filter.key}From`] === 'string' ? String(values[`${filter.key}From`]) : ''}
                 disabled={loading}
                 onChange={value => onChange(`${filter.key}From`, value)}
+                showQuickActions
+                useCustomPicker
               />
               <DatePicker
                 label={`${filter.label} To`}
                 value={typeof values[`${filter.key}To`] === 'string' ? String(values[`${filter.key}To`]) : ''}
                 disabled={loading}
                 onChange={value => onChange(`${filter.key}To`, value)}
+                showQuickActions
+                useCustomPicker
               />
             </div>
           );
