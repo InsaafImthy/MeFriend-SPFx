@@ -171,11 +171,13 @@ export const EntityForm: React.FC<IEntityFormProps> = ({
         })}
         {children}
       </div>
-      <div className={styles.formActions}>
-        {actions}
-        {onCancel ? <Button label={cancelLabel} variant="secondary" disabled={loading || disabled} onClick={onCancel} /> : null}
-        {onSubmit ? <Button label={submitLabel} type="submit" loading={loading} disabled={disabled || readOnly} /> : null}
-      </div>
+      <footer className={styles.formFooter}>
+        <div className={styles.formActions}>
+          {actions}
+          {onCancel ? <Button label={cancelLabel} variant="secondary" disabled={loading || disabled} onClick={onCancel} /> : null}
+          {onSubmit ? <Button label={submitLabel} type="submit" loading={loading} disabled={disabled || readOnly} /> : null}
+        </div>
+      </footer>
     </form>
   );
 };

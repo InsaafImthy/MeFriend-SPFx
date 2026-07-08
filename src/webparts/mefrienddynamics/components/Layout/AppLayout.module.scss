@@ -126,12 +126,18 @@
 }
 
 .content {
+  --mefriend-content-padding-block: clamp(18px, 2vw, 32px);
+  --mefriend-content-padding-bottom: var(--mefriend-content-padding-block);
+  --mefriend-content-padding-left: clamp(18px, 2vw, 32px);
+  --mefriend-content-padding-top: var(--mefriend-content-padding-block);
+  --mefriend-content-padding-right: clamp(18px, 2vw, 32px);
+
+  box-sizing: border-box;
   height: 100%;
   min-height: 0;
   min-width: 0;
   overflow: auto;
-  padding: clamp(18px, 2vw, 32px);
-  scrollbar-gutter: stable;
+  padding: var(--mefriend-content-padding-top) var(--mefriend-content-padding-right) var(--mefriend-content-padding-bottom) var(--mefriend-content-padding-left);
 }
 
 .userPanel {
@@ -322,7 +328,7 @@
   }
 
   .content {
-    padding-left: clamp(28px, 2vw, 40px);
+    --mefriend-content-padding-left: clamp(28px, 2vw, 40px);
   }
 
   .brandText,
@@ -347,6 +353,8 @@
     justify-content: center;
     margin: 14px 0;
     padding: 0;
+    gap: 0px;
+
   }
 
   .userMenu {
@@ -424,9 +432,15 @@
   }
 
   .content {
+    --mefriend-content-padding-block: 14px;
+    --mefriend-content-padding-bottom: 4px;
+    --mefriend-content-padding-left: 0px;
+    --mefriend-content-padding-right: 0px;
+    --mefriend-content-padding-top: 14px;
+
     height: auto;
     overflow: visible;
-    padding: 14px 0 4px;
+    padding: var(--mefriend-content-padding-top) var(--mefriend-content-padding-right) var(--mefriend-content-padding-bottom) var(--mefriend-content-padding-left);
   }
 }
 
