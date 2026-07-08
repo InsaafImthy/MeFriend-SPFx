@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { formatStatusLabel } from '../../../utils/formatUtils';
 import styles from './StatusBadge.module.scss';
 
 export type StatusBadgeType = 'invoice' | 'salesOrder' | 'payment' | 'generic';
@@ -40,7 +41,7 @@ const getTone = (value?: string, type: StatusBadgeType = 'generic'): string => {
 };
 
 export const StatusBadge: React.FC<IStatusBadgeProps> = ({ value, type = 'generic', label }) => {
-  const displayValue = label || value || 'Unknown';
+  const displayValue = label || formatStatusLabel(value);
 
   return <span className={`${styles.badge} ${getTone(value, type)}`}>{displayValue}</span>;
 };

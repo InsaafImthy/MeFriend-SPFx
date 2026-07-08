@@ -8,7 +8,7 @@ import { EmptyState } from '../emptyState/EmptyState';
 import { ErrorState } from '../errorState/ErrorState';
 import { Loader } from '../loaders/Loader';
 import { StatusBadge } from '../statusBadge/StatusBadge';
-import { formatDate } from '../../../utils/formatUtils';
+import { formatDate, formatNullFallback } from '../../../utils/formatUtils';
 import styles from './EntityTable.module.scss';
 
 export interface IEntityTableProps<TItem> {
@@ -25,6 +25,7 @@ export interface IEntityTableProps<TItem> {
   onRowClick?: (item: TItem) => void;
   getRowKey: (item: TItem, index: number) => string;
   actions?: React.ReactNode;
+  rowActionLabel?: string;
 }
 
 const getFieldValue = <TItem,>(item: TItem, fieldName: keyof TItem | string): unknown => {
@@ -70,7 +71,8 @@ export const EntityTable = <TItem,>({
   onPageChange,
   onRowClick,
   getRowKey,
-  actions
+  actions,
+  rowActionLabel = 'View details'
 }: IEntityTableProps<TItem>): React.ReactElement => {
   const totalPages = paginationState ? Math.max(1, Math.ceil(paginationState.totalCount / paginationState.pageSize)) : 1;
 
@@ -135,6 +137,11 @@ export const EntityTable = <TItem,>({
                   </th>
                 );
               })}
+              {onRowClick ? (
+                <th className={styles.actionHeader} scope="col">
+                  Action
+                </th>
+              ) : null}
             </tr>
           </thead>
           <tbody>
@@ -154,6 +161,17 @@ export const EntityTable = <TItem,>({
                 {columns.map(column => (
                   <td key={column.key}>{renderCell(item, column)}</td>
                 ))}
+                {onRowClick ? (
+                  <td className={styles.actionCell} onClick={event => event.stopPropagation()}>
+                    <Button
+                      label="View"
+                      ariaLabel={rowActionLabel}
+                      variant="secondary"
+                      size="small"
+                      onClick={() => onRowClick(item)}
+                    />
+                  </td>
+                ) : null}
               </tr>
             ))}
           </tbody>
@@ -162,7 +180,7 @@ export const EntityTable = <TItem,>({
       {paginationState ? (
         <div className={styles.pagination}>
           <span>
-            Page {paginationState.pageNumber} of {totalPages}
+            Page {formatNullFallback(paginationState.pageNumber)} of {formatNullFallback(totalPages)}
           </span>
           <div className={styles.pageActions}>
             <Button

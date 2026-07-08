@@ -1,48 +1,61 @@
 .navigation {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
 }
 
 .navItem {
-  border-left: 3px solid transparent;
-  color: #475569;
-  font-size: 14px;
-  font-weight: 600;
+  align-items: center;
+  border-radius: 7px;
+  color: rgba(255, 255, 255, 0.78);
+  display: flex;
+  font-size: 13px;
+  font-weight: 500;
+  gap: 12px;
   line-height: 1.2;
-  min-height: 42px;
-  padding: 13px 14px;
+  min-height: 38px;
+  padding: 0 12px;
   text-decoration: none;
-  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+  transition: background-color 140ms ease, box-shadow 140ms ease, color 140ms ease;
 
   &:hover {
-    background: #f1f5f9;
-    color: #0f172a;
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
   }
 }
 
 .active {
-  background: #ecfeff;
-  border-left-color: #0f766e;
-  color: #0f766e;
+  background: #7243d7;
+  box-shadow: 0 10px 24px rgba(54, 22, 128, 0.32);
+  color: #ffffff;
+}
+
+.navIcon {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 18px;
+  font-size: 16px;
+  justify-content: center;
+  width: 18px;
+}
+
+.navLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (max-width: 860px) {
   .navigation {
     flex-direction: row;
     overflow-x: auto;
-    padding-bottom: 4px;
+    padding: 2px 18px 8px;
   }
 
   .navItem {
-    border-left: 0;
-    border-bottom: 3px solid transparent;
     flex: 0 0 auto;
-    min-height: 38px;
-    padding: 10px 12px;
-  }
-
-  .active {
-    border-bottom-color: #0f766e;
+    min-height: 36px;
+    padding: 0 12px;
   }
 }

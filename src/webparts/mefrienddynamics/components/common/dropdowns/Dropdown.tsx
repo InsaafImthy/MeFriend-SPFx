@@ -11,6 +11,7 @@ export interface IDropdownProps<TValue = string> {
   multiSelect?: boolean;
   required?: boolean;
   disabled?: boolean;
+  loading?: boolean;
   readOnly?: boolean;
   errorMessage?: string;
   onChange?: (value: TValue | readonly TValue[] | undefined) => void;
@@ -26,6 +27,7 @@ export const Dropdown = <TValue extends string | number = string>({
   multiSelect = false,
   required = false,
   disabled = false,
+  loading = false,
   readOnly = false,
   errorMessage,
   onChange,
@@ -39,6 +41,8 @@ export const Dropdown = <TValue extends string | number = string>({
     return matchingOption ? matchingOption.key : '';
   };
   const selectedKeys = values.map(item => getOptionKeyByValue(item)).filter(item => item);
+  const isDisabled = disabled || loading || readOnly;
+  const loadingId = `${fieldId}-loading`;
   const filteredOptions = searchable && query
     ? options.filter(option => option.text.toLowerCase().indexOf(query.toLowerCase()) !== -1)
     : options;
@@ -74,7 +78,7 @@ export const Dropdown = <TValue extends string | number = string>({
         <input
           aria-label={`Search ${label}`}
           className={styles.search}
-          disabled={disabled || readOnly}
+          disabled={isDisabled}
           onChange={event => setQuery(event.currentTarget.value)}
           placeholder={`Search ${label}`}
           type="search"
@@ -82,23 +86,29 @@ export const Dropdown = <TValue extends string | number = string>({
         />
       ) : null}
       <select
-        aria-describedby={errorMessage ? errorId : undefined}
+        aria-busy={loading}
+        aria-describedby={errorMessage ? errorId : loading ? loadingId : undefined}
         aria-invalid={errorMessage ? true : undefined}
         className={errorMessage ? `${styles.control} ${styles.hasError}` : styles.control}
-        disabled={disabled || readOnly}
+        disabled={isDisabled}
         id={fieldId}
         multiple={multiSelect}
         onChange={handleChange}
         required={required}
         value={multiSelect ? selectedKeys : value !== undefined ? getOptionKeyByValue(value) : ''}
       >
-        {!multiSelect ? <option value="">{placeholder}</option> : null}
+        {loading ? <option value="">Loading options...</option> : !multiSelect ? <option value="">{placeholder}</option> : null}
         {filteredOptions.map(option => (
           <option disabled={option.disabled} key={option.key} value={option.key}>
             {option.text}
           </option>
         ))}
       </select>
+      {loading ? (
+        <span className={styles.loadingText} id={loadingId} role="status">
+          Loading {label.toLowerCase()} options
+        </span>
+      ) : null}
       {errorMessage ? (
         <span className={styles.error} id={errorId} role="alert">
           {errorMessage}

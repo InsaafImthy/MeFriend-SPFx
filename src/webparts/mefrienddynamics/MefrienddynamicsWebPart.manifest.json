@@ -9,6 +9,7 @@
 
   "requiresCustomScript": false,
   "supportedHosts": ["SharePointWebPart", "TeamsPersonalApp", "TeamsTab", "SharePointFullPage"],
+  "supportsFullBleed": true,
   "supportsThemeVariants": true,
 
   "preconfiguredEntries": [{

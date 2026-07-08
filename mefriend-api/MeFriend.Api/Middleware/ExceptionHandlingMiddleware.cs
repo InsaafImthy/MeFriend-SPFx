@@ -25,6 +25,31 @@ public sealed class ExceptionHandlingMiddleware
         {
             await _next(context);
         }
+        catch (BusinessCentralApiException exception)
+        {
+            var traceId = context.TraceIdentifier;
+
+            _logger.LogWarning(
+                "Business Central request failed. StatusCode: {StatusCode}. BusinessCentralErrorCode: {BusinessCentralErrorCode}. TraceId: {TraceId}",
+                (int)exception.StatusCode,
+                exception.BusinessCentralErrorCode,
+                traceId);
+
+            context.Response.StatusCode = (int)MapStatusCode(exception.StatusCode);
+            context.Response.ContentType = "application/json";
+
+            var details = _environment.IsDevelopment()
+                ? exception.BusinessCentralErrorCode
+                : null;
+
+            var response = ApiResponse<object>.FailureResponse(
+                "BusinessCentralRequestFailed",
+                "Business Central request failed.",
+                details,
+                traceId);
+
+            await context.Response.WriteAsJsonAsync(response);
+        }
         catch (Exception exception)
         {
             var traceId = context.TraceIdentifier;
@@ -44,5 +69,18 @@ public sealed class ExceptionHandlingMiddleware
 
             await context.Response.WriteAsJsonAsync(response);
         }
+    }
+
+    private static HttpStatusCode MapStatusCode(HttpStatusCode statusCode)
+    {
+        return statusCode switch
+        {
+            HttpStatusCode.BadRequest => HttpStatusCode.BadRequest,
+            HttpStatusCode.Unauthorized => HttpStatusCode.BadGateway,
+            HttpStatusCode.Forbidden => HttpStatusCode.BadGateway,
+            HttpStatusCode.NotFound => HttpStatusCode.NotFound,
+            HttpStatusCode.TooManyRequests => HttpStatusCode.TooManyRequests,
+            _ => HttpStatusCode.BadGateway
+        };
     }
 }

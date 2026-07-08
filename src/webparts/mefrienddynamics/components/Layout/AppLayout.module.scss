@@ -1,38 +1,45 @@
 .appLayout {
-  background: #f8fafc;
-  border: 1px solid #d9e2ec;
+  background: #f4f1fb;
   color: #0f172a;
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
-  min-height: 680px;
+  grid-template-columns: 300px minmax(0, 1fr);
+  min-height: inherit;
+  width: 100%;
 }
 
 .sidebar {
-  background: #ffffff;
-  border-right: 1px solid #d9e2ec;
   display: flex;
-  flex-direction: column;
-  gap: 18px;
   min-width: 0;
-  padding: 22px 0;
+  padding: 36px 18px;
+}
+
+.sidebarPanel {
+  background: #21006d;
+  border-radius: 8px;
+  box-shadow: 0 22px 44px rgba(33, 0, 109, 0.18);
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 26px;
+  min-height: calc(100vh - 72px);
+  padding: 30px 22px 22px;
 }
 
 .brand {
   align-items: center;
   display: flex;
   gap: 12px;
-  padding: 0 18px;
 
   h1 {
-    color: #0f172a;
-    font-size: 17px;
+    color: #ffffff;
+    font-size: 18px;
     font-weight: 700;
-    line-height: 1.2;
+    line-height: 1.15;
     margin: 0;
   }
 
   p {
-    color: #64748b;
+    color: rgba(255, 255, 255, 0.66);
     font-size: 12px;
     line-height: 1.35;
     margin: 4px 0 0;
@@ -40,17 +47,16 @@
 }
 
 .brandMark {
-  align-items: center;
-  background: #0f766e;
-  border-radius: 8px;
-  color: #ffffff;
-  display: inline-flex;
+  border-radius: 4px;
+  display: block;
   flex: 0 0 42px;
-  font-size: 14px;
-  font-weight: 750;
   height: 42px;
-  justify-content: center;
+  object-fit: contain;
   width: 42px;
+}
+
+.brandText {
+  min-width: 0;
 }
 
 .main {
@@ -59,27 +65,63 @@
   min-width: 0;
 }
 
-.topBar {
+.content {
+  min-width: 0;
+  padding: 36px 28px 36px 0;
+}
+
+.userPanel {
   align-items: center;
-  background: #ffffff;
-  border-bottom: 1px solid #d9e2ec;
-  color: #64748b;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.7);
   display: flex;
-  font-size: 13px;
-  gap: 8px;
-  justify-content: flex-end;
-  min-height: 58px;
-  padding: 0 24px;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 20px;
+}
+
+.userAvatar {
+  align-items: center;
+  background: #e8fbff;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+  color: #21006d;
+  display: inline-flex;
+  flex: 0 0 34px;
+  font-size: 11px;
+  font-weight: 750;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.userMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+
+  span {
+    font-size: 11px;
+    line-height: 1.2;
+  }
 
   strong {
-    color: #1f2937;
-    font-weight: 650;
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 
-.content {
-  min-width: 0;
-  padding: 24px;
+.userIcon {
+  color: rgba(255, 255, 255, 0.42);
+  flex: 0 0 auto;
+  font-size: 12px;
+  margin-left: auto;
 }
 
 @media (max-width: 860px) {
@@ -88,12 +130,34 @@
   }
 
   .sidebar {
-    border-right: 0;
-    border-bottom: 1px solid #d9e2ec;
-    padding: 16px 0 10px;
+    padding: 14px;
+  }
+
+  .sidebarPanel {
+    gap: 16px;
+    min-height: 0;
+    padding: 18px 0 8px;
+  }
+
+  .brand {
+    padding: 0 18px;
+  }
+
+  .brandText {
+    h1 {
+      font-size: 16px;
+    }
+
+    p {
+      max-width: 220px;
+    }
+  }
+
+  .userPanel {
+    display: none;
   }
 
   .content {
-    padding: 18px;
+    padding: 0 14px 18px;
   }
 }

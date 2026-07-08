@@ -11,6 +11,7 @@ import type {
 import type { IPagedResult } from '../../models/common/IPagedResult';
 import type { IPaginationState } from '../../models/common/IPaginationState';
 import type { ISortState } from '../../models/common/ISortState';
+import { calculateOutstandingAmount, calculatePaymentStatus } from '../../utils/financialUtils';
 
 interface IInvoiceApiModel {
   id?: string;
@@ -95,8 +96,8 @@ export class InvoiceService {
   public mapInvoiceApiToUiModel(api?: IInvoiceApiModel): IInvoiceDetail {
     const totalAmount = this.toAmount(api?.totalAmount, 0);
     const paidAmount = this.toOptionalAmount(api?.paidAmount);
-    const outstandingAmount = this.calculateOutstandingAmount(totalAmount, paidAmount, api?.outstandingAmount);
-    const paymentStatus = this.calculatePaymentStatus(totalAmount, paidAmount, outstandingAmount, api?.paymentStatus);
+    const outstandingAmount = calculateOutstandingAmount(totalAmount, paidAmount, api?.outstandingAmount);
+    const paymentStatus = calculatePaymentStatus(paidAmount, outstandingAmount, api?.paymentStatus);
 
     return {
       id: api?.id || api?.invoiceNumber || '',
@@ -122,11 +123,7 @@ export class InvoiceService {
     paidAmount: number | undefined,
     backendOutstanding?: number
   ): number | undefined {
-    if (this.isValidNumber(backendOutstanding)) {
-      return backendOutstanding;
-    }
-
-    return this.isValidNumber(paidAmount) ? totalAmount - paidAmount : undefined;
+    return calculateOutstandingAmount(totalAmount, paidAmount, backendOutstanding);
   }
 
   public calculatePaymentStatus(
@@ -135,27 +132,7 @@ export class InvoiceService {
     outstandingAmount: number | undefined,
     backendStatus?: PaymentStatus
   ): PaymentStatus {
-    if (backendStatus && backendStatus.trim()) {
-      return backendStatus;
-    }
-
-    if (!this.isValidNumber(outstandingAmount)) {
-      return 'Unknown';
-    }
-
-    if (outstandingAmount <= 0) {
-      return 'Paid';
-    }
-
-    if (this.isValidNumber(paidAmount) && paidAmount > 0 && outstandingAmount > 0) {
-      return 'Partially Paid';
-    }
-
-    if ((!this.isValidNumber(paidAmount) || paidAmount <= 0) && outstandingAmount > 0) {
-      return 'Unpaid';
-    }
-
-    return totalAmount === 0 ? 'Unknown' : 'Unknown';
+    return calculatePaymentStatus(paidAmount, outstandingAmount, backendStatus);
   }
 
   private buildQueryParams(

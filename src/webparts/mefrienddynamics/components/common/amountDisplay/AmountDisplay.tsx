@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { formatCurrency } from '../../../utils/formatUtils';
 import styles from './AmountDisplay.module.scss';
 
 export type AmountDisplayVariant = 'normal' | 'paid' | 'outstanding' | 'total';
@@ -22,10 +23,5 @@ export const AmountDisplay: React.FC<IAmountDisplayProps> = ({
     return <span className={styles.fallback}>{fallback}</span>;
   }
 
-  const formattedAmount = new Intl.NumberFormat('en-IN', {
-    currency: currencyCode,
-    style: 'currency'
-  }).format(amount);
-
-  return <span className={`${styles.amount} ${styles[variant]}`}>{formattedAmount}</span>;
+  return <span className={`${styles.amount} ${styles[variant]}`}>{formatCurrency(amount, currencyCode, fallback)}</span>;
 };

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { formatDate } from '../../../utils/formatUtils';
+import { formatDate, formatNullFallback } from '../../../utils/formatUtils';
 import { AmountDisplay } from '../amountDisplay/AmountDisplay';
 import { StatusBadge } from '../statusBadge/StatusBadge';
 import styles from './LabelValue.module.scss';
@@ -27,6 +27,11 @@ const renderValue = (value: React.ReactNode, renderType: LabelValueRenderType): 
 
   if (renderType === 'date' && typeof value === 'string' && value) {
     return formatDate(value);
+  }
+
+  if (typeof value === 'string' || typeof value === 'number') {
+    const formattedValue = formatNullFallback(value);
+    return formattedValue === '-' ? <span className={styles.fallback}>-</span> : formattedValue;
   }
 
   return value || <span className={styles.fallback}>-</span>;

@@ -2,23 +2,43 @@ using MeFriend.Api.Clients;
 using MeFriend.Api.Middleware;
 using MeFriend.Api.Options;
 using MeFriend.Api.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc.Authorization;
+using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+{
+    options.Filters.Add(new AuthorizeFilter());
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 builder.Services.AddHttpClient();
 builder.Services.AddHttpClient(nameof(BusinessCentralAuthService));
 builder.Services.AddHttpClient(nameof(BusinessCentralHttpClient));
 
-builder.Services.Configure<BusinessCentralOptions>(
-    builder.Configuration.GetSection(BusinessCentralOptions.SectionName));
-builder.Services.Configure<AzureAdOptions>(
-    builder.Configuration.GetSection(AzureAdOptions.SectionName));
+builder.Services
+    .AddOptions<BusinessCentralOptions>()
+    .Bind(builder.Configuration.GetSection(BusinessCentralOptions.SectionName))
+    .Validate(BusinessCentralOptionsValidator.Validate, BusinessCentralOptionsValidator.FailureMessage)
+    .ValidateOnStart();
+
+builder.Services
+    .AddOptions<AzureAdOptions>()
+    .Bind(builder.Configuration.GetSection(AzureAdOptions.SectionName))
+    .Validate(AzureAdOptionsValidator.Validate, AzureAdOptionsValidator.FailureMessage)
+    .ValidateOnStart();
+
+builder.Services
+    .AddOptions<SecurityOptions>()
+    .Bind(builder.Configuration.GetSection(SecurityOptions.SectionName))
+    .Validate(SecurityOptionsValidator.Validate, SecurityOptionsValidator.FailureMessage)
+    .ValidateOnStart();
 
 var allowedOrigins = builder.Configuration
-    .GetSection("Security:AllowedCorsOrigins")
+    .GetSection($"{SecurityOptions.SectionName}:AllowedCorsOrigins")
     .Get<string[]>() ?? Array.Empty<string>();
 
 builder.Services.AddCors(options =>
@@ -32,10 +52,34 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Microsoft Entra ID authentication is intentionally a placeholder here.
-// Add JwtBearer or Microsoft.Identity.Web configuration when tenant/app values are finalized.
-builder.Services.AddAuthentication();
-builder.Services.AddAuthorization();
+var azureAdOptions = builder.Configuration
+    .GetSection(AzureAdOptions.SectionName)
+    .Get<AzureAdOptions>() ?? new AzureAdOptions();
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.Authority = AzureAdOptionsValidator.BuildAuthority(azureAdOptions);
+        options.Audience = azureAdOptions.GetAudience();
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true
+        };
+    });
+
+builder.Services.AddAuthorization(options =>
+{
+    var authenticatedUsers = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
+
+    options.DefaultPolicy = authenticatedUsers;
+    options.FallbackPolicy = authenticatedUsers;
+});
 
 builder.Services.AddScoped<IBusinessCentralHttpClient, BusinessCentralHttpClient>();
 builder.Services.AddSingleton<IBusinessCentralAuthService, BusinessCentralAuthService>();
@@ -49,6 +93,7 @@ var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
+    // OpenAPI is intentionally development-only. Do not map Swagger/OpenAPI in production.
     app.MapOpenApi();
 }
 

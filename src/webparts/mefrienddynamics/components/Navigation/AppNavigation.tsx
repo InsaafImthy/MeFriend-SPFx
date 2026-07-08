@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { Icon } from '@fluentui/react';
 import { moduleDefinitions, routeDefinitions } from '../../config/moduleConfig';
 import type { AppRouteKey } from '../../models/common/AppRoute';
 import { buildHashHref } from '../../utils/routeUtils';
@@ -9,6 +10,15 @@ export interface IAppNavigationProps {
   canAccessModule: (moduleKey: string) => boolean;
   onNavigate: (path: string) => void;
 }
+
+const moduleIconNames: { readonly [moduleKey: string]: string } = {
+  customers: 'ContactCard',
+  events: 'Calendar',
+  salespersons: 'People',
+  invoices: 'Invoice',
+  salesOrders: 'ShoppingCart',
+  settings: 'Settings'
+};
 
 export const AppNavigation: React.FC<IAppNavigationProps> = ({ activeRouteKey, canAccessModule, onNavigate }) => {
   const navigationModules = moduleDefinitions
@@ -33,7 +43,8 @@ export const AppNavigation: React.FC<IAppNavigationProps> = ({ activeRouteKey, c
               onNavigate(moduleItem.route);
             }}
           >
-            {moduleItem.title}
+            <Icon className={styles.navIcon} iconName={moduleIconNames[moduleItem.key] || moduleItem.icon} aria-hidden="true" />
+            <span className={styles.navLabel}>{moduleItem.title}</span>
           </a>
         );
       })}

@@ -21,6 +21,7 @@ export interface IEntityFormProps {
   onSubmit?: (values: EntityFormValues) => void;
   onCancel?: () => void;
   actions?: React.ReactNode;
+  lookupLoadingKeys?: Readonly<Record<string, boolean>>;
   onDirtyChange?: (isDirty: boolean) => void;
   onValidityChange?: (isValid: boolean) => void;
 }
@@ -42,6 +43,7 @@ const renderField = (
   errorMessage: string | undefined,
   disabled: boolean,
   readOnly: boolean,
+  lookupLoading: boolean,
   setValue: (key: string, value: EntityFormValue) => void,
   validateField: (key: string) => void
 ): React.ReactNode => {
@@ -59,6 +61,7 @@ const renderField = (
         options={field.options || []}
         required={field.required}
         disabled={sharedDisabled}
+        loading={lookupLoading}
         readOnly={sharedReadOnly}
         errorMessage={errorMessage}
         onChange={nextValue => setValue(field.key, typeof nextValue === 'string' || typeof nextValue === 'number' ? nextValue : undefined)}
@@ -114,6 +117,7 @@ export const EntityForm: React.FC<IEntityFormProps> = ({
   onSubmit,
   onCancel,
   actions,
+  lookupLoadingKeys = {},
   onDirtyChange,
   onValidityChange
 }) => {
@@ -157,6 +161,7 @@ export const EntityForm: React.FC<IEntityFormProps> = ({
                   form.touched[field.key] ? form.errors[field.key] : undefined,
                   disabled || loading,
                   readOnly,
+                  lookupLoadingKeys[field.key] === true,
                   form.setValue,
                   form.validateField
                 )

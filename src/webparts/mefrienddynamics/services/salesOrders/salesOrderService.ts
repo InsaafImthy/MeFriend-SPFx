@@ -13,7 +13,11 @@ import type {
 import type { IPagedResult } from '../../models/common/IPagedResult';
 import type { IPaginationState } from '../../models/common/IPaginationState';
 import type { ISortState } from '../../models/common/ISortState';
-import { InvoiceService } from '../invoices/invoiceService';
+import {
+  calculateOutstandingAmount,
+  calculatePaymentStatus,
+  summarizeRelatedInvoices
+} from '../../utils/financialUtils';
 
 interface ISalesOrderApiModel {
   id?: string;
@@ -66,11 +70,7 @@ interface ISalesOrderInvoiceSummaryApiModel {
 }
 
 export class SalesOrderService {
-  private readonly invoiceService: InvoiceService;
-
-  public constructor(private readonly apiClient: ApiClient) {
-    this.invoiceService = new InvoiceService(apiClient);
-  }
+  public constructor(private readonly apiClient: ApiClient) {}
 
   public async getSalesOrders(
     filters: ISalesOrderFilters = {},
@@ -156,11 +156,7 @@ export class SalesOrderService {
     return api.map(invoice => {
       const totalAmount = invoice.totalAmount || 0;
       const paidAmount = invoice.paidAmount || 0;
-      const outstandingAmount = this.invoiceService.calculateOutstandingAmount(
-        totalAmount,
-        paidAmount,
-        invoice.outstandingAmount
-      );
+      const outstandingAmount = calculateOutstandingAmount(totalAmount, paidAmount, invoice.outstandingAmount);
 
       return {
         id: invoice.id || invoice.invoiceNumber || '',
@@ -169,12 +165,7 @@ export class SalesOrderService {
         totalAmount,
         paidAmount,
         outstandingAmount,
-        paymentStatus: this.invoiceService.calculatePaymentStatus(
-          totalAmount,
-          paidAmount,
-          outstandingAmount,
-          invoice.paymentStatus
-        ),
+        paymentStatus: calculatePaymentStatus(paidAmount, outstandingAmount, invoice.paymentStatus),
         invoiceStatus: invoice.invoiceStatus || '',
         currencyCode: invoice.currencyCode || ''
       };
@@ -244,12 +235,6 @@ export class SalesOrderService {
       };
     }
 
-    return {
-      invoiceCount: relatedInvoices.length,
-      outstandingInvoiceCount: relatedInvoices.filter(invoice => (invoice.outstandingAmount || 0) > 0).length,
-      totalInvoicedAmount: relatedInvoices.reduce((total, invoice) => total + invoice.totalAmount, 0),
-      totalPaidAmount: relatedInvoices.reduce((total, invoice) => total + (invoice.paidAmount || 0), 0),
-      totalOutstandingAmount: relatedInvoices.reduce((total, invoice) => total + (invoice.outstandingAmount || 0), 0)
-    };
+    return summarizeRelatedInvoices(relatedInvoices);
   }
 }

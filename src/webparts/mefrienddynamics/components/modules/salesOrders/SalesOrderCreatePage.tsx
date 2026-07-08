@@ -262,6 +262,11 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
         cancelLabel="Cancel"
         loading={loading}
         disabled={loading}
+        lookupLoadingKeys={{
+          customerCode: lookupLoading,
+          eventCode: lookupLoading,
+          salespersonCode: lookupLoading
+        }}
         onDirtyChange={setHeaderDirty}
         onSubmit={values => {
           handleSubmit(values).catch(() => undefined);

@@ -49,6 +49,16 @@ const getDetailErrorMessage = (error: unknown): string => {
   return getUserFriendlyError(normalizedError);
 };
 
+const getRelatedInvoicesErrorMessage = (error: unknown): string => {
+  const normalizedError = normalizeError(error);
+
+  if (normalizedError.status === 404 || normalizedError.status === 405 || normalizedError.status === 501) {
+    return 'Related invoices API is not configured yet.';
+  }
+
+  return getUserFriendlyError(normalizedError);
+};
+
 export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
   salesOrderId,
   salesOrderService,
@@ -57,7 +67,9 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
   const [salesOrder, setSalesOrder] = React.useState<ISalesOrderDetail | undefined>();
   const [relatedInvoices, setRelatedInvoices] = React.useState<readonly ISalesOrderRelatedInvoice[]>([]);
   const [loading, setLoading] = React.useState<boolean>(false);
+  const [relatedInvoicesLoading, setRelatedInvoicesLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | undefined>();
+  const [relatedInvoicesError, setRelatedInvoicesError] = React.useState<string | undefined>();
 
   React.useEffect(() => {
     const loadSalesOrder = async (): Promise<void> => {
@@ -66,9 +78,8 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
 
       try {
         const detail = await salesOrderService.getSalesOrderById(salesOrderId);
-        const invoices = await salesOrderService.getInvoicesForSalesOrder(salesOrderId);
         setSalesOrder(detail);
-        setRelatedInvoices(invoices);
+        setRelatedInvoices(detail.relatedInvoices || []);
       } catch (loadError) {
         setSalesOrder(undefined);
         setRelatedInvoices([]);
@@ -80,6 +91,28 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
 
     loadSalesOrder().catch(() => undefined);
   }, [salesOrderId, salesOrderService]);
+
+  React.useEffect(() => {
+    if (!salesOrder || !salesOrderId) {
+      return;
+    }
+
+    const loadRelatedInvoices = async (): Promise<void> => {
+      setRelatedInvoicesLoading(true);
+      setRelatedInvoicesError(undefined);
+
+      try {
+        const invoices = await salesOrderService.getInvoicesForSalesOrder(salesOrderId);
+        setRelatedInvoices(invoices);
+      } catch (loadError) {
+        setRelatedInvoicesError(getRelatedInvoicesErrorMessage(loadError));
+      } finally {
+        setRelatedInvoicesLoading(false);
+      }
+    };
+
+    loadRelatedInvoices().catch(() => undefined);
+  }, [salesOrder, salesOrderId, salesOrderService]);
 
   const invoiceSummary = salesOrderService.getInvoiceSummaryFromRelatedInvoices(relatedInvoices);
   const currencyCode = salesOrder?.currencyCode || relatedInvoices[0]?.currencyCode;
@@ -153,6 +186,8 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
           title="Related Invoices"
           items={relatedInvoices}
           columns={invoiceColumns}
+          loading={relatedInvoicesLoading}
+          error={relatedInvoicesError}
           emptyTitle="No invoices found for this sales order."
           emptyMessage="No invoices found for this sales order."
           onRowClick={invoice => onNavigate(`${invoicesModuleConfig.route}/detail/${encodeURIComponent(invoice.id || invoice.invoiceNumber)}`)}

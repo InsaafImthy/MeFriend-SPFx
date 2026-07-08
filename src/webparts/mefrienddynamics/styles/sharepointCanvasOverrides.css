@@ -1,0 +1,27 @@
+#spPageCanvasContent,
+.CanvasZone,
+.CanvasZoneContainer,
+.CanvasSection,
+.ControlZone,
+[data-automation-id="CanvasZone"],
+[data-automation-id="CanvasSection"],
+[data-automation-id="CanvasControl"],
+[data-automation-id="ControlZone"] {
+  box-sizing: border-box;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  max-width: none !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  width: 100% !important;
+}
+
+#spPageCanvasContent {
+  padding-top: 0 !important;
+}
+
+[data-automation-id="CanvasControl"],
+[data-automation-id="ControlZone"],
+.ControlZone {
+  padding-top: 0 !important;
+}

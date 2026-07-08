@@ -86,17 +86,34 @@ export const normalizeError = (error: unknown): ApiError => {
 
 export const getUserFriendlyError = (error: unknown): string => {
   const normalizedError = normalizeError(error);
+  const message = normalizedError.message.toLowerCase();
 
   if (normalizedError.errors && normalizedError.errors.length > 0) {
     return normalizedError.errors.join(' ');
   }
 
   if (normalizedError.status === 401 || normalizedError.status === 403) {
-    return 'You are not authorized to perform this action.';
+    return 'Access denied. You are not authorized to perform this action.';
+  }
+
+  if (normalizedError.status === 400 || normalizedError.status === 422) {
+    return normalizedError.message || 'Validation failed. Please review the highlighted fields.';
   }
 
   if (normalizedError.status === 404) {
     return 'The requested record was not found.';
+  }
+
+  if (normalizedError.status === 405 || normalizedError.status === 501) {
+    return 'This API contract is not configured yet.';
+  }
+
+  if (
+    normalizedError.status === 0 ||
+    message.indexOf('failed to fetch') !== -1 ||
+    message.indexOf('network') !== -1
+  ) {
+    return 'Network failure. Please check your connection and try again.';
   }
 
   if (normalizedError.status && normalizedError.status >= 500) {

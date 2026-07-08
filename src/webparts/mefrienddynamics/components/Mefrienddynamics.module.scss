@@ -4,10 +4,14 @@
   box-sizing: border-box;
   color: "[theme:bodyText, default: #323130]";
   color: var(--bodyText);
+  font-family: "Josefin Sans", "Segoe UI", Arial, sans-serif;
   min-width: 0;
+  margin: 0;
   overflow: hidden;
+  padding: 0;
+  width: 100%;
 
   &.teams {
-    font-family: $ms-font-family-fallbacks;
+    font-family: "Josefin Sans", "Segoe UI", Arial, sans-serif;
   }
 }
