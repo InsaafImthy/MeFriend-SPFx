@@ -169,16 +169,16 @@
   border-radius: 8px;
   box-shadow: 0 18px 44px rgba(33, 0, 109, 0.16);
   box-sizing: border-box;
-  left: 0;
-  margin-top: 7px;
+  display: flex;
+  flex-direction: column;
   max-height: 300px;
-  min-width: 100%;
+  min-height: 0;
+  min-width: 0;
   overflow: hidden;
   padding: 8px;
-  position: absolute;
-  top: 100%;
+  position: fixed;
   width: 100%;
-  z-index: 30;
+  z-index: 1000;
 }
 
 .search {
@@ -211,8 +211,10 @@
 .optionList {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
   gap: 3px;
   max-height: 236px;
+  min-height: 0;
   min-width: 0;
   overflow-y: auto;
   scrollbar-color: #b9aecf transparent;

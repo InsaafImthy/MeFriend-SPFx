@@ -58,9 +58,36 @@ export const Dropdown = <TValue extends string | number = string>({
   const selectedOption = selectedOptions[0];
   const isDisabled = disabled || loading || readOnly;
   const loadingId = `${fieldId}-loading`;
+  const [menuStyle, setMenuStyle] = React.useState<React.CSSProperties>({});
   const filteredOptions = searchable && query
     ? options.filter(option => option.text.toLowerCase().indexOf(query.toLowerCase()) !== -1)
     : options;
+
+  const updateMenuPosition = React.useCallback((): void => {
+    if (!fieldRef.current || typeof window === 'undefined') {
+      return;
+    }
+
+    const viewportPadding = 12;
+    const triggerRect = fieldRef.current.getBoundingClientRect();
+    const menuGap = 7;
+    const preferredMenuHeight = searchable ? 300 : Math.min(300, 18 + filteredOptions.length * 39);
+    const availableBelow = window.innerHeight - triggerRect.bottom - viewportPadding - menuGap;
+    const availableAbove = triggerRect.top - viewportPadding - menuGap;
+    const shouldOpenAbove = availableBelow < 180 && availableAbove > availableBelow;
+    const availableHeight = Math.max(120, shouldOpenAbove ? availableAbove : availableBelow);
+    const resolvedHeight = Math.min(preferredMenuHeight, availableHeight);
+    const maxLeft = window.innerWidth - viewportPadding - triggerRect.width;
+    const resolvedLeft = Math.max(viewportPadding, Math.min(triggerRect.left, maxLeft));
+
+    setMenuStyle({
+      left: resolvedLeft,
+      maxHeight: resolvedHeight,
+      minWidth: triggerRect.width,
+      top: shouldOpenAbove ? triggerRect.top - resolvedHeight - menuGap : triggerRect.bottom + menuGap,
+      width: triggerRect.width
+    });
+  }, [filteredOptions.length, searchable]);
 
   React.useEffect(() => {
     if (!isOpen) {
@@ -76,6 +103,21 @@ export const Dropdown = <TValue extends string | number = string>({
     document.addEventListener('mousedown', handleDocumentMouseDown);
     return () => document.removeEventListener('mousedown', handleDocumentMouseDown);
   }, [isOpen]);
+
+  React.useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+
+    updateMenuPosition();
+    window.addEventListener('resize', updateMenuPosition);
+    window.addEventListener('scroll', updateMenuPosition, true);
+
+    return () => {
+      window.removeEventListener('resize', updateMenuPosition);
+      window.removeEventListener('scroll', updateMenuPosition, true);
+    };
+  }, [isOpen, updateMenuPosition]);
 
   const handleOptionSelect = (option: ILookupOption<TValue>): void => {
     if (!onChange || readOnly) {
@@ -212,7 +254,7 @@ export const Dropdown = <TValue extends string | number = string>({
         </button>
 
         {isOpen ? (
-          <div className={styles.menu} role="presentation">
+          <div className={styles.menu} role="presentation" style={menuStyle}>
             {searchable ? (
               <input
                 aria-label={`Search ${label}`}
