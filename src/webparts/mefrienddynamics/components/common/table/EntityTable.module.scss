@@ -3,8 +3,11 @@
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
+  min-height: 0;
   min-width: 0;
+  overflow: hidden;
 }
 
 .toolbar {
@@ -17,8 +20,11 @@
 }
 
 .scrollArea {
+  flex: 1 1 auto;
+  min-height: 0;
   min-width: 0;
-  overflow-x: auto;
+  overflow: auto;
+  scrollbar-gutter: stable;
 }
 
 .table {

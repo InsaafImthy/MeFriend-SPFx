@@ -2,9 +2,11 @@
   --mefriend-sharepoint-header-height: 48px;
 
   font-family: "Josefin Sans", "Segoe UI", Arial, sans-serif;
+  height: calc(100vh - var(--mefriend-sharepoint-header-height));
   margin: 0;
   min-width: 0;
   min-height: calc(100vh - var(--mefriend-sharepoint-header-height));
+  overflow: hidden;
   padding: 0;
   width: 100%;
 }

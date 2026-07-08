@@ -8,6 +8,7 @@ import styles from './AppNavigation.module.scss';
 export interface IAppNavigationProps {
   activeRouteKey: AppRouteKey;
   canAccessModule: (moduleKey: string) => boolean;
+  isCollapsed?: boolean;
   onNavigate: (path: string) => void;
 }
 
@@ -20,15 +21,15 @@ const moduleIconNames: { readonly [moduleKey: string]: string } = {
   settings: 'Settings'
 };
 
-export const AppNavigation: React.FC<IAppNavigationProps> = ({ activeRouteKey, canAccessModule, onNavigate }) => {
+export const AppNavigation: React.FC<IAppNavigationProps> = ({ activeRouteKey, canAccessModule, isCollapsed = false, onNavigate }) => {
   const navigationModules = moduleDefinitions
-    .filter(moduleItem => moduleItem.visible && canAccessModule(moduleItem.key))
+    .filter(moduleItem => moduleItem.key !== 'settings' && moduleItem.visible && canAccessModule(moduleItem.key))
     .slice()
     .sort((firstModule, secondModule) => firstModule.order - secondModule.order);
   const activeRoute = routeDefinitions.filter(route => route.key === activeRouteKey)[0];
 
   return (
-    <nav className={styles.navigation} aria-label="MeFriend modules">
+    <nav className={isCollapsed ? `${styles.navigation} ${styles.collapsed}` : styles.navigation} aria-label="MeFriend modules">
       {navigationModules.map(moduleItem => {
         const isActive = activeRoute ? moduleItem.key === activeRoute.moduleKey : false;
 
@@ -38,6 +39,7 @@ export const AppNavigation: React.FC<IAppNavigationProps> = ({ activeRouteKey, c
             className={isActive ? `${styles.navItem} ${styles.active}` : styles.navItem}
             href={buildHashHref(moduleItem.route)}
             aria-current={isActive ? 'page' : undefined}
+            title={isCollapsed ? moduleItem.title : undefined}
             onClick={event => {
               event.preventDefault();
               onNavigate(moduleItem.route);

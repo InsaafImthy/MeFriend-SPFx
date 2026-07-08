@@ -2,6 +2,7 @@
   align-items: center;
   border: 1px solid transparent;
   border-radius: 6px;
+  box-sizing: border-box;
   cursor: pointer;
   display: inline-flex;
   font-family: inherit;
@@ -16,7 +17,7 @@
 }
 
 .button:focus-visible {
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22);
+  box-shadow: 0 0 0 3px rgba(114, 67, 215, 0.2);
   outline: none;
 }
 
@@ -44,25 +45,27 @@
 }
 
 .primary {
-  background: #0f766e;
-  border-color: #0f766e;
+  background: #21006d;
+  border-color: #21006d;
+  box-shadow: 0 10px 20px rgba(33, 0, 109, 0.14);
   color: #ffffff;
 }
 
 .primary:hover:not(:disabled) {
-  background: #115e59;
-  border-color: #115e59;
+  background: #351290;
+  border-color: #351290;
+  box-shadow: 0 12px 24px rgba(33, 0, 109, 0.2);
 }
 
 .secondary {
   background: #ffffff;
-  border-color: #cbd5e1;
-  color: #0f172a;
+  border-color: #d8d0ea;
+  color: #21006d;
 }
 
 .secondary:hover:not(:disabled) {
-  background: #f8fafc;
-  border-color: #94a3b8;
+  background: #f6f2ff;
+  border-color: #bba9e5;
 }
 
 .danger {
@@ -79,12 +82,12 @@
 .ghost {
   background: transparent;
   border-color: transparent;
-  color: #334155;
+  color: #21006d;
 }
 
 .ghost:hover:not(:disabled) {
-  background: #f1f5f9;
-  color: #0f172a;
+  background: #f6f2ff;
+  color: #351290;
 }
 
 .loading {

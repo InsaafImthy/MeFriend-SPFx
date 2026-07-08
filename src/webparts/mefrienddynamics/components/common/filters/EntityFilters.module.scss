@@ -1,23 +1,31 @@
 .filters {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #ddd6ef;
   border-radius: 8px;
+  box-shadow: 0 14px 34px rgba(33, 0, 109, 0.06);
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 14px;
+  gap: 16px;
+  padding: 18px;
+  width: 100%;
 }
 
 .grid {
+  align-items: start;
   display: grid;
-  gap: 14px;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(172px, 100%), 1fr));
+  min-width: 0;
 }
 
 .dateRange {
+  align-items: start;
   display: grid;
   gap: 10px;
+  grid-column: span 2;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 0;
 }
 
 .checkbox {
@@ -32,19 +40,27 @@
 }
 
 .checkbox input {
-  accent-color: #0f766e;
+  accent-color: #21006d;
   height: 16px;
   width: 16px;
 }
 
 .actions {
+  border-top: 1px solid #eee9f8;
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   justify-content: flex-end;
+  padding-top: 16px;
 }
 
 @media (max-width: 560px) {
+  .filters {
+    padding: 14px;
+  }
+
   .dateRange {
+    grid-column: span 1;
     grid-template-columns: 1fr;
   }
 

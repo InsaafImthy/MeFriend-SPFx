@@ -1,6 +1,5 @@
 export const appConfig = {
-  appName: 'MeFriend Business Central',
-  appSubtitle: 'Madhyamam / MeFriend operations workspace',
+  appName: 'MeFriend',
   defaultCurrencyCode: 'INR',
   defaultCountryCode: 'IN',
   defaultRoutePath: 'customers',

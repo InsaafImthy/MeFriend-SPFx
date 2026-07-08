@@ -2,6 +2,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 100%;
 }
 
 .navItem {
@@ -24,6 +25,30 @@
   }
 }
 
+.collapsed {
+  align-items: center;
+
+  .navItem {
+    gap: 0;
+    justify-content: center;
+    min-height: 38px;
+    padding: 0;
+    width: 38px;
+  }
+
+  .navIcon {
+    flex-basis: 18px;
+    font-size: 16px;
+    width: 18px;
+  }
+
+  .navLabel {
+    opacity: 0;
+    pointer-events: none;
+    width: 0;
+  }
+}
+
 .active {
   background: #7243d7;
   box-shadow: 0 10px 24px rgba(54, 22, 128, 0.32);
@@ -43,6 +68,7 @@
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: opacity 140ms ease, width 180ms ease;
   white-space: nowrap;
 }
 
@@ -51,6 +77,23 @@
     flex-direction: row;
     overflow-x: auto;
     padding: 2px 18px 8px;
+  }
+
+  .collapsed {
+    align-items: stretch;
+
+    .navItem {
+      gap: 12px;
+      justify-content: flex-start;
+      padding: 0 12px;
+      width: auto;
+    }
+
+    .navLabel {
+      opacity: 1;
+      pointer-events: auto;
+      width: auto;
+    }
   }
 
   .navItem {

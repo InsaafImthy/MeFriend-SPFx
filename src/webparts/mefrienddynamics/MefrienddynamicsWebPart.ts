@@ -12,10 +12,8 @@ import { SPComponentLoader } from '@microsoft/sp-loader';
 import * as strings from 'MefrienddynamicsWebPartStrings';
 import Mefrienddynamics from './components/Mefrienddynamics';
 import { IMefrienddynamicsProps } from './components/IMefrienddynamicsProps';
+import './styles/sharepointCanvasOverrides.css';
 
-// SPFx returns a packaged asset URL here, which SPComponentLoader.loadCss needs.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const sharePointCanvasOverridesUrl: string = require('./styles/sharepointCanvasOverrides.css');
 const josefinSansStylesheetUrl: string = 'https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@300;400;500;600;700&display=swap';
 
 export interface IMefrienddynamicsWebPartProps {
@@ -48,7 +46,6 @@ export default class MefrienddynamicsWebPart extends BaseClientSideWebPart<IMefr
 
   protected onInit(): Promise<void> {
     SPComponentLoader.loadCss(josefinSansStylesheetUrl);
-    SPComponentLoader.loadCss(sharePointCanvasOverridesUrl);
 
     return this._getEnvironmentMessage().then(message => {
       this._environmentMessage = message;
