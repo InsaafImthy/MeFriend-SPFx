@@ -9,6 +9,8 @@ export interface ISalesOrderLineItem {
   quantity: number;
   unitPrice: number;
   lineAmount: number;
+  taxAmount?: number;
+  lineStatus?: string;
 }
 
 export interface ISalesOrderRelatedInvoice {
@@ -57,6 +59,9 @@ export interface ISalesOrderCreateFormState {
   salespersonCode: string;
   eventCode?: string;
   orderDate?: string;
+  postingDate?: string;
+  externalDocumentNumber?: string;
+  remarks?: string;
   currencyCode?: string;
   lines: readonly ISalesOrderLineItem[];
 }
@@ -64,7 +69,12 @@ export interface ISalesOrderCreateFormState {
 export interface ISalesOrderCreateRequest {
   customerCode: string;
   salespersonCode: string;
+  eventCode?: string;
   orderDate?: string;
+  postingDate?: string;
+  externalDocumentNumber?: string;
+  remarks?: string;
+  currencyCode?: string;
   lines: readonly ISalesOrderLineItem[];
 }
 

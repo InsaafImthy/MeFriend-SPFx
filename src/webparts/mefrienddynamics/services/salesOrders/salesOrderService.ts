@@ -40,6 +40,9 @@ interface ISalesOrderLineItemApiModel {
   quantity?: number;
   unitPrice?: number;
   lineAmount?: number;
+  taxAmount?: number;
+  tax?: number;
+  lineStatus?: string;
 }
 
 interface ISalesOrderRelatedInvoiceApiModel {
@@ -130,7 +133,12 @@ export class SalesOrderService {
     return {
       customerCode: form.customerCode.trim(),
       salespersonCode: form.salespersonCode.trim(),
+      eventCode: form.eventCode?.trim() || undefined,
       orderDate: form.orderDate,
+      postingDate: form.postingDate,
+      externalDocumentNumber: form.externalDocumentNumber?.trim() || undefined,
+      remarks: form.remarks?.trim() || undefined,
+      currencyCode: form.currencyCode?.trim() || undefined,
       lines: form.lines.map(line => ({
         lineNumber: line.lineNumber.trim(),
         itemCode: line.itemCode.trim(),
@@ -173,6 +181,12 @@ export class SalesOrderService {
     });
   }
 
+  public getInvoiceSummaryFromRelatedInvoices(
+    relatedInvoices: readonly ISalesOrderRelatedInvoice[]
+  ): ISalesOrderInvoiceSummary {
+    return this.mapInvoiceSummaryApiToUiModel(undefined, relatedInvoices);
+  }
+
   private buildQueryParams(
     filters: ISalesOrderFilters,
     pagination?: Partial<IPaginationState>,
@@ -210,7 +224,9 @@ export class SalesOrderService {
       description: api.description || '',
       quantity: api.quantity || 0,
       unitPrice: api.unitPrice || 0,
-      lineAmount: api.lineAmount || 0
+      lineAmount: api.lineAmount || 0,
+      taxAmount: api.taxAmount !== undefined ? api.taxAmount : api.tax,
+      lineStatus: api.lineStatus || ''
     };
   }
 

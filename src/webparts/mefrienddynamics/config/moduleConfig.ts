@@ -4,13 +4,27 @@ import { eventsModuleConfig } from './modules/eventsModuleConfig';
 import { invoicesModuleConfig } from './modules/invoicesModuleConfig';
 import { salesOrdersModuleConfig } from './modules/salesOrdersModuleConfig';
 import { salespersonsModuleConfig } from './modules/salespersonsModuleConfig';
+import type { IModuleConfig } from '../models/common/IModuleConfig';
+
+export const settingsModuleConfig: IModuleConfig = {
+  key: 'settings',
+  title: 'Settings',
+  route: 'settings',
+  icon: 'Settings',
+  description: 'Permission and access-control settings.',
+  createEnabled: false,
+  detailEnabled: false,
+  order: 99,
+  visible: true
+};
 
 export const moduleDefinitions = [
   customersModuleConfig,
   eventsModuleConfig,
   salespersonsModuleConfig,
   invoicesModuleConfig,
-  salesOrdersModuleConfig
+  salesOrdersModuleConfig,
+  settingsModuleConfig
 ] as const;
 
 export const routeDefinitions: readonly IAppRouteDefinition[] = [
@@ -97,6 +111,13 @@ export const routeDefinitions: readonly IAppRouteDefinition[] = [
     title: 'Sales Order Detail',
     moduleKey: salesOrdersModuleConfig.key,
     showInNavigation: false
+  },
+  {
+    key: 'settings',
+    path: settingsModuleConfig.route,
+    title: settingsModuleConfig.title,
+    moduleKey: settingsModuleConfig.key,
+    showInNavigation: true
   }
 ];
 

@@ -39,8 +39,38 @@ export const salesOrdersModuleConfig: IModuleConfig<ISalesOrderListItem> = {
   ],
   formFields: [
     { key: 'customerCode', label: 'Customer', type: 'lookup', required: true, section: 'Order Header' },
-    { key: 'salespersonCode', label: 'Salesperson', type: 'lookup', required: true, section: 'Order Header' },
+    { key: 'salespersonCode', label: 'Salesperson', type: 'lookup', required: false, section: 'Order Header' },
     { key: 'eventCode', label: 'Event', type: 'lookup', required: false, section: 'Order Header' },
-    { key: 'orderDate', label: 'Order Date', type: 'date', required: true, section: 'Order Header' }
+    { key: 'orderDate', label: 'Order Date', type: 'date', required: true, section: 'Order Header' },
+    { key: 'postingDate', label: 'Posting Date', type: 'date', required: false, section: 'Billing and References' },
+    {
+      key: 'externalDocumentNumber',
+      label: 'External Document/Reference Number',
+      type: 'text',
+      required: false,
+      section: 'Billing and References'
+    },
+    { key: 'remarks', label: 'Remarks/Notes', type: 'textarea', required: false, section: 'Billing and References' }
   ]
 };
+
+export const salesOrderLineItemFields = [
+  { key: 'itemCode', label: 'Item/Service Code', type: 'text', required: true },
+  { key: 'description', label: 'Description', type: 'text', required: true },
+  {
+    key: 'quantity',
+    label: 'Quantity',
+    type: 'number',
+    required: true,
+    validationRules: [{ type: 'min', value: 0.00001, message: 'Quantity must be greater than zero.' }]
+  },
+  {
+    key: 'unitPrice',
+    label: 'Unit Price/Rate',
+    type: 'amount',
+    required: true,
+    validationRules: [{ type: 'min', value: 0, message: 'Unit price/rate cannot be negative.' }]
+  },
+  { key: 'lineAmount', label: 'Amount', type: 'amount', required: true, readOnly: true },
+  { key: 'taxAmount', label: 'Tax', type: 'amount', required: false, readOnly: true }
+] as const;

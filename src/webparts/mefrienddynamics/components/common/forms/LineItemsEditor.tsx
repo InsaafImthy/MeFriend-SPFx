@@ -20,6 +20,7 @@ export interface ILineItemsEditorProps<TItem extends LineItemRecord> {
   disabled?: boolean;
   readOnly?: boolean;
   requireAtLeastOneLine?: boolean;
+  showValidationErrors?: boolean;
   createDefaultItem?: () => TItem;
   calculateItem?: (item: TItem, changedKey: string) => TItem;
   validateLine?: (item: TItem, index: number) => EntityFormErrors;
@@ -71,6 +72,7 @@ export const LineItemsEditor = <TItem extends LineItemRecord>({
   disabled = false,
   readOnly = false,
   requireAtLeastOneLine = true,
+  showValidationErrors = false,
   createDefaultItem,
   calculateItem,
   validateLine,
@@ -119,7 +121,7 @@ export const LineItemsEditor = <TItem extends LineItemRecord>({
 
   const renderCell = (field: IFormFieldConfig, item: TItem, rowIndex: number): React.ReactNode => {
     const value = item[field.key];
-    const errorMessage = touchedRows[rowIndex] ? allLineErrors[rowIndex][field.key] : undefined;
+    const errorMessage = touchedRows[rowIndex] || showValidationErrors ? allLineErrors[rowIndex][field.key] : undefined;
     const fieldDisabled = disabled || Boolean(field.disabled);
     const fieldReadOnly = readOnly || Boolean(field.readOnly);
 

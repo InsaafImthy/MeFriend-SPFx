@@ -10,7 +10,8 @@ export type AppRouteKey =
   | 'invoiceDetail'
   | 'salesOrders'
   | 'salesOrderCreate'
-  | 'salesOrderDetail';
+  | 'salesOrderDetail'
+  | 'settings';
 
 export interface IAppRouteDefinition {
   key: AppRouteKey;

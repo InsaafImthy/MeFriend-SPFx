@@ -13,6 +13,7 @@ export interface IEntityDashboardCreateButtonConfig {
   label: string;
   variant?: ButtonVariant;
   disabled?: boolean;
+  visible?: boolean;
 }
 
 export interface IEntityDashboardProps<TItem> {
@@ -62,7 +63,7 @@ export const EntityDashboard = <TItem,>({
   emptyTitle,
   emptyMessage
 }: IEntityDashboardProps<TItem>): React.ReactElement => {
-  const actions = createButton ? (
+  const actions = createButton && createButton.visible !== false ? (
     <Button
       label={createButton.label}
       variant={createButton.variant || 'primary'}

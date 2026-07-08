@@ -19,6 +19,7 @@ export * from './inputs/InputField';
 export * from './loaders/AppLoader';
 export * from './loaders/Loader';
 export * from './pageContainer/PageContainer';
+export * from './pageHeader/PageHeader';
 export * from './relatedRecords/RelatedRecordsSection';
 export * from './statusBadge/StatusBadge';
 export * from './table/EntityTable';

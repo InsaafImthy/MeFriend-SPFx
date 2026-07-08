@@ -31,7 +31,9 @@ export default class MefrienddynamicsWebPart extends BaseClientSideWebPart<IMefr
         hasTeamsContext: !!this.context.sdks.microsoftTeams,
         userDisplayName: this.context.pageContext.user.displayName,
         aadHttpClientFactory: this.context.aadHttpClientFactory,
-        httpClient: this.context.httpClient
+        httpClient: this.context.httpClient,
+        pageContext: this.context.pageContext,
+        spHttpClient: this.context.spHttpClient
       }
     );
 

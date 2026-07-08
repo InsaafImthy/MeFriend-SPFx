@@ -6,12 +6,13 @@ import styles from './AppNavigation.module.scss';
 
 export interface IAppNavigationProps {
   activeRouteKey: AppRouteKey;
+  canAccessModule: (moduleKey: string) => boolean;
   onNavigate: (path: string) => void;
 }
 
-export const AppNavigation: React.FC<IAppNavigationProps> = ({ activeRouteKey, onNavigate }) => {
+export const AppNavigation: React.FC<IAppNavigationProps> = ({ activeRouteKey, canAccessModule, onNavigate }) => {
   const navigationModules = moduleDefinitions
-    .filter(moduleItem => moduleItem.visible)
+    .filter(moduleItem => moduleItem.visible && canAccessModule(moduleItem.key))
     .slice()
     .sort((firstModule, secondModule) => firstModule.order - secondModule.order);
   const activeRoute = routeDefinitions.filter(route => route.key === activeRouteKey)[0];

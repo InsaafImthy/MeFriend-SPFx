@@ -1,41 +1,43 @@
 import * as React from 'react';
-import { customersModuleConfig } from '../../../config/modules/customersModuleConfig';
-import type { ICustomerFilters, ICustomerListItem } from '../../../models/customers';
+import { salesOrdersModuleConfig } from '../../../config/modules/salesOrdersModuleConfig';
 import type { IPaginationState } from '../../../models/common/IPaginationState';
 import type { ISortState, SortDirection } from '../../../models/common/ISortState';
+import type { ISalesOrderFilters, ISalesOrderListItem, SalesOrderStatus } from '../../../models/salesOrders';
 import { getUserFriendlyError, normalizeError } from '../../../services/api/apiErrorHandler';
-import type { CustomerService } from '../../../services/customers/customerService';
+import type { SalesOrderService } from '../../../services/salesOrders/salesOrderService';
 import { EntityDashboard } from '../../common/dashboard/EntityDashboard';
 import type { EntityFilterValues, FilterValue } from '../../common/filters/EntityFilters';
 
-export interface ICustomerPageProps {
-  canCreateCustomer: boolean;
-  customerService: CustomerService;
+export interface ISalesOrderPageProps {
+  canCreateSalesOrder: boolean;
+  salesOrderService: SalesOrderService;
   onNavigate: (path: string) => void;
 }
 
 const pageSize = 10;
 
-const toCustomerFilters = (values: EntityFilterValues): ICustomerFilters => ({
+const toSalesOrderFilters = (values: EntityFilterValues): ISalesOrderFilters => ({
   searchText: typeof values.searchText === 'string' ? values.searchText : undefined,
-  branch: typeof values.branch === 'string' ? values.branch : undefined,
-  department: typeof values.department === 'string' ? values.department : undefined,
-  city: typeof values.city === 'string' ? values.city : undefined,
-  stateCode: typeof values.stateCode === 'string' ? values.stateCode : undefined
+  customerCode: typeof values.customerCode === 'string' ? values.customerCode : undefined,
+  salespersonCode: typeof values.salespersonCode === 'string' ? values.salespersonCode : undefined,
+  eventCode: typeof values.eventCode === 'string' ? values.eventCode : undefined,
+  status: typeof values.status === 'string' ? (values.status as SalesOrderStatus) : undefined,
+  orderDateFrom: typeof values.orderDateFrom === 'string' ? values.orderDateFrom : undefined,
+  orderDateTo: typeof values.orderDateTo === 'string' ? values.orderDateTo : undefined
 });
 
 const getListErrorMessage = (error: unknown): string => {
   const normalizedError = normalizeError(error);
 
   if (normalizedError.status === 404 || normalizedError.status === 405 || normalizedError.status === 501) {
-    return 'Customer listing API is not configured yet.';
+    return 'Sales order listing API is not configured yet.';
   }
 
   return getUserFriendlyError(normalizedError);
 };
 
-export const CustomerPage: React.FC<ICustomerPageProps> = ({ canCreateCustomer, customerService, onNavigate }) => {
-  const [items, setItems] = React.useState<readonly ICustomerListItem[]>([]);
+export const SalesOrderPage: React.FC<ISalesOrderPageProps> = ({ canCreateSalesOrder, salesOrderService, onNavigate }) => {
+  const [items, setItems] = React.useState<readonly ISalesOrderListItem[]>([]);
   const [filterValues, setFilterValues] = React.useState<EntityFilterValues>({});
   const [appliedFilterValues, setAppliedFilterValues] = React.useState<EntityFilterValues>({});
   const [pagination, setPagination] = React.useState<IPaginationState>({
@@ -47,12 +49,12 @@ export const CustomerPage: React.FC<ICustomerPageProps> = ({ canCreateCustomer, 
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | undefined>();
 
-  const loadCustomers = React.useCallback(async (): Promise<void> => {
+  const loadSalesOrders = React.useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(undefined);
 
     try {
-      const result = await customerService.getCustomers(toCustomerFilters(appliedFilterValues), pagination, sorting);
+      const result = await salesOrderService.getSalesOrders(toSalesOrderFilters(appliedFilterValues), pagination, sorting);
       setItems(result.items);
       setPagination(current => ({
         ...current,
@@ -66,11 +68,11 @@ export const CustomerPage: React.FC<ICustomerPageProps> = ({ canCreateCustomer, 
     } finally {
       setLoading(false);
     }
-  }, [appliedFilterValues, customerService, pagination.pageNumber, pagination.pageSize, sorting]);
+  }, [appliedFilterValues, pagination.pageNumber, pagination.pageSize, salesOrderService, sorting]);
 
   React.useEffect(() => {
-    loadCustomers().catch(() => undefined);
-  }, [loadCustomers]);
+    loadSalesOrders().catch(() => undefined);
+  }, [loadSalesOrders]);
 
   const handleFilterChange = React.useCallback((key: string, value: FilterValue): void => {
     setFilterValues(current => ({
@@ -108,20 +110,20 @@ export const CustomerPage: React.FC<ICustomerPageProps> = ({ canCreateCustomer, 
   }, []);
 
   return (
-    <EntityDashboard<ICustomerListItem>
-      title={customersModuleConfig.title}
-      subtitle={customersModuleConfig.description}
-      columns={customersModuleConfig.tableColumns || []}
-      filters={customersModuleConfig.filters || []}
+    <EntityDashboard<ISalesOrderListItem>
+      title={salesOrdersModuleConfig.title}
+      subtitle={salesOrdersModuleConfig.description}
+      columns={salesOrdersModuleConfig.tableColumns || []}
+      filters={salesOrdersModuleConfig.filters || []}
       filterValues={filterValues}
       items={items}
       loading={loading}
       error={error}
-      createButton={customersModuleConfig.createEnabled ? { label: 'Create Customer', visible: canCreateCustomer } : undefined}
-      onCreate={() => onNavigate(`${customersModuleConfig.route}/create`)}
+      createButton={{ label: 'Create Sales Order', visible: canCreateSalesOrder }}
+      onCreate={() => onNavigate(`${salesOrdersModuleConfig.route}/create`)}
       onRowClick={
-        customersModuleConfig.detailEnabled
-          ? item => onNavigate(`${customersModuleConfig.route}/detail/${encodeURIComponent(item.id || item.customerCode)}`)
+        salesOrdersModuleConfig.detailEnabled
+          ? item => onNavigate(`${salesOrdersModuleConfig.route}/detail/${encodeURIComponent(item.id || item.salesOrderNumber)}`)
           : undefined
       }
       onFilterChange={handleFilterChange}
@@ -131,9 +133,9 @@ export const CustomerPage: React.FC<ICustomerPageProps> = ({ canCreateCustomer, 
       onPageChange={pageNumber => setPagination(current => ({ ...current, pageNumber }))}
       sorting={sorting}
       onSort={handleSort}
-      getRowKey={(item, index) => item.id || item.customerCode || String(index)}
-      emptyTitle="No customers found"
-      emptyMessage="No customer records are available from the configured service."
+      getRowKey={(item, index) => item.id || item.salesOrderNumber || String(index)}
+      emptyTitle="No sales orders found"
+      emptyMessage="No sales order records are available from the configured service."
     />
   );
 };

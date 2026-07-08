@@ -7,11 +7,12 @@ import styles from './AppLayout.module.scss';
 export interface IAppLayoutProps {
   activeRouteKey: AppRouteKey;
   userDisplayName: string;
+  canAccessModule: (moduleKey: string) => boolean;
   onNavigate: (path: string) => void;
   children: React.ReactNode;
 }
 
-export const AppLayout: React.FC<IAppLayoutProps> = ({ activeRouteKey, userDisplayName, onNavigate, children }) => (
+export const AppLayout: React.FC<IAppLayoutProps> = ({ activeRouteKey, canAccessModule, userDisplayName, onNavigate, children }) => (
   <div className={styles.appLayout}>
     <aside className={styles.sidebar}>
       <div className={styles.brand}>
@@ -21,7 +22,7 @@ export const AppLayout: React.FC<IAppLayoutProps> = ({ activeRouteKey, userDispl
           <p>{appConfig.appSubtitle}</p>
         </div>
       </div>
-      <AppNavigation activeRouteKey={activeRouteKey} onNavigate={onNavigate} />
+      <AppNavigation activeRouteKey={activeRouteKey} canAccessModule={canAccessModule} onNavigate={onNavigate} />
     </aside>
     <main className={styles.main}>
       <div className={styles.topBar}>
