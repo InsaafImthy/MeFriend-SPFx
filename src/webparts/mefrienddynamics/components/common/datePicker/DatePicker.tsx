@@ -3,6 +3,8 @@ import * as ReactDom from 'react-dom';
 import { Icon } from '@fluentui/react';
 import styles from './DatePicker.module.scss';
 
+const panelAnimationDurationMs = 150;
+
 export type DatePickerTimeMode = 'none' | 'single' | 'range';
 type CalendarPanelView = 'calendar' | 'month' | 'year';
 
@@ -175,8 +177,11 @@ export const DatePicker: React.FC<IDatePickerProps> = ({
   const selectedDate = React.useMemo(() => parseDateValue(value), [value]);
   const [viewDate, setViewDate] = React.useState<Date>(selectedDate || new Date());
   const [isOpen, setIsOpen] = React.useState<boolean>(false);
+  const [isPanelVisible, setIsPanelVisible] = React.useState<boolean>(false);
+  const [isPanelClosing, setIsPanelClosing] = React.useState<boolean>(false);
   const [panelView, setPanelView] = React.useState<CalendarPanelView>('calendar');
   const [panelStyle, setPanelStyle] = React.useState<React.CSSProperties>({});
+  const closeTimerRef = React.useRef<number | undefined>(undefined);
   const shouldUseCustomPicker = useCustomPicker || timeMode !== 'none' || showQuickActions || Boolean(quickActions && quickActions.length);
   const resolvedQuickActions = quickActions || getDefaultQuickActions();
   const calendarDays = React.useMemo(() => getCalendarDays(viewDate), [viewDate]);
@@ -214,8 +219,53 @@ export const DatePicker: React.FC<IDatePickerProps> = ({
     }
   }, [selectedDate]);
 
+  const openPanel = React.useCallback((): void => {
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = undefined;
+    }
+
+    setIsPanelVisible(true);
+    setIsPanelClosing(false);
+    setIsOpen(true);
+  }, []);
+
+  const closePanel = React.useCallback((resetView: boolean = true): void => {
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current);
+    }
+
+    setIsOpen(false);
+    setIsPanelClosing(true);
+
+    if (resetView) {
+      setPanelView('calendar');
+    }
+
+    closeTimerRef.current = window.setTimeout(() => {
+      setIsPanelVisible(false);
+      setIsPanelClosing(false);
+      closeTimerRef.current = undefined;
+    }, panelAnimationDurationMs);
+  }, []);
+
+  const togglePanel = React.useCallback((): void => {
+    if (isOpen) {
+      closePanel();
+      return;
+    }
+
+    openPanel();
+  }, [closePanel, isOpen, openPanel]);
+
+  React.useEffect(() => () => {
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current);
+    }
+  }, []);
+
   React.useEffect(() => {
-    if (!isOpen) {
+    if (!isPanelVisible) {
       return undefined;
     }
 
@@ -225,15 +275,13 @@ export const DatePicker: React.FC<IDatePickerProps> = ({
       const isInsidePanel = panelRef.current && target instanceof Node && panelRef.current.contains(target);
 
       if (!isInsideField && !isInsidePanel) {
-        setIsOpen(false);
-        setPanelView('calendar');
+        closePanel();
       }
     };
 
     const handleDocumentKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
-        setIsOpen(false);
-        setPanelView('calendar');
+        closePanel();
       }
     };
 
@@ -249,7 +297,7 @@ export const DatePicker: React.FC<IDatePickerProps> = ({
       window.removeEventListener('resize', updatePanelPosition);
       window.removeEventListener('scroll', updatePanelPosition, true);
     };
-  }, [isOpen, updatePanelPosition]);
+  }, [closePanel, isPanelVisible, updatePanelPosition]);
 
   React.useLayoutEffect(() => {
     if (isOpen) {
@@ -278,7 +326,7 @@ export const DatePicker: React.FC<IDatePickerProps> = ({
     }
 
     if (timeMode === 'none') {
-      setIsOpen(false);
+      closePanel();
     }
   };
 
@@ -320,7 +368,14 @@ export const DatePicker: React.FC<IDatePickerProps> = ({
   );
 
   const renderPickerPanel = (): React.ReactElement => (
-    <div className={styles.pickerPanel} id={pickerId} ref={panelRef} role="dialog" aria-label={`${label} calendar`} style={panelStyle}>
+    <div
+      className={isPanelClosing ? `${styles.pickerPanel} ${styles.pickerPanelClosing}` : styles.pickerPanel}
+      id={pickerId}
+      ref={panelRef}
+      role="dialog"
+      aria-label={`${label} calendar`}
+      style={panelStyle}
+    >
       {showQuickActions || quickActions ? (
         <div className={styles.quickActions}>
           {resolvedQuickActions.map(action => (
@@ -456,10 +511,10 @@ export const DatePicker: React.FC<IDatePickerProps> = ({
           </button>
         ) : (
           <React.Fragment>
-            <button className={styles.cancelButton} onClick={() => setIsOpen(false)} type="button">
+            <button className={styles.cancelButton} onClick={() => closePanel()} type="button">
               Cancel
             </button>
-            <button className={styles.doneButton} onClick={() => setIsOpen(false)} type="button">
+            <button className={styles.doneButton} onClick={() => closePanel()} type="button">
               Done
             </button>
           </React.Fragment>
@@ -487,14 +542,14 @@ export const DatePicker: React.FC<IDatePickerProps> = ({
             className={errorMessage ? `${styles.customTrigger} ${styles.hasError}` : styles.customTrigger}
             disabled={disabled || readOnly}
             id={fieldId}
-            onClick={() => setIsOpen(currentValue => !currentValue)}
+            onClick={togglePanel}
             ref={triggerRef}
             type="button"
           >
             <span className={value ? styles.triggerValue : styles.triggerPlaceholder}>{value ? formatDisplayValue(value) : 'dd/mm/yyyy'}</span>
             <Icon iconName="Calendar" aria-hidden="true" />
           </button>
-          {isOpen ? ReactDom.createPortal(renderPickerPanel(), document.body) : null}
+          {isPanelVisible ? ReactDom.createPortal(renderPickerPanel(), document.body) : null}
         </div>
       )}
       {errorMessage ? (

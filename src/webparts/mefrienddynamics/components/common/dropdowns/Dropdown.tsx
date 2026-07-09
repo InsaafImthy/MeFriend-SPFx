@@ -1,6 +1,9 @@
 import * as React from 'react';
+import * as ReactDom from 'react-dom';
 import type { ILookupOption } from '../../../models/common/ILookupOption';
 import styles from './Dropdown.module.scss';
+
+const menuAnimationDurationMs = 150;
 
 export interface IDropdownProps<TValue = string> {
   label: string;
@@ -46,7 +49,12 @@ export const Dropdown = <TValue extends string | number = string>({
   const errorId = `${fieldId}-error`;
   const [query, setQuery] = React.useState<string>('');
   const [isOpen, setIsOpen] = React.useState<boolean>(false);
+  const [isMenuVisible, setIsMenuVisible] = React.useState<boolean>(false);
+  const [isMenuClosing, setIsMenuClosing] = React.useState<boolean>(false);
   const fieldRef = React.useRef<HTMLDivElement | null>(null);
+  const triggerRef = React.useRef<HTMLButtonElement | null>(null);
+  const menuRef = React.useRef<HTMLDivElement | null>(null);
+  const closeTimerRef = React.useRef<number | undefined>(undefined);
 
   const getOptionKeyByValue = (optionValue?: TValue): string => {
     const matchingOption = options.filter(option => String(option.value) === String(optionValue))[0];
@@ -64,18 +72,22 @@ export const Dropdown = <TValue extends string | number = string>({
     : options;
 
   const updateMenuPosition = React.useCallback((): void => {
-    if (!fieldRef.current || typeof window === 'undefined') {
+    if (!triggerRef.current || typeof window === 'undefined') {
       return;
     }
 
     const viewportPadding = 12;
-    const triggerRect = fieldRef.current.getBoundingClientRect();
+    const triggerRect = triggerRef.current.getBoundingClientRect();
     const menuGap = 7;
-    const preferredMenuHeight = searchable ? 300 : Math.min(300, 18 + filteredOptions.length * 39);
+    const emptyMenuHeight = 54;
+    const optionListHeight = filteredOptions.length ? 18 + filteredOptions.length * 39 : emptyMenuHeight;
+    const preferredMenuHeight = searchable
+      ? Math.min(300, 54 + (filteredOptions.length ? filteredOptions.length * 39 : emptyMenuHeight))
+      : Math.min(300, optionListHeight);
     const availableBelow = window.innerHeight - triggerRect.bottom - viewportPadding - menuGap;
     const availableAbove = triggerRect.top - viewportPadding - menuGap;
     const shouldOpenAbove = availableBelow < 180 && availableAbove > availableBelow;
-    const availableHeight = Math.max(120, shouldOpenAbove ? availableAbove : availableBelow);
+    const availableHeight = Math.max(emptyMenuHeight, shouldOpenAbove ? availableAbove : availableBelow);
     const resolvedHeight = Math.min(preferredMenuHeight, availableHeight);
     const maxLeft = window.innerWidth - viewportPadding - triggerRect.width;
     const resolvedLeft = Math.max(viewportPadding, Math.min(triggerRect.left, maxLeft));
@@ -89,20 +101,65 @@ export const Dropdown = <TValue extends string | number = string>({
     });
   }, [filteredOptions.length, searchable]);
 
+  const openMenu = React.useCallback((): void => {
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = undefined;
+    }
+
+    updateMenuPosition();
+    setIsMenuVisible(true);
+    setIsMenuClosing(false);
+    setIsOpen(true);
+  }, [updateMenuPosition]);
+
+  const closeMenu = React.useCallback((): void => {
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current);
+    }
+
+    setIsOpen(false);
+    setIsMenuClosing(true);
+    closeTimerRef.current = window.setTimeout(() => {
+      setIsMenuVisible(false);
+      setIsMenuClosing(false);
+      closeTimerRef.current = undefined;
+    }, menuAnimationDurationMs);
+  }, []);
+
+  const toggleMenu = React.useCallback((): void => {
+    if (isOpen) {
+      closeMenu();
+      return;
+    }
+
+    openMenu();
+  }, [closeMenu, isOpen, openMenu]);
+
+  React.useEffect(() => () => {
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current);
+    }
+  }, []);
+
   React.useEffect(() => {
-    if (!isOpen) {
+    if (!isMenuVisible) {
       return undefined;
     }
 
     const handleDocumentMouseDown = (event: MouseEvent): void => {
-      if (fieldRef.current && event.target instanceof Node && !fieldRef.current.contains(event.target)) {
-        setIsOpen(false);
+      const target = event.target;
+      const isInsideField = fieldRef.current && target instanceof Node && fieldRef.current.contains(target);
+      const isInsideMenu = menuRef.current && target instanceof Node && menuRef.current.contains(target);
+
+      if (!isInsideField && !isInsideMenu) {
+        closeMenu();
       }
     };
 
     document.addEventListener('mousedown', handleDocumentMouseDown);
     return () => document.removeEventListener('mousedown', handleDocumentMouseDown);
-  }, [isOpen]);
+  }, [closeMenu, isMenuVisible]);
 
   React.useEffect(() => {
     if (!isOpen) {
@@ -136,7 +193,7 @@ export const Dropdown = <TValue extends string | number = string>({
     }
 
     onChange(option.value);
-    setIsOpen(false);
+    closeMenu();
   };
 
   const handleTriggerKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>): void => {
@@ -146,12 +203,12 @@ export const Dropdown = <TValue extends string | number = string>({
 
     if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') {
       event.preventDefault();
-      setIsOpen(true);
+      openMenu();
       return;
     }
 
     if (event.key === 'Escape') {
-      setIsOpen(false);
+      closeMenu();
     }
   };
 
@@ -163,7 +220,7 @@ export const Dropdown = <TValue extends string | number = string>({
     }
 
     if (event.key === 'Escape') {
-      setIsOpen(false);
+      closeMenu();
     }
   };
 
@@ -199,6 +256,61 @@ export const Dropdown = <TValue extends string | number = string>({
     return undefined;
   };
 
+  const renderMenu = (): React.ReactElement => (
+    <div
+      className={isMenuClosing ? `${styles.menu} ${styles.menuClosing}` : styles.menu}
+      ref={menuRef}
+      role="presentation"
+      style={menuStyle}
+    >
+      {searchable ? (
+        <input
+          aria-label={`Search ${label}`}
+          className={styles.search}
+          disabled={isDisabled}
+          onChange={event => setQuery(event.currentTarget.value)}
+          placeholder={`Search ${label}`}
+          type="search"
+          value={query}
+        />
+      ) : null}
+      <div className={styles.optionList} id={listboxId} role="listbox" aria-multiselectable={multiSelect || undefined}>
+        {filteredOptions.length ? filteredOptions.map(option => {
+          const isSelected = selectedKeys.indexOf(option.key) !== -1;
+          const optionDetail = getOptionDetail(option);
+
+          return (
+            <button
+              aria-selected={isSelected}
+              className={[
+                styles.option,
+                isSelected ? styles.optionSelected : '',
+                option.disabled ? styles.optionDisabled : ''
+              ].filter(Boolean).join(' ')}
+              disabled={option.disabled}
+              key={option.key}
+              onClick={() => handleOptionSelect(option)}
+              onKeyDown={event => handleOptionKeyDown(event, option)}
+              role="option"
+              type="button"
+            >
+              <span className={styles.optionContent}>
+                {option.iconText ? <span className={styles.optionIcon}>{option.iconText}</span> : null}
+                <span className={styles.optionText}>{option.text}</span>
+                {optionDetail ? <span className={styles.optionDetail}>{optionDetail}</span> : null}
+              </span>
+              <span className={multiSelect ? styles.multiIndicator : styles.singleIndicator} aria-hidden="true">
+                {isSelected ? <span className={styles.checkMark} /> : null}
+              </span>
+            </button>
+          );
+        }) : (
+          <span className={styles.emptyOption}>No options available.</span>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className={styles.field} ref={fieldRef}>
       <label className={styles.label} htmlFor={fieldId}>
@@ -221,8 +333,9 @@ export const Dropdown = <TValue extends string | number = string>({
           ].filter(Boolean).join(' ')}
           disabled={isDisabled}
           id={fieldId}
-          onClick={() => setIsOpen(currentValue => !currentValue)}
+          onClick={toggleMenu}
           onKeyDown={handleTriggerKeyDown}
+          ref={triggerRef}
           type="button"
         >
           <span className={styles.selectedContent}>
@@ -253,55 +366,7 @@ export const Dropdown = <TValue extends string | number = string>({
           </span>
         </button>
 
-        {isOpen ? (
-          <div className={styles.menu} role="presentation" style={menuStyle}>
-            {searchable ? (
-              <input
-                aria-label={`Search ${label}`}
-                className={styles.search}
-                disabled={isDisabled}
-                onChange={event => setQuery(event.currentTarget.value)}
-                placeholder={`Search ${label}`}
-                type="search"
-                value={query}
-              />
-            ) : null}
-            <div className={styles.optionList} id={listboxId} role="listbox" aria-multiselectable={multiSelect || undefined}>
-              {filteredOptions.length ? filteredOptions.map(option => {
-                const isSelected = selectedKeys.indexOf(option.key) !== -1;
-                const optionDetail = getOptionDetail(option);
-
-                return (
-                  <button
-                    aria-selected={isSelected}
-                    className={[
-                      styles.option,
-                      isSelected ? styles.optionSelected : '',
-                      option.disabled ? styles.optionDisabled : ''
-                    ].filter(Boolean).join(' ')}
-                    disabled={option.disabled}
-                    key={option.key}
-                    onClick={() => handleOptionSelect(option)}
-                    onKeyDown={event => handleOptionKeyDown(event, option)}
-                    role="option"
-                    type="button"
-                  >
-                    <span className={styles.optionContent}>
-                      {option.iconText ? <span className={styles.optionIcon}>{option.iconText}</span> : null}
-                      <span className={styles.optionText}>{option.text}</span>
-                      {optionDetail ? <span className={styles.optionDetail}>{optionDetail}</span> : null}
-                    </span>
-                    <span className={multiSelect ? styles.multiIndicator : styles.singleIndicator} aria-hidden="true">
-                      {isSelected ? <span className={styles.checkMark} /> : null}
-                    </span>
-                  </button>
-                );
-              }) : (
-                <span className={styles.emptyOption}>No options found.</span>
-              )}
-            </div>
-          </div>
-        ) : null}
+        {isMenuVisible && typeof document !== 'undefined' ? ReactDom.createPortal(renderMenu(), document.body) : null}
 
         {multiSelect && selectedOptions.length > 0 ? (
           <div className={styles.selectedPills} aria-label={`Selected ${label}`}>

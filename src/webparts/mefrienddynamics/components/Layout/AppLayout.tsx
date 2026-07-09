@@ -8,6 +8,8 @@ import mefriendLogo from '../../assets/unnamed.webp';
 import { AppNavigation } from '../Navigation/AppNavigation';
 import styles from './AppLayout.module.scss';
 
+const userMenuAnimationDurationMs = 150;
+
 export interface IAppLayoutProps {
   activeRouteKey: AppRouteKey;
   userDisplayName: string;
@@ -37,28 +39,74 @@ const getInitials = (displayName: string): string => {
 export const AppLayout: React.FC<IAppLayoutProps> = ({ activeRouteKey, canAccessModule, routeTransitionKey, userDisplayName, onNavigate, children }) => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState<boolean>(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = React.useState<boolean>(false);
+  const [isUserMenuVisible, setIsUserMenuVisible] = React.useState<boolean>(false);
+  const [isUserMenuClosing, setIsUserMenuClosing] = React.useState<boolean>(false);
   const contentRef = React.useRef<HTMLDivElement | null>(null);
   const userPanelRef = React.useRef<HTMLDivElement | null>(null);
+  const userMenuCloseTimerRef = React.useRef<number | undefined>(undefined);
   const userInitials = getInitials(userDisplayName);
   const layoutClassName = isSidebarCollapsed ? `${styles.appLayout} ${styles.collapsed}` : styles.appLayout;
   const sidebarLabelId = 'mefriend-sidebar-title';
   const canAccessSettings = canAccessModule(settingsModuleConfig.key);
   const isSettingsActive = activeRouteKey === 'settings';
+  const routeTransitionClassName = activeRouteKey === 'customerCreate' || activeRouteKey === 'salesOrderCreate'
+    ? `${styles.routeTransition} ${styles.createRouteTransition}`
+    : styles.routeTransition;
+
+  const openUserMenu = React.useCallback((): void => {
+    if (userMenuCloseTimerRef.current) {
+      window.clearTimeout(userMenuCloseTimerRef.current);
+      userMenuCloseTimerRef.current = undefined;
+    }
+
+    setIsUserMenuVisible(true);
+    setIsUserMenuClosing(false);
+    setIsUserMenuOpen(true);
+  }, []);
+
+  const closeUserMenu = React.useCallback((): void => {
+    if (userMenuCloseTimerRef.current) {
+      window.clearTimeout(userMenuCloseTimerRef.current);
+    }
+
+    setIsUserMenuOpen(false);
+    setIsUserMenuClosing(true);
+    userMenuCloseTimerRef.current = window.setTimeout(() => {
+      setIsUserMenuVisible(false);
+      setIsUserMenuClosing(false);
+      userMenuCloseTimerRef.current = undefined;
+    }, userMenuAnimationDurationMs);
+  }, []);
+
+  const toggleUserMenu = React.useCallback((): void => {
+    if (isUserMenuOpen) {
+      closeUserMenu();
+      return;
+    }
+
+    openUserMenu();
+  }, [closeUserMenu, isUserMenuOpen, openUserMenu]);
+
+  React.useEffect(() => () => {
+    if (userMenuCloseTimerRef.current) {
+      window.clearTimeout(userMenuCloseTimerRef.current);
+    }
+  }, []);
 
   React.useEffect(() => {
-    if (!isUserMenuOpen) {
+    if (!isUserMenuVisible) {
       return undefined;
     }
 
     const handleDocumentMouseDown = (event: MouseEvent): void => {
       if (userPanelRef.current && event.target instanceof Node && !userPanelRef.current.contains(event.target)) {
-        setIsUserMenuOpen(false);
+        closeUserMenu();
       }
     };
 
     document.addEventListener('mousedown', handleDocumentMouseDown);
     return () => document.removeEventListener('mousedown', handleDocumentMouseDown);
-  }, [isUserMenuOpen]);
+  }, [closeUserMenu, isUserMenuVisible]);
 
   React.useEffect(() => {
     if (contentRef.current) {
@@ -68,7 +116,7 @@ export const AppLayout: React.FC<IAppLayoutProps> = ({ activeRouteKey, canAccess
 
   const navigateToSettings = (event: React.MouseEvent<HTMLAnchorElement>): void => {
     event.preventDefault();
-    setIsUserMenuOpen(false);
+    closeUserMenu();
     onNavigate(settingsModuleConfig.route);
   };
 
@@ -105,7 +153,7 @@ export const AppLayout: React.FC<IAppLayoutProps> = ({ activeRouteKey, canAccess
               aria-expanded={isUserMenuOpen}
               aria-haspopup="menu"
               className={isSettingsActive ? `${styles.userButton} ${styles.userButtonActive}` : styles.userButton}
-              onClick={() => setIsUserMenuOpen(currentValue => !currentValue)}
+              onClick={toggleUserMenu}
               title={isSidebarCollapsed ? userDisplayName : undefined}
               type="button"
             >
@@ -118,8 +166,8 @@ export const AppLayout: React.FC<IAppLayoutProps> = ({ activeRouteKey, canAccess
               </span>
               <Icon className={isUserMenuOpen ? `${styles.userIcon} ${styles.userIconOpen}` : styles.userIcon} iconName="ChevronDown" aria-hidden="true" />
             </button>
-            {isUserMenuOpen ? (
-              <div className={styles.userMenu} role="menu" aria-label="User menu">
+            {isUserMenuVisible ? (
+              <div className={isUserMenuClosing ? `${styles.userMenu} ${styles.userMenuClosing}` : styles.userMenu} role="menu" aria-label="User menu">
                 {canAccessSettings ? (
                   <a
                     aria-current={isSettingsActive ? 'page' : undefined}
@@ -140,7 +188,7 @@ export const AppLayout: React.FC<IAppLayoutProps> = ({ activeRouteKey, canAccess
       </aside>
       <main className={styles.main}>
         <div className={styles.content} ref={contentRef}>
-          <div className={styles.routeTransition} key={routeTransitionKey}>
+          <div className={routeTransitionClassName} key={routeTransitionKey}>
             {children}
           </div>
         </div>

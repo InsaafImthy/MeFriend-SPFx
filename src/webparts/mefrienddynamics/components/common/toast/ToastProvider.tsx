@@ -2,6 +2,13 @@ import * as React from 'react';
 import { IToastMessage, IToastOptions, ToastContext, ToastVariant } from './useToast';
 import styles from './ToastProvider.module.scss';
 
+const toastIconByVariant: Record<ToastVariant, string> = {
+  error: '!',
+  info: 'i',
+  success: '✓',
+  warning: '!'
+};
+
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [messages, setMessages] = React.useState<readonly IToastMessage[]>([]);
 
@@ -37,6 +44,9 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       <div className={styles.toastRegion} aria-live="polite" aria-relevant="additions">
         {messages.map(message => (
           <div key={message.id} className={`${styles.toast} ${styles[message.variant]}`}>
+            <span className={styles.toastIcon} aria-hidden="true">
+              {toastIconByVariant[message.variant]}
+            </span>
             <div className={styles.toastContent}>
               {message.title ? <strong>{message.title}</strong> : null}
               <span>{message.message}</span>
@@ -47,7 +57,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               onClick={() => removeToast(message.id)}
               type="button"
             >
-              x
+              ×
             </button>
           </div>
         ))}

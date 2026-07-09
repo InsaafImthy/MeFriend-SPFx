@@ -150,6 +150,12 @@
   width: 100%;
 }
 
+.createRouteTransition {
+  animation: createRouteEnter 420ms cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: top center;
+  will-change: opacity, transform;
+}
+
 @keyframes routeEnter {
   from {
     opacity: 0;
@@ -159,6 +165,23 @@
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes createRouteEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(72px) scale(0.982);
+  }
+
+  68% {
+    opacity: 1;
+    transform: translateY(-4px) scale(1);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -276,7 +299,39 @@
   padding: 8px;
   position: absolute;
   right: 0;
+  transform-origin: bottom center;
   z-index: 20;
+  animation: userMenuIn 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+
+.userMenuClosing {
+  animation: userMenuOut 150ms cubic-bezier(0.7, 0, 0.84, 0) forwards;
+  pointer-events: none;
+}
+
+@keyframes userMenuIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes userMenuOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
 }
 
 .userMenuItem {
@@ -475,8 +530,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .routeTransition {
+  .routeTransition,
+  .createRouteTransition,
+  .userMenu,
+  .userMenuClosing {
     animation: none;
+    will-change: auto;
   }
 }
 

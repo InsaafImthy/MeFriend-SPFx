@@ -177,8 +177,40 @@
   overflow: hidden;
   padding: 8px;
   position: fixed;
+  transform-origin: top center;
   width: 100%;
   z-index: 1000;
+  animation: dropdownMenuIn 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+
+.menuClosing {
+  animation: dropdownMenuOut 150ms cubic-bezier(0.7, 0, 0.84, 0) forwards;
+  pointer-events: none;
+}
+
+@keyframes dropdownMenuIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes dropdownMenuOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-5px) scale(0.985);
+  }
 }
 
 .search {
@@ -217,8 +249,6 @@
   min-height: 0;
   min-width: 0;
   overflow-y: auto;
-  scrollbar-color: #b9aecf transparent;
-  scrollbar-width: thin;
 }
 
 .option {
@@ -331,10 +361,18 @@
 }
 
 .emptyOption {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px dashed #ddd6ef;
+  border-radius: 6px;
   color: #64748b;
-  display: block;
+  display: flex;
   font-size: 13px;
-  padding: 10px 8px;
+  justify-content: center;
+  line-height: 1.35;
+  min-height: 38px;
+  padding: 8px;
+  text-align: center;
 }
 
 .selectedPills {
@@ -424,4 +462,12 @@
   color: #64748b;
   font-size: 12px;
   line-height: 1.35;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu,
+  .menuClosing {
+    animation: none;
+    will-change: auto;
+  }
 }

@@ -4,7 +4,7 @@
   box-sizing: border-box;
   color: "[theme:bodyText, default: #323130]";
   color: var(--bodyText);
-  font-family: "Josefin Sans", "Segoe UI", Arial, sans-serif;
+  font-family: var(--mefriend-font-family, "Josefin Sans", "Segoe UI", Arial, sans-serif);
   min-width: 0;
   margin: 0;
   overflow: hidden;
@@ -12,6 +12,6 @@
   width: 100%;
 
   &.teams {
-    font-family: "Josefin Sans", "Segoe UI", Arial, sans-serif;
+    font-family: var(--mefriend-font-family, "Josefin Sans", "Segoe UI", Arial, sans-serif);
   }
 }

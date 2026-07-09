@@ -12,6 +12,8 @@ import { SPComponentLoader } from '@microsoft/sp-loader';
 import * as strings from 'MefrienddynamicsWebPartStrings';
 import Mefrienddynamics from './components/Mefrienddynamics';
 import { IMefrienddynamicsProps } from './components/IMefrienddynamicsProps';
+import './styles/commonTypography.css';
+import './styles/commonScrollbars.css';
 import './styles/sharepointCanvasOverrides.css';
 
 const josefinSansStylesheetUrl: string = 'https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@300;400;500;600;700&display=swap';
