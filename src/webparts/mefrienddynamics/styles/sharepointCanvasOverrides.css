@@ -47,13 +47,15 @@ iframe[title*="Copilot" i] {
 
 html,
 body,
+#spPageChromeAppDiv,
 #spPageCanvasContent,
 #spPageCanvasContent > div,
 #spCanvas,
-#spPageChromeAppDiv,
 .SPCanvas,
 .CanvasComponent {
+  height: 100% !important;
   min-height: 100vh !important;
+  min-height: 100dvh !important;
 }
 
 html,
@@ -67,6 +69,8 @@ body {
 }
 
 #spPageCanvasContent,
+.sp-pageLayout-sideNav,
+div[class*="sp-pageLayout-sideNav"],
 .CanvasZone,
 .CanvasZoneContainer,
 .CanvasZoneSectionContainer,
@@ -96,6 +100,16 @@ body {
   padding-left: 0 !important;
   padding-right: 0 !important;
   width: 100% !important;
+}
+
+.sp-pageLayout-sideNav,
+div[class*="sp-pageLayout-sideNav"] {
+  border-radius: 0 !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+  overflow: hidden !important;
 }
 
 body,
