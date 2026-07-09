@@ -79,7 +79,7 @@ export const Dropdown = <TValue extends string | number = string>({
     const viewportPadding = 12;
     const triggerRect = triggerRef.current.getBoundingClientRect();
     const menuGap = 7;
-    const emptyMenuHeight = 54;
+    const emptyMenuHeight = 96;
     const optionListHeight = filteredOptions.length ? 18 + filteredOptions.length * 39 : emptyMenuHeight;
     const preferredMenuHeight = searchable
       ? Math.min(300, 54 + (filteredOptions.length ? filteredOptions.length * 39 : emptyMenuHeight))
@@ -274,7 +274,7 @@ export const Dropdown = <TValue extends string | number = string>({
           value={query}
         />
       ) : null}
-      <div className={styles.optionList} id={listboxId} role="listbox" aria-multiselectable={multiSelect || undefined}>
+      <div className={filteredOptions.length ? styles.optionList : `${styles.optionList} ${styles.optionListEmpty}`} id={listboxId} role="listbox" aria-multiselectable={multiSelect || undefined}>
         {filteredOptions.length ? filteredOptions.map(option => {
           const isSelected = selectedKeys.indexOf(option.key) !== -1;
           const optionDetail = getOptionDetail(option);

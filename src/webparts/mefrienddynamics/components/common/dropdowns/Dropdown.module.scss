@@ -48,8 +48,8 @@
 
 .trigger:focus,
 .triggerOpen {
-  border-color: #7243d7;
-  box-shadow: 0 0 0 3px rgba(114, 67, 215, 0.16);
+  border-color: #b9a9e6;
+  box-shadow: 0 0 0 2px rgba(114, 67, 215, 0.08);
   outline: none;
 }
 
@@ -139,27 +139,27 @@
 .chevron {
   align-items: center;
   display: inline-flex;
-  flex: 0 0 20px;
-  height: 20px;
+  flex: 0 0 12px;
+  height: 12px;
   justify-content: center;
   position: relative;
-  width: 20px;
+  width: 12px;
 }
 
 .chevron::before {
-  border-bottom: 2px solid #475569;
-  border-right: 2px solid #475569;
+  border-bottom: 1.25px solid #64748b;
+  border-right: 1.25px solid #64748b;
   content: "";
   display: block;
-  height: 7px;
-  margin-top: -3px;
+  height: 4px;
+  margin-top: -1px;
   transform: rotate(45deg);
   transition: margin 140ms ease, transform 140ms ease;
-  width: 7px;
+  width: 4px;
 }
 
 .chevronOpen::before {
-  margin-top: 3px;
+  margin-top: 1px;
   transform: rotate(225deg);
 }
 
@@ -249,6 +249,13 @@
   min-height: 0;
   min-width: 0;
   overflow-y: auto;
+}
+
+.optionListEmpty {
+  flex: 0 0 auto;
+  max-height: none;
+  min-height: 62px;
+  overflow: hidden;
 }
 
 .option {
@@ -377,12 +384,13 @@
   background: #f8fafc;
   border: 1px dashed #ddd6ef;
   border-radius: 6px;
+  box-sizing: border-box;
   color: #64748b;
   display: flex;
   font-size: 13px;
   justify-content: center;
   line-height: 1.35;
-  min-height: 38px;
+  min-height: 58px;
   padding: 8px;
   text-align: center;
 }

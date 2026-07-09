@@ -4,6 +4,8 @@
 #sp-appBar,
 #spLeftNav,
 #spCommandBar,
+#O365_MainLink_NavMenu,
+#O365_MainLink_Settings,
 .headerRow-49,
 .headerRow-50,
 .headerRow-106,
@@ -14,14 +16,47 @@
 button[data-automationid="editButton"],
 button[name="Edit"],
 div[role="toolbar"][aria-label="Edit"],
-footer,
 div[role="contentinfo"],
 div[data-automation-id="pageFooter"],
-div[class*="edit"],
 div[aria-label="Edit"],
 div[aria-label="Page commands"],
-div[class*="Footer"] {
+div[data-automation-id="pageFooterContainer"],
+div[data-automation-id="sp-page-footer"],
+div[class*="spPageFooter"],
+div[class*="pageFooter"] {
   display: none !important;
+}
+
+button[aria-label*="Copilot" i],
+button[title*="Copilot" i],
+div[aria-label*="Copilot" i],
+div[title*="Copilot" i],
+div[data-automation-id*="Copilot" i],
+div[id*="Copilot" i],
+div[class*="copilot" i],
+iframe[title*="Copilot" i] {
+  display: none !important;
+}
+
+html,
+body,
+#spPageCanvasContent,
+#spPageCanvasContent > div,
+#spCanvas,
+#spPageChromeAppDiv,
+.SPCanvas,
+.CanvasComponent {
+  min-height: 100vh !important;
+}
+
+html,
+body,
+#spPageCanvasContent {
+  background: #f4f1fb !important;
+}
+
+body {
+  overflow: hidden !important;
 }
 
 #spPageCanvasContent,
@@ -61,6 +96,11 @@ body,
   margin-bottom: 0 !important;
   padding-bottom: 0 !important;
   padding-top: 0 !important;
+}
+
+#spPageCanvasContent {
+  margin-top: 0 !important;
+  overflow: hidden !important;
 }
 
 [data-automation-id="CanvasControl"],
