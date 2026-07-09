@@ -4,7 +4,7 @@ import { appConfig } from '../../config/appConfig';
 import { settingsModuleConfig } from '../../config/moduleConfig';
 import type { AppRouteKey } from '../../models/common/AppRoute';
 import { buildHashHref } from '../../utils/routeUtils';
-import mefriendLogo from '../../assets/unnamed.webp';
+import mefriendLogo from '../../assets/unnamed.png';
 import { AppNavigation } from '../Navigation/AppNavigation';
 import styles from './AppLayout.module.scss';
 
