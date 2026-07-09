@@ -47,6 +47,9 @@ export default class MefrienddynamicsWebPart extends BaseClientSideWebPart<IMefr
   }
 
   protected onInit(): Promise<void> {
+    SPComponentLoader.loadCss(
+      `${this.context.pageContext.web.absoluteUrl}/SiteAssets/css/developer.css`
+    );
     SPComponentLoader.loadCss(josefinSansStylesheetUrl);
 
     return this._getEnvironmentMessage().then(message => {
