@@ -65,3 +65,14 @@ textarea.control {
   font-size: 12px;
   line-height: 1.35;
 }
+
+@media (max-width: 767px) {
+  .control {
+    font-size: 15px;
+    min-height: 44px;
+  }
+
+  textarea.control {
+    min-height: 112px;
+  }
+}

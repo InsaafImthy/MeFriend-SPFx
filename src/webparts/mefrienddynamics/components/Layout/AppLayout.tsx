@@ -38,6 +38,7 @@ const getInitials = (displayName: string): string => {
 
 export const AppLayout: React.FC<IAppLayoutProps> = ({ activeRouteKey, canAccessModule, routeTransitionKey, userDisplayName, onNavigate, children }) => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState<boolean>(false);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = React.useState<boolean>(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = React.useState<boolean>(false);
   const [isUserMenuVisible, setIsUserMenuVisible] = React.useState<boolean>(false);
   const [isUserMenuClosing, setIsUserMenuClosing] = React.useState<boolean>(false);
@@ -114,28 +115,126 @@ export const AppLayout: React.FC<IAppLayoutProps> = ({ activeRouteKey, canAccess
     }
   }, [routeTransitionKey]);
 
+  React.useEffect(() => {
+    if (!isMobileDrawerOpen) {
+      return undefined;
+    }
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        setIsMobileDrawerOpen(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isMobileDrawerOpen]);
+
   const navigateToSettings = (event: React.MouseEvent<HTMLAnchorElement>): void => {
     event.preventDefault();
     closeUserMenu();
     onNavigate(settingsModuleConfig.route);
   };
 
+  const handleMobileNavigate = (path: string): void => {
+    setIsMobileDrawerOpen(false);
+    onNavigate(path);
+  };
+
+  const handleMobileSettingsNavigate = (event: React.MouseEvent<HTMLAnchorElement>): void => {
+    event.preventDefault();
+    setIsMobileDrawerOpen(false);
+    onNavigate(settingsModuleConfig.route);
+  };
+
   return (
     <div className={layoutClassName}>
+      <header className={styles.mobileHeader}>
+        <button
+          aria-controls="mefriend-mobile-navigation"
+          aria-expanded={isMobileDrawerOpen}
+          aria-label="Open navigation menu"
+          className={styles.mobileMenuButton}
+          onClick={() => setIsMobileDrawerOpen(true)}
+          type="button"
+        >
+          <Icon iconName="GlobalNavButton" aria-hidden="true" />
+        </button>
+        <div className={styles.mobileBrand}>
+          <img className={styles.mobileBrandMark} src={mefriendLogo} alt="" />
+          <span>{appConfig.appName}</span>
+        </div>
+        <span className={styles.mobileAvatar} aria-label={`Signed in as ${userDisplayName}`}>
+          {userInitials}
+        </span>
+      </header>
+      <div
+        aria-hidden={!isMobileDrawerOpen}
+        className={isMobileDrawerOpen ? `${styles.mobileDrawerOverlay} ${styles.mobileDrawerOverlayOpen}` : styles.mobileDrawerOverlay}
+        onClick={() => setIsMobileDrawerOpen(false)}
+      />
+      <aside
+        aria-label="Mobile navigation"
+        aria-modal={isMobileDrawerOpen}
+        className={isMobileDrawerOpen ? `${styles.mobileDrawer} ${styles.mobileDrawerOpen}` : styles.mobileDrawer}
+        id="mefriend-mobile-navigation"
+        role="dialog"
+      >
+        <div className={styles.mobileDrawerHeader}>
+          <div className={styles.mobileBrand}>
+            <img className={styles.mobileBrandMark} src={mefriendLogo} alt="" />
+            <span>{appConfig.appName}</span>
+          </div>
+          <button aria-label="Close navigation menu" className={styles.mobileCloseButton} onClick={() => setIsMobileDrawerOpen(false)} type="button">
+            <Icon iconName="Cancel" aria-hidden="true" />
+          </button>
+        </div>
+        <AppNavigation
+          activeRouteKey={activeRouteKey}
+          canAccessModule={canAccessModule}
+          isCollapsed={false}
+          onNavigate={handleMobileNavigate}
+        />
+        <div className={styles.mobileUserPanel}>
+          <span className={styles.userAvatar} aria-hidden="true">
+            {userInitials}
+          </span>
+          <span className={styles.userMeta}>
+            <span>Signed in</span>
+            <strong>{userDisplayName}</strong>
+          </span>
+        </div>
+        {canAccessSettings ? (
+          <a
+            aria-current={isSettingsActive ? 'page' : undefined}
+            className={isSettingsActive ? `${styles.mobileSettingsLink} ${styles.mobileSettingsLinkActive}` : styles.mobileSettingsLink}
+            href={buildHashHref(settingsModuleConfig.route)}
+            onClick={handleMobileSettingsNavigate}
+          >
+            <Icon className={styles.userMenuIcon} iconName="Settings" aria-hidden="true" />
+            <span>Settings</span>
+          </a>
+        ) : null}
+      </aside>
       <aside className={styles.sidebar}>
         <div className={styles.sidebarPanel} aria-labelledby={sidebarLabelId}>
-          <div className={styles.sidebarTopControls}>
-            <button
-              aria-label={isSidebarCollapsed ? 'Expand side navigation' : 'Collapse side navigation'}
-              aria-pressed={isSidebarCollapsed}
-              className={styles.sidebarToggle}
-              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              title={isSidebarCollapsed ? 'Expand side navigation' : 'Collapse side navigation'}
-              type="button"
-            >
-              <Icon iconName={isSidebarCollapsed ? 'DoubleChevronRight12' : 'DoubleChevronLeft12'} aria-hidden="true" />
-            </button>
-          </div>
+          <button
+            aria-label={isSidebarCollapsed ? 'Expand side navigation' : 'Collapse side navigation'}
+            aria-pressed={isSidebarCollapsed}
+            className={styles.sidebarToggle}
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            title={isSidebarCollapsed ? 'Expand side navigation' : 'Collapse side navigation'}
+            type="button"
+          >
+            <Icon iconName={isSidebarCollapsed ? 'DoubleChevronRight12' : 'DoubleChevronLeft12'} aria-hidden="true" />
+          </button>
           <div className={styles.brand}>
             <img className={styles.brandMark} src={mefriendLogo} alt="MeFriend" />
             <div className={styles.brandText}>

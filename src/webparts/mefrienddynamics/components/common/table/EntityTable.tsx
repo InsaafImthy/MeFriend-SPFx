@@ -32,6 +32,39 @@ const getFieldValue = <TItem,>(item: TItem, fieldName: keyof TItem | string): un
   return (item as Record<string, unknown>)[String(fieldName)];
 };
 
+const getTextValue = <TItem,>(item: TItem, column: ITableColumn<TItem>): string => {
+  const value = getFieldValue(item, column.fieldName);
+
+  if (value === undefined || value === null || value === '') {
+    return '-';
+  }
+
+  return String(value);
+};
+
+const getMobileTitleColumn = <TItem,>(columns: readonly ITableColumn<TItem>[]): ITableColumn<TItem> | undefined => {
+  const preferredKeys = ['invoiceNumber', 'salesOrderNumber', 'eventName', 'salespersonName', 'customerName', 'customerCode'];
+
+  return preferredKeys
+    .map(preferredKey => columns.filter(column => String(column.fieldName) === preferredKey || column.key === preferredKey)[0])
+    .filter((column): column is ITableColumn<TItem> => Boolean(column))[0] || columns[0];
+};
+
+const getAvatarText = (value: string): string => {
+  const cleanValue = value.replace(/[^a-zA-Z0-9 ]/g, ' ').trim();
+  const parts = cleanValue.split(' ').filter(Boolean);
+
+  if (!parts.length) {
+    return 'MF';
+  }
+
+  if (parts.length === 1) {
+    return parts[0].substring(0, 2).toUpperCase();
+  }
+
+  return `${parts[0].charAt(0)}${parts[parts.length - 1].charAt(0)}`.toUpperCase();
+};
+
 const renderCell = <TItem,>(item: TItem, column: ITableColumn<TItem>): React.ReactNode => {
   if (column.customRender) {
     return column.customRender(item);
@@ -56,6 +89,85 @@ const renderCell = <TItem,>(item: TItem, column: ITableColumn<TItem>): React.Rea
   }
 
   return String(value);
+};
+
+const renderMobileCards = <TItem,>(
+  columns: readonly ITableColumn<TItem>[],
+  items: readonly TItem[],
+  getRowKey: (item: TItem, index: number) => string,
+  onRowClick: ((item: TItem) => void) | undefined,
+  rowActionLabel: string
+): React.ReactNode => {
+  const titleColumn = getMobileTitleColumn(columns);
+
+  return (
+    <div className={styles.mobileCards}>
+      {items.map((item, index) => {
+        const title = titleColumn ? getTextValue(item, titleColumn) : 'Record';
+        const subtitleColumn = columns.filter(column => column !== titleColumn && column.renderType !== 'status' && column.renderType !== 'amount')[0];
+        const statusColumns = columns.filter(column => column.renderType === 'status');
+        const metaColumns = columns.filter(column => column !== titleColumn && statusColumns.indexOf(column) === -1).slice(0, 5);
+        const clickableProps = onRowClick
+          ? {
+              onClick: () => onRowClick(item),
+              onKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  onRowClick(item);
+                }
+              },
+              role: 'button',
+              tabIndex: 0
+            }
+          : {};
+
+        return (
+          <div className={onRowClick ? `${styles.mobileCard} ${styles.mobileCardClickable}` : styles.mobileCard} key={getRowKey(item, index)} {...clickableProps}>
+            <div className={styles.mobileCardHeader}>
+              <span className={styles.mobileCardAvatar} aria-hidden="true">{getAvatarText(title)}</span>
+              <div className={styles.mobileCardTitleGroup}>
+                <h3>{title}</h3>
+                {subtitleColumn ? <p>{getTextValue(item, subtitleColumn)}</p> : null}
+              </div>
+              {onRowClick ? (
+                <button
+                  aria-label={rowActionLabel}
+                  className={styles.mobileCardAction}
+                  onClick={event => {
+                    event.stopPropagation();
+                    onRowClick(item);
+                  }}
+                  type="button"
+                >
+                  <span aria-hidden="true">&gt;</span>
+                </button>
+              ) : null}
+            </div>
+            {statusColumns.length ? (
+              <div className={styles.mobileStatusRow}>
+                {statusColumns.map(column => (
+                  <span key={column.key}>{renderCell(item, column)}</span>
+                ))}
+              </div>
+            ) : null}
+            <dl className={styles.mobileMetaGrid}>
+              {metaColumns.map(column => {
+                const value = getFieldValue(item, column.fieldName);
+                const isHighlightedAmount = column.key.toLowerCase().indexOf('outstanding') !== -1 && typeof value === 'number' && value > 0;
+
+                return (
+                  <div className={isHighlightedAmount ? `${styles.mobileMetaItem} ${styles.mobileMetaHighlight}` : styles.mobileMetaItem} key={column.key}>
+                    <dt>{column.header}</dt>
+                    <dd>{renderCell(item, column)}</dd>
+                  </div>
+                );
+              })}
+            </dl>
+          </div>
+        );
+      })}
+    </div>
+  );
 };
 
 export const EntityTable = <TItem,>({
@@ -105,6 +217,7 @@ export const EntityTable = <TItem,>({
   return (
     <div className={styles.tableShell}>
       {actions ? <div className={styles.toolbar}>{actions}</div> : null}
+      {renderMobileCards(columns, items, getRowKey, onRowClick, rowActionLabel)}
       <div className={styles.scrollArea}>
         <table className={styles.table}>
           <thead>

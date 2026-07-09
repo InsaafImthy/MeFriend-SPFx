@@ -9,3 +9,10 @@
   padding-right: 2px;
   scrollbar-gutter: stable;
 }
+
+@media (max-width: 767px) {
+  .dashboard {
+    overflow: visible;
+    padding-right: 0;
+  }
+}

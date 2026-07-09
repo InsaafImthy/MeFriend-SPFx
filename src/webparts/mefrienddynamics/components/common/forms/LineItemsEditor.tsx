@@ -188,36 +188,59 @@ export const LineItemsEditor = <TItem extends LineItemRecord>({
         <Button label={addLabel} variant="secondary" size="small" disabled={disabled || readOnly} onClick={addLine} />
       </div>
       {items.length ? (
-        <div className={styles.lineItemsScroll}>
-          <table className={styles.lineItemsTable}>
-            <thead>
-              <tr>
-                {fields.map(field => (
-                  <th key={field.key}>{field.label}</th>
-                ))}
-                <th aria-label="Line actions" />
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item, rowIndex) => (
-                <tr key={getRowKey ? getRowKey(item, rowIndex) : String(rowIndex)}>
+        <>
+          <div className={styles.lineItemsScroll}>
+            <table className={styles.lineItemsTable}>
+              <thead>
+                <tr>
                   {fields.map(field => (
-                    <td key={field.key}>{renderCell(field, item, rowIndex)}</td>
+                    <th key={field.key}>{field.label}</th>
                   ))}
-                  <td className={styles.lineActionCell}>
-                    <Button
-                      label="Remove"
-                      variant="ghost"
-                      size="small"
-                      disabled={disabled || readOnly}
-                      onClick={() => removeLine(rowIndex)}
-                    />
-                  </td>
+                  <th aria-label="Line actions" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {items.map((item, rowIndex) => (
+                  <tr key={getRowKey ? getRowKey(item, rowIndex) : String(rowIndex)}>
+                    {fields.map(field => (
+                      <td key={field.key}>{renderCell(field, item, rowIndex)}</td>
+                    ))}
+                    <td className={styles.lineActionCell}>
+                      <Button
+                        label="Remove"
+                        variant="ghost"
+                        size="small"
+                        disabled={disabled || readOnly}
+                        onClick={() => removeLine(rowIndex)}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className={styles.lineItemsCards}>
+            {items.map((item, rowIndex) => (
+              <div className={styles.lineItemCard} key={getRowKey ? `card-${getRowKey(item, rowIndex)}` : `card-${rowIndex}`}>
+                <div className={styles.lineItemCardHeader}>
+                  <h4>Line {rowIndex + 1}</h4>
+                  <Button
+                    label="Remove"
+                    variant="ghost"
+                    size="small"
+                    disabled={disabled || readOnly}
+                    onClick={() => removeLine(rowIndex)}
+                  />
+                </div>
+                <div className={styles.lineItemCardGrid}>
+                  {fields.map(field => (
+                    <div key={field.key}>{renderCell(field, item, rowIndex)}</div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       ) : (
         <EmptyState title={emptyTitle} message={emptyMessage} action={<Button label={addLabel} variant="secondary" disabled={disabled || readOnly} onClick={addLine} />} />
       )}

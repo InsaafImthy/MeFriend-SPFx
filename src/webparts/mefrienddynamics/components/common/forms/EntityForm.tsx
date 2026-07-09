@@ -124,6 +124,7 @@ export const EntityForm: React.FC<IEntityFormProps> = ({
   onValidityChange
 }) => {
   const form = useEntityForm({ fields, initialValues, onSubmit });
+  const [collapsedSections, setCollapsedSections] = React.useState<Readonly<Record<string, boolean>>>({});
 
   React.useEffect(() => {
     if (onDirtyChange) {
@@ -142,6 +143,18 @@ export const EntityForm: React.FC<IEntityFormProps> = ({
     return sections.indexOf(title) === -1 ? [...sections, title] : sections;
   }, []);
 
+  React.useEffect(() => {
+    setCollapsedSections(currentSections => {
+      const nextSections: Record<string, boolean> = {};
+
+      sectionTitles.forEach((sectionTitle, index) => {
+        nextSections[sectionTitle] = currentSections[sectionTitle] !== undefined ? currentSections[sectionTitle] : index > 0;
+      });
+
+      return nextSections;
+    });
+  }, [sectionTitles.join('|')]);
+
   return (
     <form
       className={styles.entityForm}
@@ -155,7 +168,17 @@ export const EntityForm: React.FC<IEntityFormProps> = ({
           const sectionFields = fields.filter(field => getSectionTitle(field) === sectionTitle);
 
           return (
-            <FormSection key={sectionTitle} title={sectionTitle}>
+            <FormSection
+              key={sectionTitle}
+              title={sectionTitle}
+              collapsed={collapsedSections[sectionTitle] === true}
+              onToggle={() => {
+                setCollapsedSections(currentSections => ({
+                  ...currentSections,
+                  [sectionTitle]: currentSections[sectionTitle] !== true
+                }));
+              }}
+            >
               {sectionFields.map(field =>
                 renderField(
                   field,

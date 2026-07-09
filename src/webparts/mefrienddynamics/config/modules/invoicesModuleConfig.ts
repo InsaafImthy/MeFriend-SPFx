@@ -40,9 +40,9 @@ export const invoicesModuleConfig: IModuleConfig<IInvoiceListItem> = {
   filters: [
     { key: 'searchText', label: 'Search', type: 'text' },
     { key: 'invoiceDate', label: 'Invoice Date', type: 'dateRange' },
+    { key: 'invoiceStatus', label: 'Invoice Status', type: 'status', options: invoiceStatusOptions },
     { key: 'customerCode', label: 'Customer', type: 'text' },
     { key: 'salesOrderNumber', label: 'Sales Order', type: 'text' },
-    { key: 'invoiceStatus', label: 'Invoice Status', type: 'status', options: invoiceStatusOptions },
     { key: 'paymentStatus', label: 'Payment Status', type: 'status', options: paymentStatusOptions },
     { key: 'outstandingOnly', label: 'Outstanding only', type: 'outstandingOnly' }
   ]

@@ -28,5 +28,23 @@
 @media (max-width: 720px) {
   .header {
     flex-direction: column;
+    gap: 12px;
+  }
+
+  .title {
+    font-size: 20px;
+  }
+
+  .description {
+    font-size: 13px;
+    margin-top: 6px;
+  }
+
+  .actions {
+    width: 100%;
+
+    > * {
+      width: 100%;
+    }
   }
 }

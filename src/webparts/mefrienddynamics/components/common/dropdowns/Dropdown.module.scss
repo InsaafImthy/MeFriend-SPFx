@@ -270,6 +270,18 @@
   width: 100%;
 }
 
+@media (max-width: 767px) {
+  .trigger {
+    font-size: 15px;
+    min-height: 44px;
+  }
+
+  .search {
+    font-size: 15px;
+    min-height: 44px;
+  }
+}
+
 .option:hover,
 .option:focus {
   background: #f4f1fb;

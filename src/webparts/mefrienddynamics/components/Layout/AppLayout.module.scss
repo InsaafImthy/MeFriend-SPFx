@@ -42,27 +42,24 @@
   transition: padding 180ms ease;
 }
 
-.sidebarTopControls {
-  display: flex;
-  justify-content: flex-end;
-  width: 100%;
-}
-
 .sidebarToggle {
   align-items: center;
   background: rgba(115, 67, 215, 0.36);
   border: 0;
-  border-radius: 7px;
+  border-radius: 6px;
   box-shadow: inset 0 0 0 1px rgba(151, 106, 255, 0.26);
   color: rgba(255, 255, 255, 0.82);
   cursor: pointer;
   display: inline-flex;
-  flex: 0 0 28px;
-  font-size: 12px;
-  height: 28px;
+  font-size: 10px;
+  height: 24px;
   justify-content: center;
+  position: absolute;
+  right: -12px;
+  top: 16px;
   transition: background-color 140ms ease, color 140ms ease, transform 140ms ease;
-  width: 28px;
+  width: 24px;
+  z-index: 4;
 
   &:hover {
     background: rgba(115, 67, 215, 0.5);
@@ -115,6 +112,12 @@
   min-width: 0;
   overflow: hidden;
   transition: opacity 140ms ease, width 180ms ease;
+}
+
+.mobileHeader,
+.mobileDrawer,
+.mobileDrawerOverlay {
+  display: none;
 }
 
 .main {
@@ -388,10 +391,6 @@
     padding: 15px 15px 0;
   }
 
-  .sidebarTopControls {
-    justify-content: center;
-  }
-
   .brand {
     flex-direction: column;
     gap: 0;
@@ -448,84 +447,215 @@
   }
 }
 
-@media (max-width: 860px) {
+@media (max-width: 767px) {
   .appLayout {
+    display: flex;
+    flex-direction: column;
     grid-template-columns: 1fr;
-    height: auto;
+    height: 100%;
     min-height: 100%;
-    overflow: visible;
-    padding: 14px;
+    overflow: hidden;
+    padding: 0;
   }
 
   .appLayout.collapsed {
     grid-template-columns: 1fr;
   }
 
+  .mobileHeader {
+    align-items: center;
+    background: #21006d;
+    box-shadow: 0 10px 28px rgba(33, 0, 109, 0.18);
+    box-sizing: border-box;
+    color: #ffffff;
+    display: flex;
+    flex: 0 0 auto;
+    gap: 12px;
+    min-height: 56px;
+    padding: 8px 14px;
+    position: relative;
+    z-index: 12;
+  }
+
+  .mobileMenuButton,
+  .mobileCloseButton {
+    align-items: center;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 7px;
+    color: #ffffff;
+    cursor: pointer;
+    display: inline-flex;
+    flex: 0 0 44px;
+    font-size: 18px;
+    height: 44px;
+    justify-content: center;
+    width: 44px;
+
+    &:focus-visible {
+      box-shadow: 0 0 0 3px rgba(151, 106, 255, 0.34);
+      outline: none;
+    }
+  }
+
+  .mobileBrand {
+    align-items: center;
+    display: flex;
+    flex: 1 1 auto;
+    gap: 10px;
+    min-width: 0;
+
+    span {
+      color: #ffffff;
+      font-size: 16px;
+      font-weight: 750;
+      line-height: 1.2;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  .mobileBrandMark {
+    border-radius: 4px;
+    display: block;
+    flex: 0 0 34px;
+    height: 34px;
+    object-fit: contain;
+    width: 34px;
+  }
+
+  .mobileAvatar {
+    align-items: center;
+    background: #e8fbff;
+    border: 2px solid rgba(255, 255, 255, 0.52);
+    border-radius: 50%;
+    color: #21006d;
+    display: inline-flex;
+    flex: 0 0 34px;
+    font-size: 11px;
+    font-weight: 750;
+    height: 34px;
+    justify-content: center;
+    width: 34px;
+  }
+
+  .mobileDrawerOverlay {
+    background: rgba(15, 23, 42, 0.46);
+    display: block;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    position: fixed;
+    transition: opacity 180ms ease;
+    z-index: 30;
+  }
+
+  .mobileDrawerOverlayOpen {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .mobileDrawer {
+    background: #21006d;
+    box-shadow: 18px 0 52px rgba(15, 23, 42, 0.28);
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    height: 100vh;
+    left: 0;
+    max-width: 86vw;
+    min-width: 0;
+    overflow-y: auto;
+    padding: 14px;
+    position: fixed;
+    top: 0;
+    transform: translateX(-104%);
+    transition: transform 210ms cubic-bezier(0.16, 1, 0.3, 1);
+    width: 308px;
+    z-index: 31;
+  }
+
+  .mobileDrawerOpen {
+    transform: translateX(0);
+  }
+
+  .mobileDrawerHeader {
+    align-items: center;
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    min-width: 0;
+  }
+
+  .mobileCloseButton {
+    flex-basis: 40px;
+    height: 40px;
+    width: 40px;
+  }
+
   .sidebar {
-    min-height: 0;
-    padding: 0;
-  }
-
-  .sidebarPanel {
-    border-radius: 8px;
-    gap: 16px;
-    max-height: none;
-    min-height: 0;
-    overflow: visible;
-    padding: 18px 0 8px;
-  }
-
-  .sidebarToggle {
     display: none;
   }
 
-  .brand {
-    padding: 0 18px;
+  .mobileUserPanel {
+    align-items: center;
+    border-top: 1px solid rgba(255, 255, 255, 0.14);
+    color: rgba(255, 255, 255, 0.72);
+    display: flex;
+    gap: 12px;
+    margin-top: auto;
+    min-height: 58px;
+    min-width: 0;
+    padding-top: 14px;
   }
 
-  .brandText {
-    h1 {
-      font-size: 16px;
-    }
-
-    p {
-      max-width: 220px;
-    }
-  }
-
-  .userPanel {
-    box-sizing: border-box;
-    margin: 0;
-    min-height: 0;
-    padding: 0 18px 8px;
-    width: 100%;
-  }
-
-  .userButton {
-    height: 42px;
-    margin: 0;
-    min-height: 42px;
+  .mobileSettingsLink {
+    align-items: center;
+    border-radius: 7px;
+    color: rgba(255, 255, 255, 0.78);
+    display: flex;
+    font-size: 13px;
+    font-weight: 650;
+    gap: 10px;
+    min-height: 44px;
     padding: 0 12px;
-    width: 100%;
+    text-decoration: none;
   }
 
-  .userMenu {
-    bottom: auto;
-    left: 18px;
-    right: 18px;
-    top: calc(100% - 4px);
+  .mobileSettingsLinkActive {
+    background: #7243d7;
+    color: #ffffff;
+  }
+
+  .main {
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
   .content {
-    --mefriend-content-padding-block: 14px;
-    --mefriend-content-padding-bottom: 4px;
-    --mefriend-content-padding-left: 0px;
-    --mefriend-content-padding-right: 0px;
-    --mefriend-content-padding-top: 14px;
+    --mefriend-content-padding-block: 16px;
+    --mefriend-content-padding-bottom: 16px;
+    --mefriend-content-padding-left: 16px;
+    --mefriend-content-padding-right: 16px;
+    --mefriend-content-padding-top: 16px;
 
-    height: auto;
-    overflow: visible;
+    height: 100%;
+    overflow: auto;
     padding: var(--mefriend-content-padding-top) var(--mefriend-content-padding-right) var(--mefriend-content-padding-bottom) var(--mefriend-content-padding-left);
+  }
+}
+
+@media (max-width: 479px) {
+  .content {
+    --mefriend-content-padding-left: 14px;
+    --mefriend-content-padding-right: 14px;
+  }
+
+  .mobileDrawer {
+    max-width: 88vw;
+    width: 292px;
   }
 }
 

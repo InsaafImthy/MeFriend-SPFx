@@ -72,33 +72,8 @@
   white-space: nowrap;
 }
 
-@media (max-width: 860px) {
-  .navigation {
-    flex-direction: row;
-    overflow-x: auto;
-    padding: 2px 18px 8px;
-  }
-
-  .collapsed {
-    align-items: stretch;
-
-    .navItem {
-      gap: 12px;
-      justify-content: flex-start;
-      padding: 0 12px;
-      width: auto;
-    }
-
-    .navLabel {
-      opacity: 1;
-      pointer-events: auto;
-      width: auto;
-    }
-  }
-
+@media (max-width: 767px) {
   .navItem {
-    flex: 0 0 auto;
-    min-height: 36px;
-    padding: 0 12px;
+    min-height: 44px;
   }
 }
