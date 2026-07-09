@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { Icon } from '@fluentui/react';
 import type { IFormFieldConfig } from '../../../models/common/IFormFieldConfig';
 import type { EntityFormErrors, EntityFormValue, EntityFormValues } from '../../../utils/validationUtils';
 import { hasValidationErrors, validateFormValues } from '../../../utils/validationUtils';
@@ -206,13 +207,16 @@ export const LineItemsEditor = <TItem extends LineItemRecord>({
                       <td key={field.key}>{renderCell(field, item, rowIndex)}</td>
                     ))}
                     <td className={styles.lineActionCell}>
-                      <Button
-                        label="Remove"
-                        variant="ghost"
-                        size="small"
+                      <button
+                        aria-label={`Remove line ${rowIndex + 1}`}
+                        className={styles.lineRemoveButton}
                         disabled={disabled || readOnly}
                         onClick={() => removeLine(rowIndex)}
-                      />
+                        title="Remove line"
+                        type="button"
+                      >
+                        <Icon iconName="Delete" aria-hidden="true" />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -224,13 +228,16 @@ export const LineItemsEditor = <TItem extends LineItemRecord>({
               <div className={styles.lineItemCard} key={getRowKey ? `card-${getRowKey(item, rowIndex)}` : `card-${rowIndex}`}>
                 <div className={styles.lineItemCardHeader}>
                   <h4>Line {rowIndex + 1}</h4>
-                  <Button
-                    label="Remove"
-                    variant="ghost"
-                    size="small"
+                  <button
+                    aria-label={`Remove line ${rowIndex + 1}`}
+                    className={styles.lineRemoveButton}
                     disabled={disabled || readOnly}
                     onClick={() => removeLine(rowIndex)}
-                  />
+                    title="Remove line"
+                    type="button"
+                  >
+                    <Icon iconName="Delete" aria-hidden="true" />
+                  </button>
                 </div>
                 <div className={styles.lineItemCardGrid}>
                   {fields.map(field => (

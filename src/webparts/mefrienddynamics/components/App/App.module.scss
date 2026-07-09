@@ -1,11 +1,11 @@
 .app {
-  --mefriend-sharepoint-header-height: 48px;
-
   font-family: var(--mefriend-font-family, "Josefin Sans", "Segoe UI", Arial, sans-serif);
-  height: calc(100vh - var(--mefriend-sharepoint-header-height));
+  height: 100vh;
+  height: 100dvh;
   margin: 0;
   min-width: 0;
-  min-height: calc(100vh - var(--mefriend-sharepoint-header-height));
+  min-height: 100vh;
+  min-height: 100dvh;
   overflow: hidden;
   padding: 0;
   width: 100%;

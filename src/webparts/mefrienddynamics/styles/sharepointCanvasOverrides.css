@@ -22,9 +22,16 @@ div[aria-label="Edit"],
 div[aria-label="Page commands"],
 div[data-automation-id="pageFooterContainer"],
 div[data-automation-id="sp-page-footer"],
+div[data-sp-placeholder="Bottom"],
+div.sp-placeholder-bottom,
 div[class*="spPageFooter"],
 div[class*="pageFooter"] {
   display: none !important;
+  height: 0 !important;
+  margin: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  padding: 0 !important;
 }
 
 button[aria-label*="Copilot" i],

@@ -1,7 +1,4 @@
 .appLayout {
-  --mefriend-visible-bottom-clearance: 18px;
-  --mefriend-sidebar-bottom-clearance: 48px;
-
   background: #f4f1fb;
   box-sizing: border-box;
   color: #0f172a;
@@ -41,7 +38,7 @@
   gap: 12px;
   height: 100%;
   min-height: 0;
-  padding: 15px 15px calc(0px + var(--mefriend-sidebar-bottom-clearance));
+  padding: 15px 15px 0px 15px;
   position: relative;
   scrollbar-gutter: stable;
   transition: padding 180ms ease;
@@ -145,7 +142,7 @@
   min-height: 0;
   min-width: 0;
   overflow: auto;
-  padding: var(--mefriend-content-padding-top) var(--mefriend-content-padding-right) var(--mefriend-content-padding-bottom) var(--mefriend-content-padding-left);
+  padding: var(--mefriend-content-padding-top) var(--mefriend-content-padding-right) 0px var(--mefriend-content-padding-left);
 }
 
 .routeTransition {
@@ -393,7 +390,7 @@
   .sidebarPanel {
     align-items: center;
     gap: 12px;
-    padding: 15px 15px calc(0px + var(--mefriend-sidebar-bottom-clearance));
+    padding: 15px;
   }
 
   .brand {
