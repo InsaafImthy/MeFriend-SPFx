@@ -1,27 +1,72 @@
+#SuiteNavWrapper,
+#CommentsWrapper,
+#spSiteHeader,
+#sp-appBar,
+#spLeftNav,
+#spCommandBar,
+.headerRow-49,
+.headerRow-50,
+.headerRow-106,
+.commandBarWrapper,
+.s_b_beed2cf1,
+.s_b_d71df89c,
+.titleSubcell-114.titleSubcell-114.titleSubcell-114.titleSubcell-114.titleSubcell-114,
+button[data-automationid="editButton"],
+button[name="Edit"],
+div[role="toolbar"][aria-label="Edit"],
+footer,
+div[role="contentinfo"],
+div[data-automation-id="pageFooter"],
+div[class*="edit"],
+div[aria-label="Edit"],
+div[aria-label="Page commands"],
+div[class*="Footer"] {
+  display: none !important;
+}
+
 #spPageCanvasContent,
 .CanvasZone,
 .CanvasZoneContainer,
+.CanvasZoneSectionContainer,
 .CanvasSection,
+.CanvasSection-col,
+.CanvasSection-sm12,
+.CanvasSection--read,
+.CanvasSection-xl12,
 .ControlZone,
+.ControlZone--clean,
+.a_a_50a7110f,
+.a_b_cb6f7c2e,
+.a_e_50a7110f,
+.a_g_cb6f7c2e:not(.b_g_cb6f7c2e):not(.aa_g_cb6f7c2e),
+[id="67668abb-e263-4f80-aae0-5552e4f40950"],
+[id="d1007acc-56f5-4889-95df-d67c36dd3f3b"],
 [data-automation-id="CanvasZone"],
 [data-automation-id="CanvasSection"],
 [data-automation-id="CanvasControl"],
 [data-automation-id="ControlZone"] {
   box-sizing: border-box;
+  margin: 0 !important;
   margin-left: 0 !important;
   margin-right: 0 !important;
   max-width: none !important;
+  padding: 0 !important;
   padding-left: 0 !important;
   padding-right: 0 !important;
   width: 100% !important;
 }
 
+body,
 #spPageCanvasContent {
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
   padding-top: 0 !important;
 }
 
 [data-automation-id="CanvasControl"],
 [data-automation-id="ControlZone"],
 .ControlZone {
+  margin: 0 !important;
+  padding: 0 !important;
   padding-top: 0 !important;
 }
