@@ -92,6 +92,7 @@ div[class*="sp-pageLayout-sideNav"],
 [data-automation-id="CanvasControl"],
 [data-automation-id="ControlZone"] {
   box-sizing: border-box;
+  border-radius: 0 !important;
   margin: 0 !important;
   margin-left: 0 !important;
   margin-right: 0 !important;
@@ -103,8 +104,11 @@ div[class*="sp-pageLayout-sideNav"],
 }
 
 .sp-pageLayout-sideNav,
-div[class*="sp-pageLayout-sideNav"] {
+div[class*="sp-pageLayout-sideNav"],
+html body .sp-pageLayout-sideNav,
+html body div[class*="sp-pageLayout-sideNav"] {
   border-radius: 0 !important;
+  clip-path: inset(0 round 0) !important;
   height: 100vh !important;
   height: 100dvh !important;
   min-height: 100vh !important;

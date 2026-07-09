@@ -2,6 +2,7 @@
 
 .mefrienddynamics {
   box-sizing: border-box;
+  border-radius: 0;
   color: "[theme:bodyText, default: #323130]";
   color: var(--bodyText);
   font-family: var(--mefriend-font-family, "Josefin Sans", "Segoe UI", Arial, sans-serif);
