@@ -10,6 +10,7 @@ import type { ApiClientRequestOptions } from './apiTypes';
 
 export interface IAuthClientSettings {
   baseUrl?: string;
+  anonymous?: boolean;
   useAadHttpClient?: boolean;
   aadResourceUrl?: string;
 }
@@ -31,6 +32,7 @@ export class AuthClient {
     this.httpClient = dependencies.httpClient;
     this.settings = {
       baseUrl: appConfig.backendApi.baseUrl || appConfig.backendApiBaseUrl,
+      anonymous: appConfig.backendApi.anonymous,
       useAadHttpClient: appConfig.backendApi.useAadHttpClient,
       aadResourceUrl: appConfig.backendApi.aadResourceUrl,
       ...dependencies.settings
@@ -91,10 +93,18 @@ export class AuthClient {
       headers['Content-Type'] = 'application/json';
     }
 
-    return {
+    const httpOptions: IHttpClientOptions = {
       method: options.method,
       headers,
       body: options.body
     };
+
+    if (this.settings.anonymous) {
+      const anonymousOptions = httpOptions as IHttpClientOptions & Pick<RequestInit, 'credentials' | 'mode'>;
+      anonymousOptions.credentials = 'omit';
+      anonymousOptions.mode = 'cors';
+    }
+
+    return httpOptions;
   }
 }
