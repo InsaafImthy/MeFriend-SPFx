@@ -2,11 +2,16 @@ export type PaymentStatus = 'Paid' | 'Partially Paid' | 'Unpaid' | 'Overdue' | '
 
 export interface IInvoiceLineItem {
   lineNumber: string;
+  lineType?: string;
+  documentNumber?: string;
   itemCode?: string;
+  hsnCode?: string;
+  gstRate?: string;
   description: string;
   quantity: number;
   unitPrice: number;
   lineAmount: number;
+  amountIncludingVAT?: number;
   currencyCode?: string;
 }
 
@@ -24,10 +29,22 @@ export interface IInvoiceListItem {
   invoiceNumber: string;
   customerCode: string;
   customerName: string;
+  customerAddress?: string;
+  customerGSTNo?: string;
+  clientCode?: string;
+  clientName?: string;
+  clientAddress?: string;
+  clientGSTNo?: string;
+  salesPerson?: string;
   salesOrderNumber: string;
   invoiceDate?: string;
   dueDate?: string;
   totalAmount: number;
+  netAmount?: number;
+  tradeDiscount?: number;
+  sgst?: number;
+  cgst?: number;
+  igst?: number;
   paidAmount?: number;
   outstandingAmount?: number;
   paymentStatus: PaymentStatus;

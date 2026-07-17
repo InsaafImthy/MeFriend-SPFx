@@ -15,12 +15,13 @@ export interface IFinancialSummaryCard {
 
 export interface IFinancialSummaryCardsProps {
   cards: readonly IFinancialSummaryCard[];
+  accented?: boolean;
 }
 
 export const FinancialSummaryCards: React.FC<IFinancialSummaryCardsProps> = ({ cards }) => (
   <div className={styles.cards}>
     {cards.map(card => (
-      <section className={`${styles.card} ${styles[card.type || 'normal']}`} key={card.key}>
+      <section className={styles.card} key={card.key}>
         <span className={styles.label}>{card.label}</span>
         <strong className={styles.value}>
           {card.amount !== undefined ? (

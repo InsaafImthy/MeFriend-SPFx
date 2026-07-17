@@ -9,11 +9,13 @@ import type { ICustomerListItem } from '../../../models/customers';
 import type { IEventListItem } from '../../../models/events';
 import type { ISalesOrderCreateFormState, ISalesOrderLineItem } from '../../../models/salesOrders';
 import type { ISalespersonListItem } from '../../../models/salespersons';
+import type { IMasterCodeItem } from '../../../models/settings/IMasterDataModels';
 import { getUserFriendlyError } from '../../../services/api/apiErrorHandler';
 import type { CustomerService } from '../../../services/customers/customerService';
 import type { EventService } from '../../../services/events/eventService';
 import type { SalesOrderService } from '../../../services/salesOrders/salesOrderService';
 import type { SalespersonService } from '../../../services/salespersons/salespersonService';
+import type { MasterDataService } from '../../../services/sharepoint/masterDataService';
 import type { EntityFormErrors, EntityFormValue, EntityFormValues } from '../../../utils/validationUtils';
 import { hasValidationErrors, validateFormValues } from '../../../utils/validationUtils';
 import { Button } from '../../common/buttons/Button';
@@ -25,6 +27,7 @@ import { useToast } from '../../common/toast/useToast';
 export interface ISalesOrderCreatePageProps {
   customerService: CustomerService;
   eventService: EventService;
+  masterDataService: MasterDataService;
   salesOrderService: SalesOrderService;
   salespersonService: SalespersonService;
   onNavigate: (path: string) => void;
@@ -107,6 +110,8 @@ const toSalesOrderFormState = (
   customerCode: getStringValue(values, 'customerCode'),
   salespersonCode: getStringValue(values, 'salespersonCode'),
   eventCode: getStringValue(values, 'eventCode'),
+  countryCode: getStringValue(values, 'countryCode'),
+  stateCode: getStringValue(values, 'stateCode'),
   orderDate: getStringValue(values, 'orderDate'),
   postingDate: getStringValue(values, 'postingDate'),
   externalDocumentNumber: getStringValue(values, 'externalDocumentNumber'),
@@ -135,9 +140,18 @@ const toSalespersonOptions = (items: readonly ISalespersonListItem[]): readonly 
     value: item.salespersonCode
   }));
 
+const toMasterCodeOptions = (items: readonly IMasterCodeItem[]): readonly ILookupOption[] =>
+  items.map(item => ({
+    key: item.code,
+    text: item.name ? `${item.code} - ${item.name}` : item.code,
+    value: item.code,
+    description: item.name
+  }));
+
 export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
   customerService,
   eventService,
+  masterDataService,
   salesOrderService,
   salespersonService,
   onNavigate
@@ -149,8 +163,10 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
   const [showCancelDialog, setShowCancelDialog] = React.useState<boolean>(false);
   const [showLineValidation, setShowLineValidation] = React.useState<boolean>(false);
   const [customerOptions, setCustomerOptions] = React.useState<readonly ILookupOption[]>([]);
+  const [countryOptions, setCountryOptions] = React.useState<readonly ILookupOption[]>([]);
   const [eventOptions, setEventOptions] = React.useState<readonly ILookupOption[]>([]);
   const [salespersonOptions, setSalespersonOptions] = React.useState<readonly ILookupOption[]>([]);
+  const [stateOptions, setStateOptions] = React.useState<readonly ILookupOption[]>([]);
   const [lines, setLines] = React.useState<readonly ISalesOrderLineFormItem[]>([]);
 
   React.useEffect(() => {
@@ -160,10 +176,12 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
       setLookupLoading(true);
 
       try {
-        const [customers, events, salespersons] = await Promise.all([
+        const [customers, events, salespersons, countries, states] = await Promise.all([
           customerService.getCustomers({}, { pageNumber: 1, pageSize }),
           eventService.getEvents({}, { pageNumber: 1, pageSize }),
-          salespersonService.getSalespersons({}, { pageNumber: 1, pageSize })
+          salespersonService.getSalespersons({}, { pageNumber: 1, pageSize }),
+          masterDataService.getCodes('countryCodes'),
+          masterDataService.getCodes('stateCodes')
         ]);
 
         if (!isMounted) {
@@ -173,6 +191,8 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
         setCustomerOptions(toCustomerOptions(customers.items));
         setEventOptions(toEventOptions(events.items));
         setSalespersonOptions(toSalespersonOptions(salespersons.items));
+        setCountryOptions(toMasterCodeOptions(countries));
+        setStateOptions(toMasterCodeOptions(states));
       } catch (error) {
         if (isMounted) {
           toast.error(getUserFriendlyError(error), { title: 'Unable to load sales order lookups' });
@@ -189,7 +209,7 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [customerService, eventService, salespersonService, toast]);
+  }, [customerService, eventService, masterDataService, salespersonService, toast]);
 
   const fields = React.useMemo<readonly IFormFieldConfig[]>(() => {
     return (salesOrdersModuleConfig.formFields || []).map(field => {
@@ -205,9 +225,17 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
         return { ...field, options: salespersonOptions, disabled: lookupLoading };
       }
 
+      if (field.key === 'countryCode') {
+        return { ...field, options: countryOptions, disabled: lookupLoading };
+      }
+
+      if (field.key === 'stateCode') {
+        return { ...field, options: stateOptions, disabled: lookupLoading };
+      }
+
       return field;
     });
-  }, [customerOptions, eventOptions, lookupLoading, salespersonOptions]);
+  }, [countryOptions, customerOptions, eventOptions, lookupLoading, salespersonOptions, stateOptions]);
 
   const lineDirty = lines.length > 0;
   const isDirty = headerDirty || lineDirty;
@@ -258,6 +286,7 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
     >
       <EntityForm
         fields={fields}
+        initialValues={{ countryCode: 'IN' }}
         submitLabel="Create Sales Order"
         cancelLabel="Cancel"
         loading={loading}
@@ -265,7 +294,9 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
         lookupLoadingKeys={{
           customerCode: lookupLoading,
           eventCode: lookupLoading,
-          salespersonCode: lookupLoading
+          salespersonCode: lookupLoading,
+          countryCode: lookupLoading,
+          stateCode: lookupLoading
         }}
         onDirtyChange={setHeaderDirty}
         onSubmit={values => {

@@ -28,17 +28,6 @@ const toInvoiceFilters = (values: EntityFilterValues): IInvoiceFilters => ({
   outstandingOnly: values.outstandingOnly === true
 });
 
-const isOutstandingInvoice = (invoice: IInvoiceListItem): boolean => {
-  const status = invoice.paymentStatus.toLowerCase();
-
-  return (
-    (typeof invoice.outstandingAmount === 'number' && invoice.outstandingAmount > 0) ||
-    status === 'unpaid' ||
-    status === 'partially paid' ||
-    status === 'overdue'
-  );
-};
-
 const getListErrorMessage = (error: unknown): string => {
   const normalizedError = normalizeError(error);
 
@@ -69,14 +58,13 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({ invoiceService, onNav
     try {
       const filters = toInvoiceFilters(appliedFilterValues);
       const result = await invoiceService.getInvoices(filters, pagination, sorting);
-      const visibleItems = filters.outstandingOnly ? result.items.filter(isOutstandingInvoice) : result.items;
 
-      setItems(visibleItems);
+      setItems(result.items);
       setPagination(current => ({
         ...current,
         pageNumber: result.pageNumber || current.pageNumber,
         pageSize: result.pageSize || current.pageSize,
-        totalCount: filters.outstandingOnly ? visibleItems.length : result.totalCount || 0
+        totalCount: result.totalCount || 0
       }));
     } catch (loadError) {
       setItems([]);

@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { invoicesModuleConfig } from '../../../config/modules/invoicesModuleConfig';
 import { salesOrdersModuleConfig } from '../../../config/modules/salesOrdersModuleConfig';
+import type { IFormFieldConfig } from '../../../models/common/IFormFieldConfig';
 import type { ITableColumn } from '../../../models/common/ITableColumn';
 import type {
   ISalesOrderDetail,
@@ -9,8 +10,10 @@ import type {
 } from '../../../models/salesOrders';
 import { getUserFriendlyError, normalizeError } from '../../../services/api/apiErrorHandler';
 import type { SalesOrderService } from '../../../services/salesOrders/salesOrderService';
-import { DetailViewLayout, IDetailViewSection } from '../../common/detailView/DetailViewLayout';
+import type { EntityFormValues } from '../../../utils/validationUtils';
+import { EntityDetailPage, EntityDetailSection } from '../../common/detailPage/EntityDetailPage';
 import { FinancialSummaryCards } from '../../common/financialSummary/FinancialSummaryCards';
+import { ReadOnlyEntityForm } from '../../common/forms/ReadOnlyEntityForm';
 import { RelatedRecordsSection } from '../../common/relatedRecords/RelatedRecordsSection';
 
 export interface ISalesOrderDetailPageProps {
@@ -20,13 +23,14 @@ export interface ISalesOrderDetailPageProps {
 }
 
 const lineColumns: readonly ITableColumn<ISalesOrderLineItem>[] = [
+  { key: 'lineNumber', header: 'Line No.', fieldName: 'lineNumber', sortable: false, renderType: 'text' },
+  { key: 'lineType', header: 'Type', fieldName: 'lineType', sortable: false, renderType: 'text' },
   { key: 'itemCode', header: 'Item/Service Code', fieldName: 'itemCode', sortable: false, renderType: 'text' },
   { key: 'description', header: 'Description', fieldName: 'description', sortable: false, renderType: 'text', minWidth: 220 },
   { key: 'quantity', header: 'Quantity', fieldName: 'quantity', sortable: false, renderType: 'text' },
   { key: 'unitPrice', header: 'Unit Price/Rate', fieldName: 'unitPrice', sortable: false, renderType: 'amount' },
   { key: 'lineAmount', header: 'Amount', fieldName: 'lineAmount', sortable: false, renderType: 'amount' },
-  { key: 'taxAmount', header: 'Tax', fieldName: 'taxAmount', sortable: false, renderType: 'amount' },
-  { key: 'lineStatus', header: 'Line Status', fieldName: 'lineStatus', sortable: false, renderType: 'status' }
+  { key: 'amountIncludingVAT', header: 'Amount Including VAT', fieldName: 'amountIncludingVAT', sortable: false, renderType: 'amount' }
 ];
 
 const invoiceColumns: readonly ITableColumn<ISalesOrderRelatedInvoice>[] = [
@@ -37,6 +41,24 @@ const invoiceColumns: readonly ITableColumn<ISalesOrderRelatedInvoice>[] = [
   { key: 'outstandingAmount', header: 'Outstanding Amount', fieldName: 'outstandingAmount', sortable: false, renderType: 'amount' },
   { key: 'paymentStatus', header: 'Payment Status', fieldName: 'paymentStatus', sortable: false, renderType: 'status' },
   { key: 'invoiceStatus', header: 'Invoice Status', fieldName: 'invoiceStatus', sortable: false, renderType: 'status' }
+];
+
+const salesOrderDetailFields: readonly IFormFieldConfig[] = [
+  { key: 'salesOrderNumber', label: 'Sales Order Number', type: 'text', required: false, section: 'Order Header' },
+  { key: 'status', label: 'Status', type: 'text', required: false, section: 'Order Header' },
+  { key: 'orderDate', label: 'Order Date', type: 'date', required: false, section: 'Order Header' },
+  { key: 'postingDate', label: 'Posting Date', type: 'date', required: false, section: 'Order Header' },
+  { key: 'customerCode', label: 'Customer Code', type: 'text', required: false, section: 'Customer' },
+  { key: 'customerName', label: 'Customer Name', type: 'text', required: false, section: 'Customer' },
+  { key: 'clientCode', label: 'Client Code', type: 'text', required: false, section: 'Customer' },
+  { key: 'clientName', label: 'Client Name', type: 'text', required: false, section: 'Customer' },
+  { key: 'amount', label: 'Amount', type: 'amount', required: false, section: 'Amounts' },
+  { key: 'amountIncludingVAT', label: 'Amount Including VAT', type: 'amount', required: false, section: 'Amounts' },
+  { key: 'currencyCode', label: 'Currency Code', type: 'text', required: false, section: 'Amounts' },
+  { key: 'salespersonCode', label: 'Salesperson Code', type: 'text', required: false, section: 'References' },
+  { key: 'salespersonName', label: 'Salesperson Name', type: 'text', required: false, section: 'References' },
+  { key: 'eventCode', label: 'Event Code', type: 'text', required: false, section: 'References' },
+  { key: 'eventName', label: 'Event Name', type: 'text', required: false, section: 'References' }
 ];
 
 const getDetailErrorMessage = (error: unknown): string => {
@@ -70,6 +92,9 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
   const [relatedInvoicesLoading, setRelatedInvoicesLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | undefined>();
   const [relatedInvoicesError, setRelatedInvoicesError] = React.useState<string | undefined>();
+  const handleBack = React.useCallback((): void => {
+    onNavigate(salesOrdersModuleConfig.route);
+  }, [onNavigate]);
 
   React.useEffect(() => {
     const loadSalesOrder = async (): Promise<void> => {
@@ -117,26 +142,47 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
   const invoiceSummary = salesOrderService.getInvoiceSummaryFromRelatedInvoices(relatedInvoices);
   const currencyCode = salesOrder?.currencyCode || relatedInvoices[0]?.currencyCode;
 
-  const sections: IDetailViewSection[] = [
-    {
-      title: 'Header',
-      fields: [
-        { key: 'salesOrderNumber', label: 'Sales Order Number', value: salesOrder?.salesOrderNumber },
-        { key: 'customerCode', label: 'Customer Code', value: salesOrder?.customerCode },
-        { key: 'customerName', label: 'Customer Name', value: salesOrder?.customerName },
-        { key: 'salespersonCode', label: 'Salesperson Code', value: salesOrder?.salespersonCode },
-        { key: 'salespersonName', label: 'Salesperson Name', value: salesOrder?.salespersonName },
-        { key: 'eventCode', label: 'Event Code', value: salesOrder?.eventCode },
-        { key: 'eventName', label: 'Event Name', value: salesOrder?.eventName },
-        { key: 'orderDate', label: 'Order Date', value: salesOrder?.orderDate, renderType: 'date' },
-        { key: 'status', label: 'Status', value: salesOrder?.status, renderType: 'status' },
-        { key: 'totalAmount', label: 'Total Amount', value: salesOrder?.totalAmount, renderType: 'amount' },
-        { key: 'currencyCode', label: 'Currency Code', value: salesOrder?.currencyCode }
-      ]
-    },
-    {
-      title: 'Line Items',
-      customContent: (
+  const formValues = React.useMemo<EntityFormValues>(
+    () => ({
+      salesOrderNumber: salesOrder?.salesOrderNumber || '',
+      status: salesOrder?.status || '',
+      orderDate: salesOrder?.orderDate || '',
+      postingDate: salesOrder?.postingDate || '',
+      customerCode: salesOrder?.customerCode || '',
+      customerName: salesOrder?.customerName || '',
+      clientCode: salesOrder?.clientCode || '',
+      clientName: salesOrder?.clientName || '',
+      amount: salesOrder?.totalAmount !== undefined ? String(salesOrder.totalAmount) : '',
+      amountIncludingVAT: salesOrder?.amountIncludingVAT !== undefined ? String(salesOrder.amountIncludingVAT) : '',
+      currencyCode: salesOrder?.currencyCode || '',
+      salespersonCode: salesOrder?.salespersonCode || '',
+      salespersonName: salesOrder?.salespersonName || '',
+      eventCode: salesOrder?.eventCode || '',
+      eventName: salesOrder?.eventName || ''
+    }),
+    [salesOrder]
+  );
+
+  return (
+    <EntityDetailPage
+      title="Sales Order Detail"
+      description={
+        salesOrder
+          ? salesOrder.salesOrderNumber || salesOrder.customerName || salesOrder.customerCode
+          : salesOrderId
+            ? `Sales order reference: ${salesOrderId}`
+            : undefined
+      }
+      backLabel="Back to Sales Orders"
+      onBack={handleBack}
+      loading={loading}
+      error={error}
+    >
+      <ReadOnlyEntityForm
+        fields={salesOrderDetailFields}
+        values={formValues}
+      />
+      <EntityDetailSection>
         <RelatedRecordsSection<ISalesOrderLineItem>
           title="Sales Order Line Items"
           items={salesOrder?.lines || []}
@@ -145,12 +191,10 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
           emptyMessage="No line items are available for this sales order."
           getRowKey={(item, index) => item.lineNumber || item.itemCode || String(index)}
         />
-      )
-    },
-    {
-      title: 'Invoice Summary',
-      customContent: (
+      </EntityDetailSection>
+      <EntityDetailSection ariaLabel="Invoice summary">
         <FinancialSummaryCards
+          accented={false}
           cards={[
             { key: 'invoiceCount', label: 'Invoice Count', value: invoiceSummary.invoiceCount },
             { key: 'outstandingInvoiceCount', label: 'Outstanding Invoice Count', value: invoiceSummary.outstandingInvoiceCount },
@@ -177,11 +221,8 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
             }
           ]}
         />
-      )
-    },
-    {
-      title: 'Related Invoices',
-      customContent: (
+      </EntityDetailSection>
+      <EntityDetailSection>
         <RelatedRecordsSection<ISalesOrderRelatedInvoice>
           title="Related Invoices"
           items={relatedInvoices}
@@ -193,19 +234,7 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
           onRowClick={invoice => onNavigate(`${invoicesModuleConfig.route}/detail/${encodeURIComponent(invoice.id || invoice.invoiceNumber)}`)}
           getRowKey={(item, index) => item.id || item.invoiceNumber || String(index)}
         />
-      )
-    }
-  ];
-
-  return (
-    <DetailViewLayout
-      title="Sales Order Detail"
-      subtitle={salesOrder ? salesOrder.salesOrderNumber : salesOrderId ? `Sales order reference: ${salesOrderId}` : undefined}
-      backLabel="Back to Sales Orders"
-      onBack={() => onNavigate(salesOrdersModuleConfig.route)}
-      loading={loading}
-      error={error}
-      sections={sections}
-    />
+      </EntityDetailSection>
+    </EntityDetailPage>
   );
 };

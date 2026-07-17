@@ -81,6 +81,7 @@
 
 .modalOverlay {
   align-items: center;
+  animation: modalOverlayIn 180ms ease;
   background: rgba(15, 23, 42, 0.42);
   display: flex;
   inset: 0;
@@ -90,7 +91,12 @@
   z-index: 20;
 }
 
+.modalOverlayClosing {
+  animation: modalOverlayOut 180ms ease forwards;
+}
+
 .modal {
+  animation: modalIn 180ms cubic-bezier(0.16, 1, 0.3, 1);
   background: #ffffff;
   border-radius: 8px;
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.3);
@@ -100,6 +106,10 @@
   max-width: 860px;
   min-width: 0;
   width: 100%;
+}
+
+.modalClosing {
+  animation: modalOut 160ms cubic-bezier(0.7, 0, 0.84, 0) forwards;
 }
 
 .small {
@@ -151,6 +161,50 @@
 .modalActions {
   border-top: 1px solid #e2e8f0;
   padding: 14px 18px;
+}
+
+@keyframes modalOverlayIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalOverlayOut {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes modalOut {
+  to {
+    opacity: 0;
+    transform: translateY(10px) scale(.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modalOverlay,
+  .modalOverlayClosing,
+  .modal,
+  .modalClosing {
+    animation: none;
+  }
 }
 
 .lineItems {

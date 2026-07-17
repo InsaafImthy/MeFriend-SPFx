@@ -23,24 +23,25 @@ export const salesOrdersModuleConfig: IModuleConfig<ISalesOrderListItem> = {
   tableColumns: [
     { key: 'salesOrderNumber', header: 'Sales Order Number', fieldName: 'salesOrderNumber', sortable: true, renderType: 'text' },
     { key: 'customerName', header: 'Customer', fieldName: 'customerName', sortable: true, renderType: 'text', minWidth: 180 },
-    { key: 'salespersonName', header: 'Salesperson', fieldName: 'salespersonName', sortable: true, renderType: 'text', minWidth: 160 },
-    { key: 'eventName', header: 'Event', fieldName: 'eventName', sortable: true, renderType: 'text', minWidth: 160 },
+    { key: 'clientName', header: 'Client', fieldName: 'clientName', sortable: true, renderType: 'text', minWidth: 160 },
     { key: 'orderDate', header: 'Order Date', fieldName: 'orderDate', sortable: true, renderType: 'date' },
+    { key: 'postingDate', header: 'Posting Date', fieldName: 'postingDate', sortable: true, renderType: 'date' },
     { key: 'status', header: 'Status', fieldName: 'status', sortable: true, renderType: 'status' },
-    { key: 'totalAmount', header: 'Total Amount', fieldName: 'totalAmount', sortable: true, renderType: 'amount' }
+    { key: 'totalAmount', header: 'Amount', fieldName: 'totalAmount', sortable: true, renderType: 'amount' },
+    { key: 'amountIncludingVAT', header: 'Amount Including VAT', fieldName: 'amountIncludingVAT', sortable: true, renderType: 'amount' }
   ],
   filters: [
     { key: 'searchText', label: 'Search', type: 'text' },
     { key: 'orderDate', label: 'Order Date', type: 'dateRange' },
     { key: 'customerCode', label: 'Customer', type: 'text' },
-    { key: 'salespersonCode', label: 'Salesperson', type: 'text' },
-    { key: 'eventCode', label: 'Event', type: 'text' },
     { key: 'status', label: 'Status', type: 'status', options: salesOrderStatusOptions }
   ],
   formFields: [
     { key: 'customerCode', label: 'Customer', type: 'lookup', required: true, section: 'Order Header' },
     { key: 'salespersonCode', label: 'Salesperson', type: 'lookup', required: false, section: 'Order Header' },
     { key: 'eventCode', label: 'Event', type: 'lookup', required: false, section: 'Order Header' },
+    { key: 'countryCode', label: 'Country Code', type: 'lookup', required: true, section: 'Order Header' },
+    { key: 'stateCode', label: 'State Code', type: 'lookup', required: true, section: 'Order Header' },
     { key: 'orderDate', label: 'Order Date', type: 'date', required: true, section: 'Order Header' },
     { key: 'postingDate', label: 'Posting Date', type: 'date', required: false, section: 'Billing and References' },
     {

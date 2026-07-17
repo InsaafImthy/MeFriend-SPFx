@@ -3,6 +3,7 @@ export * from './buttons/Button';
 export * from './confirmationDialog/ConfirmationDialog';
 export * from './dashboard/EntityDashboard';
 export * from './datePicker/DatePicker';
+export * from './detailPage/EntityDetailPage';
 export * from './detailView/DetailViewLayout';
 export * from './detailView/LabelValue';
 export * from './dropdowns/Dropdown';

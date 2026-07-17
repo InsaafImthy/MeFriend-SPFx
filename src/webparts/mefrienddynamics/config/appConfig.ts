@@ -19,6 +19,7 @@ export const appConfig = {
   },
   sharePointSettings: {
     settingsListName: 'MeFriend App Settings',
-    auditLogListName: 'MeFriend Audit Logs'
+    auditLogListName: 'MeFriend Audit Logs',
+    masterDataWebUrl: 'https://aufaitcloud.sharepoint.com/sites/MeFriend'
   }
 };

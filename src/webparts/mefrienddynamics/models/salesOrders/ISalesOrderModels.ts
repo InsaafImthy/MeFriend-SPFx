@@ -4,11 +4,15 @@ export type SalesOrderStatus = 'Draft' | 'Open' | 'Released' | 'Posted' | 'Cance
 
 export interface ISalesOrderLineItem {
   lineNumber: string;
+  documentNumber?: string;
+  lineType?: string;
   itemCode: string;
   description: string;
   quantity: number;
   unitPrice: number;
+  unitPriceExcludingTax?: number;
   lineAmount: number;
+  amountIncludingVAT?: number;
   taxAmount?: number;
   lineStatus?: string;
 }
@@ -38,13 +42,17 @@ export interface ISalesOrderListItem {
   salesOrderNumber: string;
   customerCode: string;
   customerName: string;
+  clientCode?: string;
+  clientName?: string;
   salespersonCode: string;
   salespersonName: string;
   eventCode: string;
   eventName: string;
+  postingDate?: string;
   orderDate?: string;
   status: SalesOrderStatus;
   totalAmount: number;
+  amountIncludingVAT?: number;
   currencyCode: string;
 }
 
@@ -58,6 +66,8 @@ export interface ISalesOrderCreateFormState {
   customerCode: string;
   salespersonCode: string;
   eventCode?: string;
+  countryCode?: string;
+  stateCode?: string;
   orderDate?: string;
   postingDate?: string;
   externalDocumentNumber?: string;
@@ -70,6 +80,8 @@ export interface ISalesOrderCreateRequest {
   customerCode: string;
   salespersonCode: string;
   eventCode?: string;
+  countryCode?: string;
+  stateCode?: string;
   orderDate?: string;
   postingDate?: string;
   externalDocumentNumber?: string;

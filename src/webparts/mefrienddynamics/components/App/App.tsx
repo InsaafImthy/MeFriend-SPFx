@@ -21,6 +21,7 @@ import { EventService } from '../../services/events/eventService';
 import { InvoiceService } from '../../services/invoices/invoiceService';
 import { SalesOrderService } from '../../services/salesOrders/salesOrderService';
 import { SalespersonService } from '../../services/salespersons/salespersonService';
+import { MasterDataService } from '../../services/sharepoint/masterDataService';
 import { PermissionService } from '../../services/sharepoint/permissionService';
 import { usePermissions } from '../../hooks/usePermissions';
 import { buildHashHref, getHashRoutePath, resolveRoute } from '../../utils/routeUtils';
@@ -50,6 +51,15 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
   const invoiceService = React.useMemo(() => new InvoiceService(apiClient), [apiClient]);
   const salesOrderService = React.useMemo(() => new SalesOrderService(apiClient), [apiClient]);
   const salespersonService = React.useMemo(() => new SalespersonService(apiClient), [apiClient]);
+  const masterDataService = React.useMemo(
+    () =>
+      new MasterDataService({
+        pageContext,
+        spHttpClient,
+        webAbsoluteUrl: appConfig.sharePointSettings.masterDataWebUrl
+      }),
+    [pageContext, spHttpClient]
+  );
   const permissionService = React.useMemo(
     () =>
       new PermissionService({
@@ -169,6 +179,7 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
         <SalesOrderCreatePage
           customerService={customerService}
           eventService={eventService}
+          masterDataService={masterDataService}
           salesOrderService={salesOrderService}
           salespersonService={salespersonService}
           onNavigate={handleNavigate}
@@ -187,7 +198,13 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
     }
 
     if (route.key === 'settings') {
-      return <PermissionSettingsPage permissionService={permissionService} onPermissionsChanged={permissions.refresh} />;
+      return (
+        <PermissionSettingsPage
+          masterDataService={masterDataService}
+          permissionService={permissionService}
+          onPermissionsChanged={permissions.refresh}
+        />
+      );
     }
 
     return <PlaceholderModulePage route={route} />;

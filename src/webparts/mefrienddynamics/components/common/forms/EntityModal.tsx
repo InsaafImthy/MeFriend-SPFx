@@ -17,10 +17,18 @@ export interface IEntityModalProps {
   dirtyMessage?: string;
   confirmCloseLabel?: string;
   cancelCloseLabel?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  confirmLoading?: boolean;
+  confirmDisabled?: boolean;
+  cancelDisabled?: boolean;
   onConfirm?: () => void;
   onCancel?: () => void;
   onDismiss: () => void;
+  onAfterClose?: () => void;
 }
+
+const modalAnimationDurationMs = 180;
 
 export const EntityModal: React.FC<IEntityModalProps> = ({
   isOpen,
@@ -34,11 +42,55 @@ export const EntityModal: React.FC<IEntityModalProps> = ({
   dirtyMessage = 'You have unsaved changes. Closing this form will discard them.',
   confirmCloseLabel = 'Discard',
   cancelCloseLabel = 'Keep editing',
+  confirmLabel = 'Confirm',
+  cancelLabel = 'Cancel',
+  confirmLoading = false,
+  confirmDisabled = false,
+  cancelDisabled = false,
   onConfirm,
   onCancel,
-  onDismiss
+  onDismiss,
+  onAfterClose
 }) => {
   const [showDirtyConfirmation, setShowDirtyConfirmation] = React.useState<boolean>(false);
+  const [shouldRender, setShouldRender] = React.useState<boolean>(isOpen);
+  const [isClosing, setIsClosing] = React.useState<boolean>(false);
+  const closeTimerRef = React.useRef<number | undefined>(undefined);
+
+  React.useEffect(() => {
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = undefined;
+    }
+
+    if (isOpen) {
+      setShouldRender(true);
+      setIsClosing(false);
+      return undefined;
+    }
+
+    if (!shouldRender) {
+      return undefined;
+    }
+
+    setIsClosing(true);
+    closeTimerRef.current = window.setTimeout(() => {
+      setShouldRender(false);
+      setIsClosing(false);
+      closeTimerRef.current = undefined;
+
+      if (onAfterClose) {
+        onAfterClose();
+      }
+    }, modalAnimationDurationMs);
+
+    return () => {
+      if (closeTimerRef.current) {
+        window.clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = undefined;
+      }
+    };
+  }, [isOpen, onAfterClose, shouldRender]);
 
   const requestDismiss = (): void => {
     if (isDirty) {
@@ -54,13 +106,18 @@ export const EntityModal: React.FC<IEntityModalProps> = ({
     onDismiss();
   };
 
-  if (!isOpen) {
+  if (!shouldRender) {
     return null;
   }
 
   return (
-    <div className={styles.modalOverlay} role="presentation">
-      <section className={`${styles.modal} ${styles[size]}`} role="dialog" aria-modal="true" aria-labelledby="entity-modal-title">
+    <div className={isClosing ? `${styles.modalOverlay} ${styles.modalOverlayClosing}` : styles.modalOverlay} role="presentation">
+      <section
+        className={[styles.modal, styles[size], isClosing ? styles.modalClosing : ''].filter(Boolean).join(' ')}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="entity-modal-title"
+      >
         <header className={styles.modalHeader}>
           <div>
             <h2 id="entity-modal-title">{title}</h2>
@@ -72,8 +129,16 @@ export const EntityModal: React.FC<IEntityModalProps> = ({
         {actions || onConfirm || onCancel ? (
           <footer className={styles.modalActions}>
             {actions}
-            {onCancel ? <Button label="Cancel" variant="secondary" onClick={onCancel} /> : null}
-            {onConfirm ? <Button label="Confirm" variant="primary" onClick={onConfirm} /> : null}
+            {onCancel ? <Button disabled={cancelDisabled || confirmLoading} label={cancelLabel} variant="secondary" onClick={onCancel} /> : null}
+            {onConfirm ? (
+              <Button
+                disabled={confirmDisabled}
+                label={confirmLabel}
+                loading={confirmLoading}
+                variant="primary"
+                onClick={onConfirm}
+              />
+            ) : null}
           </footer>
         ) : null}
       </section>

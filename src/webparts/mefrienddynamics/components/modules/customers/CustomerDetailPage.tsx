@@ -1,14 +1,10 @@
 import * as React from 'react';
-import { Icon } from '@fluentui/react';
 import { customersModuleConfig, getCustomerFormFields } from '../../../config/modules/customersModuleConfig';
 import type { ICustomerDetail } from '../../../models/customers';
 import { getUserFriendlyError, normalizeError } from '../../../services/api/apiErrorHandler';
 import type { CustomerService } from '../../../services/customers/customerService';
-import { Button } from '../../common/buttons/Button';
-import { ErrorState } from '../../common/errorState/ErrorState';
+import { EntityDetailPage } from '../../common/detailPage/EntityDetailPage';
 import { ReadOnlyEntityForm } from '../../common/forms/ReadOnlyEntityForm';
-import { Loader } from '../../common/loaders/Loader';
-import { PageContainer } from '../../common/pageContainer/PageContainer';
 
 export interface ICustomerDetailPageProps {
   customerId: string;
@@ -81,7 +77,7 @@ export const CustomerDetailPage: React.FC<ICustomerDetailPageProps> = ({ custome
   );
 
   return (
-    <PageContainer
+    <EntityDetailPage
       title="Customer Detail"
       description={
         customer
@@ -90,23 +86,15 @@ export const CustomerDetailPage: React.FC<ICustomerDetailPageProps> = ({ custome
             ? `Customer reference: ${customerId}`
             : undefined
       }
-      actions={
-        <Button
-          label="Back to Customers"
-          variant="secondary"
-          icon={<Icon iconName="ChevronLeft" aria-hidden="true" />}
-          onClick={handleBack}
-        />
-      }
+      backLabel="Back to Customers"
+      onBack={handleBack}
+      loading={loading}
+      error={error}
     >
-      {loading ? <Loader type="page" message="Loading details" /> : null}
-      {!loading && error ? <ErrorState title="Unable to load details" message={error} /> : null}
-      {!loading && !error ? (
-        <ReadOnlyEntityForm
-          fields={formFields}
-          values={formValues}
-        />
-      ) : null}
-    </PageContainer>
+      <ReadOnlyEntityForm
+        fields={formFields}
+        values={formValues}
+      />
+    </EntityDetailPage>
   );
 };
