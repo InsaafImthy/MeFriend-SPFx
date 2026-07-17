@@ -3,14 +3,13 @@ export interface ISalespersonListItem {
   salespersonCode: string;
   salespersonName: string;
   email: string;
+  phoneNumber: string;
   status: string;
-}
-
-export interface ISalespersonDetail extends ISalespersonListItem {
-  phoneNumber?: string;
   branch?: string;
   department?: string;
 }
+
+export type ISalespersonDetail = ISalespersonListItem;
 
 export interface ISalespersonFilters {
   searchText?: string;

@@ -363,6 +363,7 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
 
               return (
                 <button
+                  aria-current={activeSectionKey === section.key ? 'page' : undefined}
                   className={activeSectionKey === section.key ? `${styles.navItem} ${styles.navItemActive}` : styles.navItem}
                   key={section.key}
                   onClick={() => setActiveSectionKey(section.key)}

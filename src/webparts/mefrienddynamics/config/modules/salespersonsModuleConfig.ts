@@ -1,19 +1,12 @@
 import type { IModuleConfig } from '../../models/common/IModuleConfig';
-import type { ILookupOption } from '../../models/common/ILookupOption';
 import type { ISalespersonListItem } from '../../models/salespersons/ISalespersonModels';
-
-const salespersonStatusOptions: readonly ILookupOption[] = [
-  { key: 'active', text: 'Active', value: 'Active' },
-  { key: 'inactive', text: 'Inactive', value: 'Inactive' },
-  { key: 'blocked', text: 'Blocked', value: 'Blocked' }
-];
 
 export const salespersonsModuleConfig: IModuleConfig<ISalespersonListItem> = {
   key: 'salespersons',
   title: 'Salespersons',
   route: 'salespersons',
   icon: 'People',
-  description: 'Read-only salesperson listing with search and filtering.',
+  description: 'Read-only salesperson listing from Business Central.',
   createEnabled: false,
   detailEnabled: false,
   order: 3,
@@ -21,11 +14,10 @@ export const salespersonsModuleConfig: IModuleConfig<ISalespersonListItem> = {
   tableColumns: [
     { key: 'salespersonCode', header: 'Salesperson Code', fieldName: 'salespersonCode', sortable: true, renderType: 'text' },
     { key: 'salespersonName', header: 'Salesperson Name', fieldName: 'salespersonName', sortable: true, renderType: 'text', minWidth: 180 },
-    { key: 'email', header: 'Email', fieldName: 'email', sortable: true, renderType: 'text', minWidth: 180 },
-    { key: 'status', header: 'Status', fieldName: 'status', sortable: true, renderType: 'status' }
+    { key: 'phoneNumber', header: 'Phone No.', fieldName: 'phoneNumber', sortable: true, renderType: 'text', minWidth: 140 },
+    { key: 'email', header: 'Email', fieldName: 'email', sortable: true, renderType: 'text', minWidth: 220 }
   ],
   filters: [
-    { key: 'searchText', label: 'Search', type: 'text' },
-    { key: 'status', label: 'Status', type: 'status', options: salespersonStatusOptions }
+    { key: 'searchText', label: 'Search', type: 'text' }
   ]
 };
