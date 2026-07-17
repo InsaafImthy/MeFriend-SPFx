@@ -115,6 +115,11 @@ export const validateFormValues = (
   const errors: EntityFormErrors = {};
 
   fields.forEach(field => {
+    if (field.hidden) {
+      errors[field.key] = undefined;
+      return;
+    }
+
     errors[field.key] = validateFieldValue(field, values[field.key], values);
   });
 

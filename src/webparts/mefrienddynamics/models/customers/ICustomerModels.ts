@@ -15,25 +15,32 @@ export interface ICustomerListItem {
 }
 
 export interface ICustomerDetail extends ICustomerListItem {
+  name: string;
+  name2: string;
   address: string;
+  countryRegionCode: string;
   postCode: string;
-  panNo: string;
-  gstNo: string;
+  PAN: string;
+  gstRegistrationNo: string;
+  genPostingGroup: string;
+  customerPostingGroup: string;
+  gstCustomerType: string;
 }
 
 export interface ICustomerCreateFormState {
-  branch: CustomerBranch | string;
-  department: CustomerDepartment | string;
-  customerCode: string;
-  customerName: string;
+  name: string;
+  name2: string;
   address: string;
   stateCode: string;
-  countryCode: string;
+  countryRegionCode: string;
   city: string;
   postCode: string;
   locationCode: string;
-  panNo: string;
-  gstNo: string;
+  PAN: string;
+  gstRegistrationNo: string;
+  genPostingGroup: string;
+  customerPostingGroup: string;
+  gstCustomerType: string;
 }
 
 export interface ICustomerCreateRequest extends ICustomerCreateFormState {}

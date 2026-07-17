@@ -2,10 +2,10 @@ import * as React from 'react';
 import { useEntityForm } from '../../../hooks/useEntityForm';
 import type { IFormFieldConfig } from '../../../models/common/IFormFieldConfig';
 import type { EntityFormValue, EntityFormValues } from '../../../utils/validationUtils';
-import { Button } from '../buttons/Button';
 import { DatePicker } from '../datePicker/DatePicker';
 import { Dropdown } from '../dropdowns/Dropdown';
 import { InputField } from '../inputs/InputField';
+import { FormFooter } from './FormFooter';
 import { FormSection } from './FormSection';
 import styles from './Forms.module.scss';
 
@@ -24,6 +24,7 @@ export interface IEntityFormProps {
   lookupLoadingKeys?: Readonly<Record<string, boolean>>;
   onDirtyChange?: (isDirty: boolean) => void;
   onValidityChange?: (isValid: boolean) => void;
+  onValuesChange?: (values: EntityFormValues) => void;
 }
 
 const getSectionTitle = (field: IFormFieldConfig): string => field.section || 'Details';
@@ -121,10 +122,16 @@ export const EntityForm: React.FC<IEntityFormProps> = ({
   actions,
   lookupLoadingKeys = {},
   onDirtyChange,
-  onValidityChange
+  onValidityChange,
+  onValuesChange
 }) => {
   const form = useEntityForm({ fields, initialValues, onSubmit });
   const [collapsedSections, setCollapsedSections] = React.useState<Readonly<Record<string, boolean>>>({});
+
+  const visibleFields = React.useMemo(
+    () => fields.filter(field => field.hidden !== true),
+    [fields]
+  );
 
   React.useEffect(() => {
     if (onDirtyChange) {
@@ -138,7 +145,13 @@ export const EntityForm: React.FC<IEntityFormProps> = ({
     }
   }, [form.isValid, onValidityChange]);
 
-  const sectionTitles = fields.reduce<string[]>((sections, field) => {
+  React.useEffect(() => {
+    if (onValuesChange) {
+      onValuesChange(form.values);
+    }
+  }, [form.values, onValuesChange]);
+
+  const sectionTitles = visibleFields.reduce<string[]>((sections, field) => {
     const title = getSectionTitle(field);
     return sections.indexOf(title) === -1 ? [...sections, title] : sections;
   }, []);
@@ -165,7 +178,7 @@ export const EntityForm: React.FC<IEntityFormProps> = ({
     >
       <div className={styles.formBody}>
         {sectionTitles.map(sectionTitle => {
-          const sectionFields = fields.filter(field => getSectionTitle(field) === sectionTitle);
+          const sectionFields = visibleFields.filter(field => getSectionTitle(field) === sectionTitle);
 
           return (
             <FormSection
@@ -196,13 +209,16 @@ export const EntityForm: React.FC<IEntityFormProps> = ({
         })}
         {children}
       </div>
-      <footer className={styles.formFooter}>
-        <div className={styles.formActions}>
-          {actions}
-          {onCancel ? <Button label={cancelLabel} variant="secondary" disabled={loading || disabled} onClick={onCancel} /> : null}
-          {onSubmit ? <Button label={submitLabel} type="submit" loading={loading} disabled={disabled || readOnly} /> : null}
-        </div>
-      </footer>
+      <FormFooter
+        actions={actions}
+        cancelLabel={cancelLabel}
+        submitLabel={submitLabel}
+        loading={loading}
+        disabled={disabled}
+        submitDisabled={readOnly}
+        onCancel={onCancel}
+        onSubmit={onSubmit ? form.handleSubmit : undefined}
+      />
     </form>
   );
 };

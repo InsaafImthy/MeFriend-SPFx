@@ -32,5 +32,6 @@ export interface IFormFieldConfig<TValue = unknown> {
   validationRules?: readonly IValidationRule[];
   readOnly?: boolean;
   disabled?: boolean;
+  hidden?: boolean;
   section?: string;
 }

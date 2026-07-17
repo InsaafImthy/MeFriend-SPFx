@@ -42,11 +42,13 @@ export const DetailViewLayout: React.FC<IDetailViewLayoutProps> = ({
 }) => (
   <section className={styles.detailView}>
     <header className={styles.header}>
-      <div className={styles.heading}>
-        {onBack ? <Button label={backLabel} variant="ghost" size="small" onClick={onBack} /> : null}
-        <div>
-          <h2>{title}</h2>
-          {subtitle ? <p>{subtitle}</p> : null}
+      <div className={styles.headingSurface}>
+        <div className={styles.heading}>
+          {onBack ? <Button label={backLabel} variant="ghost" size="small" onClick={onBack} /> : null}
+          <div className={styles.headingText}>
+            <h2>{title}</h2>
+            {subtitle ? <p>{subtitle}</p> : null}
+          </div>
         </div>
       </div>
       {actions ? <div className={styles.actions}>{actions}</div> : null}
@@ -58,8 +60,10 @@ export const DetailViewLayout: React.FC<IDetailViewLayoutProps> = ({
         {sections.map(section => (
           <section className={styles.section} key={section.title}>
             <div className={styles.sectionHeader}>
-              <h3>{section.title}</h3>
-              {section.description ? <p>{section.description}</p> : null}
+              <div className={styles.sectionHeading}>
+                <h3>{section.title}</h3>
+                {section.description ? <p>{section.description}</p> : null}
+              </div>
             </div>
             {section.fields && section.fields.length ? (
               <dl className={styles.fieldGrid}>

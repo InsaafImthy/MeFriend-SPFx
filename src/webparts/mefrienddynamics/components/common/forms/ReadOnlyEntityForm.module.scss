@@ -1,0 +1,46 @@
+.field {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.label {
+  align-items: center;
+  color: #334155;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 600;
+  gap: 4px;
+}
+
+.required {
+  color: #b91c1c;
+}
+
+.control {
+  align-items: flex-start;
+  background: #ffffff;
+  border: 1px solid #cfc6e6;
+  border-radius: 6px;
+  box-sizing: border-box;
+  color: #0f172a;
+  display: flex;
+  font-size: 14px;
+  line-height: 1.4;
+  min-height: 38px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.textarea {
+  min-height: 96px;
+  white-space: pre-wrap;
+}
+
+.placeholder {
+  color: #64748b;
+}

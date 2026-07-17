@@ -54,7 +54,8 @@ const getDefaultValues = (fields: readonly IFormFieldConfig[], initialValues?: E
 const areValuesEqual = (left: EntityFormValues, right: EntityFormValues): boolean => JSON.stringify(left) === JSON.stringify(right);
 
 export const useEntityForm = ({ fields, initialValues, onSubmit }: IUseEntityFormOptions): IUseEntityFormResult => {
-  const initialDefaults = React.useMemo(() => getDefaultValues(fields, initialValues), [fields, initialValues]);
+  const fieldKeysSignature = React.useMemo(() => fields.map(field => field.key).join('|'), [fields]);
+  const initialDefaults = React.useMemo(() => getDefaultValues(fields, initialValues), [fieldKeysSignature, initialValues]);
   const [values, setValuesState] = React.useState<EntityFormValues>(initialDefaults);
   const [touched, setTouched] = React.useState<EntityFormTouched>({});
   const [errors, setErrors] = React.useState<EntityFormErrors>({});

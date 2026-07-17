@@ -3,13 +3,14 @@
   flex-direction: column;
   gap: 5px;
   min-width: 0;
+  padding: 0;
 }
 
 .labelValue dt {
   color: #64748b;
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0;
+  letter-spacing: 0.02em;
   margin: 0;
   text-transform: uppercase;
 }

@@ -286,7 +286,7 @@ export const AppLayout: React.FC<IAppLayoutProps> = ({ activeRouteKey, canAccess
         </div>
       </aside>
       <main className={styles.main}>
-        <div className={styles.content} ref={contentRef}>
+        <div className={styles.content} data-mefriend-content="true" ref={contentRef}>
           <div className={routeTransitionClassName} key={routeTransitionKey}>
             {children}
           </div>

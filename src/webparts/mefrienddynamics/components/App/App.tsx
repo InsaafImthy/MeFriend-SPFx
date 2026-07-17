@@ -115,7 +115,13 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
     }
 
     if (route.key === 'customerDetail') {
-      return <CustomerDetailPage customerId={route.params.id || ''} onNavigate={handleNavigate} />;
+      return (
+        <CustomerDetailPage
+          customerId={route.params.id || ''}
+          customerService={customerService}
+          onNavigate={handleNavigate}
+        />
+      );
     }
 
     if (route.key === 'events') {

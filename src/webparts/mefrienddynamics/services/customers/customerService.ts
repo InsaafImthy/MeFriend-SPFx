@@ -46,6 +46,10 @@ interface ICustomerCreateApiResponse {
 
 type CustomerListApiResponse = IPagedResult<ICustomerApiModel> | readonly ICustomerApiModel[];
 
+const indiaCountryCode = 'IN';
+const normalizeText = (value: string): string => value.trim();
+const normalizeCode = (value: string): string => value.trim().toUpperCase();
+
 export class CustomerService {
   public constructor(private readonly apiClient: ApiClient) {}
 
@@ -60,15 +64,20 @@ export class CustomerService {
   }
 
   public async getCustomerById(id: string): Promise<ICustomerDetail> {
-    const response = await this.apiClient.get<ICustomerApiModel>(`/api/customers/${encodeURIComponent(id)}`);
-    return this.mapCustomerApiToUiModel(response.data);
+    const response = await this.apiClient.get<CustomerListApiResponse>('/api/Customers');
+    const customer = this.findCustomerById(response.data, id);
+
+    if (!customer) {
+      const notFoundError = new Error(`Customer ${id} was not found.`) as Error & { status?: number };
+      notFoundError.status = 404;
+      throw notFoundError;
+    }
+
+    return this.mapCustomerApiToUiModel(customer);
   }
 
   public async createCustomer(payload: ICustomerCreateFormState): Promise<ICustomerCreateApiResponse> {
-    const response = await this.apiClient.post<ICustomerCreateRequest, ICustomerCreateApiResponse>(
-      '/api/customers',
-      this.mapCustomerFormToApiRequest(payload)
-    );
+    const response = await this.apiClient.post<ICustomerCreateRequest, ICustomerCreateApiResponse>('/api/customers', payload);
 
     return response.data || {};
   }
@@ -82,32 +91,42 @@ export class CustomerService {
       customerName: api?.customerName || api?.name || '',
       branch: api?.branch || '',
       department: api?.department || '',
+      name: api?.name || '',
+      name2: api?.name2 || '',
       city: api?.city || '',
       stateCode: api?.stateCode || '',
       countryCode: api?.countryCode || api?.countryRegionCode || '',
+      countryRegionCode: api?.countryRegionCode || api?.countryCode || '',
       locationCode: api?.locationCode || '',
       status: api?.status || api?.gstCustomerType || api?.customerPostingGroup || '',
       address: api?.address || '',
       postCode: api?.postCode || '',
-      panNo: api?.panNo || api?.PAN || '',
-      gstNo: api?.gstNo || api?.gstRegistrationNo || ''
+      PAN: api?.PAN || api?.panNo || '',
+      gstRegistrationNo: api?.gstRegistrationNo || api?.gstNo || '',
+      genPostingGroup: api?.genPostingGroup || '',
+      customerPostingGroup: api?.customerPostingGroup || '',
+      gstCustomerType: api?.gstCustomerType || ''
     };
   }
 
   public mapCustomerFormToApiRequest(form: ICustomerCreateFormState): ICustomerCreateRequest {
+    const countryRegionCode = normalizeCode(form.countryRegionCode);
+    const isIndia = countryRegionCode === indiaCountryCode;
+
     return {
-      branch: form.branch.trim(),
-      department: form.department.trim(),
-      customerCode: form.customerCode.trim(),
-      customerName: form.customerName.trim(),
-      address: form.address.trim(),
-      stateCode: form.stateCode.trim(),
-      countryCode: form.countryCode.trim(),
-      city: form.city.trim(),
-      postCode: form.postCode.trim(),
-      locationCode: form.locationCode.trim(),
-      panNo: form.panNo.trim(),
-      gstNo: form.gstNo.trim()
+      name: normalizeText(form.name),
+      name2: normalizeText(form.name2),
+      address: normalizeText(form.address),
+      stateCode: isIndia ? normalizeCode(form.stateCode) : '',
+      countryRegionCode,
+      city: normalizeText(form.city),
+      postCode: normalizeCode(form.postCode),
+      locationCode: normalizeCode(form.locationCode),
+      PAN: isIndia ? normalizeCode(form.PAN) : '',
+      gstRegistrationNo: isIndia ? normalizeCode(form.gstRegistrationNo) : '',
+      genPostingGroup: normalizeCode(form.genPostingGroup),
+      customerPostingGroup: normalizeCode(form.customerPostingGroup),
+      gstCustomerType: isIndia ? normalizeText(form.gstCustomerType) : ''
     };
   }
 
@@ -240,6 +259,25 @@ export class CustomerService {
 
   private isCustomerArray(api: CustomerListApiResponse | undefined): api is readonly ICustomerApiModel[] {
     return Array.isArray(api);
+  }
+
+  private findCustomerById(
+    api: CustomerListApiResponse | undefined,
+    id: string
+  ): ICustomerApiModel | undefined {
+    const normalizedId = this.normalizeFilterText(id);
+    const items = this.isCustomerArray(api) ? api : api?.items || [];
+
+    return items.find(item => this.customerMatchesId(item, normalizedId));
+  }
+
+  private customerMatchesId(customer: ICustomerApiModel, normalizedId: string): boolean {
+    return [
+      customer.id,
+      customer.no,
+      customer.customerCode,
+      customer.name2
+    ].some(value => this.normalizeFilterText(value) === normalizedId);
   }
 
   private getCustomerFieldValue(customer: ICustomerListItem, fieldName: string): unknown {

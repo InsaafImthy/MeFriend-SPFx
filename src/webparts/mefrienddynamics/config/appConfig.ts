@@ -4,9 +4,9 @@ export const appConfig = {
   defaultCountryCode: 'IN',
   defaultRoutePath: 'customers',
   environmentLabel: 'Local',
-  backendApiBaseUrl: 'https://4.188.243.158:7082',
+  backendApiBaseUrl: 'https://localhost:5044',
   backendApi: {
-    baseUrl: 'https://4.188.243.158:7082',
+    baseUrl: 'https://localhost:5044',
     anonymous: true,
     useAadHttpClient: false,
     aadResourceUrl: ''
