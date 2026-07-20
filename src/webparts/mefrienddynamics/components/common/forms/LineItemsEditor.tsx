@@ -197,7 +197,7 @@ export const LineItemsEditor = <TItem extends LineItemRecord>({
                   {fields.map(field => (
                     <th key={field.key}>{field.label}</th>
                   ))}
-                  <th aria-label="Line actions" />
+                  <th aria-label="Line actions" className={styles.lineActionHeader} />
                 </tr>
               </thead>
               <tbody>
