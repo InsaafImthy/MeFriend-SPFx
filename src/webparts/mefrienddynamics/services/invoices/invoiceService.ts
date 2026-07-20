@@ -129,7 +129,7 @@ export class InvoiceService {
     const igst = this.toOptionalAmount(api?.igst);
     const derivedTotalAmount = this.calculateInvoiceTotal(netAmount, tradeDiscount, sgst, cgst, igst);
     const totalAmount = this.toAmount(api?.totalAmount, this.toAmount(derivedTotalAmount, 0));
-    const paidAmount = this.toOptionalAmount(api?.paidAmount);
+    const paidAmount = this.toOptionalAmount(api?.paidAmount, 0);
     const outstandingAmount = calculateOutstandingAmount(totalAmount, paidAmount, api?.outstandingAmount);
     const paymentStatus = calculatePaymentStatus(paidAmount, outstandingAmount, api?.paymentStatus);
     const invoiceNumber = api?.invoiceNumber || api?.invoiceNo || api?.no || '';
@@ -223,6 +223,8 @@ export class InvoiceService {
 
   private mapInvoiceLineApiToUiModel(api: IInvoiceLineItemApiModel, currencyCode?: string): IInvoiceLineItem {
     const lineNumber = api.lineNumber || (typeof api.lineNo === 'number' ? String(api.lineNo) : '');
+    const quantity = this.toAmount(api.quantity, 0);
+    const lineAmount = this.toAmount(api.lineAmount, this.toAmount(api.Amount, 0));
 
     return {
       lineNumber,
@@ -232,9 +234,9 @@ export class InvoiceService {
       hsnCode: api.HSNCode || undefined,
       gstRate: api.GSTRate || undefined,
       description: api.description || '',
-      quantity: this.toAmount(api.quantity, 0),
-      unitPrice: this.toAmount(api.unitPrice, 0),
-      lineAmount: this.toAmount(api.lineAmount, this.toAmount(api.Amount, 0)),
+      quantity,
+      unitPrice: this.toAmount(api.unitPrice, quantity > 0 ? lineAmount / quantity : 0),
+      lineAmount,
       amountIncludingVAT: this.toOptionalAmount(api.amountIncludingVAT),
       currencyCode: api.currencyCode || currencyCode || ''
     };
@@ -255,8 +257,12 @@ export class InvoiceService {
     return this.isValidNumber(value) ? value : fallback;
   }
 
-  private toOptionalAmount(value: number | undefined): number | undefined {
-    return this.isValidNumber(value) ? value : undefined;
+  private toOptionalAmount(value: number | undefined, fallback?: number): number | undefined {
+    if (this.isValidNumber(value)) {
+      return value;
+    }
+
+    return this.isValidNumber(fallback) ? fallback : undefined;
   }
 
   private isValidNumber(value: number | undefined): value is number {

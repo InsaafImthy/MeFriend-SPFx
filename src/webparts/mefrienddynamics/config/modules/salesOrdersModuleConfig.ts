@@ -37,27 +37,25 @@ export const salesOrdersModuleConfig: IModuleConfig<ISalesOrderListItem> = {
     { key: 'status', label: 'Status', type: 'status', options: salesOrderStatusOptions }
   ],
   formFields: [
-    { key: 'customerCode', label: 'Customer', type: 'lookup', required: true, section: 'Order Header' },
-    { key: 'salespersonCode', label: 'Salesperson', type: 'lookup', required: false, section: 'Order Header' },
-    { key: 'eventCode', label: 'Event', type: 'lookup', required: false, section: 'Order Header' },
-    { key: 'countryCode', label: 'Country Code', type: 'lookup', required: true, section: 'Order Header' },
-    { key: 'stateCode', label: 'State Code', type: 'lookup', required: true, section: 'Order Header' },
-    { key: 'orderDate', label: 'Order Date', type: 'date', required: true, section: 'Order Header' },
-    { key: 'postingDate', label: 'Posting Date', type: 'date', required: false, section: 'Billing and References' },
+    { key: 'postingDate', label: 'Posting Date', type: 'date', required: true, section: 'Sales Order Header' },
+    { key: 'customerCode', label: 'Sell-to Customer No.', type: 'lookup', required: true, section: 'Sales Order Header' },
+    { key: 'billToCustomerCode', label: 'Bill-to Customer No.', type: 'lookup', required: true, section: 'Sales Order Header' },
     {
       key: 'externalDocumentNumber',
-      label: 'External Document/Reference Number',
+      label: 'RO No.',
       type: 'text',
-      required: false,
-      section: 'Billing and References'
+      required: true,
+      section: 'Sales Order Header'
     },
-    { key: 'remarks', label: 'Remarks/Notes', type: 'textarea', required: false, section: 'Billing and References' }
+    { key: 'orderDate', label: 'RO Date', type: 'date', required: true, section: 'Sales Order Header' },
+    { key: 'salespersonCode', label: 'Salesperson', type: 'lookup', required: true, section: 'Sales Order Header' },
+    { key: 'stateCode', label: 'Location Code', type: 'lookup', required: true, section: 'Sales Order Header' },
+    { key: 'eventCode', label: 'Product Dimension', type: 'lookup', required: true, section: 'Sales Order Header' }
   ]
 };
 
 export const salesOrderLineItemFields = [
-  { key: 'itemCode', label: 'Item/Service Code', type: 'text', required: true },
-  { key: 'description', label: 'Description', type: 'text', required: true },
+  { key: 'itemCode', label: 'Item No.', type: 'text', required: true },
   {
     key: 'quantity',
     label: 'Quantity',
@@ -67,11 +65,9 @@ export const salesOrderLineItemFields = [
   },
   {
     key: 'unitPrice',
-    label: 'Unit Price/Rate',
+    label: 'Rate',
     type: 'amount',
     required: true,
     validationRules: [{ type: 'min', value: 0, message: 'Unit price/rate cannot be negative.' }]
-  },
-  { key: 'lineAmount', label: 'Amount', type: 'amount', required: true, readOnly: true },
-  { key: 'taxAmount', label: 'Tax', type: 'amount', required: false, readOnly: true }
+  }
 ] as const;

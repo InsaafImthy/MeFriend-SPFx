@@ -55,7 +55,11 @@ const areValuesEqual = (left: EntityFormValues, right: EntityFormValues): boolea
 
 export const useEntityForm = ({ fields, initialValues, onSubmit }: IUseEntityFormOptions): IUseEntityFormResult => {
   const fieldKeysSignature = React.useMemo(() => fields.map(field => field.key).join('|'), [fields]);
-  const initialDefaults = React.useMemo(() => getDefaultValues(fields, initialValues), [fieldKeysSignature, initialValues]);
+  const initialValuesSignature = React.useMemo(() => JSON.stringify(initialValues || {}), [initialValues]);
+  const initialDefaults = React.useMemo(
+    () => getDefaultValues(fields, initialValues),
+    [fieldKeysSignature, initialValuesSignature]
+  );
   const [values, setValuesState] = React.useState<EntityFormValues>(initialDefaults);
   const [touched, setTouched] = React.useState<EntityFormTouched>({});
   const [errors, setErrors] = React.useState<EntityFormErrors>({});

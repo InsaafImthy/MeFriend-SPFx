@@ -13,11 +13,11 @@ export const calculateOutstandingAmount = (
     return backendOutstandingAmount;
   }
 
-  if (!isValidNumber(totalAmount) || !isValidNumber(paidAmount)) {
+  if (!isValidNumber(totalAmount)) {
     return undefined;
   }
 
-  return totalAmount - paidAmount;
+  return totalAmount - (isValidNumber(paidAmount) ? paidAmount : 0);
 };
 
 export const calculatePaymentStatus = (

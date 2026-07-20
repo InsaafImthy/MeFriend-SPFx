@@ -143,13 +143,14 @@
   min-height: 0;
   min-width: 0;
   overflow: auto;
-  padding: var(--mefriend-content-padding-top) var(--mefriend-content-padding-right) 0px var(--mefriend-content-padding-left);
+  padding: var(--mefriend-content-padding-top) var(--mefriend-content-padding-right) var(--mefriend-content-padding-bottom) var(--mefriend-content-padding-left);
 }
 
 .routeTransition {
   animation: routeEnter 220ms ease-out;
   display: flex;
   flex-direction: column;
+  height: 100%;
   min-height: 100%;
   min-width: 0;
   transform-origin: top center;

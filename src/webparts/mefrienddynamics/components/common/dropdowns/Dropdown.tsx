@@ -67,8 +67,14 @@ export const Dropdown = <TValue extends string | number = string>({
   const isDisabled = disabled || loading || readOnly;
   const loadingId = `${fieldId}-loading`;
   const [menuStyle, setMenuStyle] = React.useState<React.CSSProperties>({});
+  const getSearchableOptionText = (option: ILookupOption<TValue>): string => [
+    option.text,
+    option.description,
+    option.detailText,
+    String(option.value)
+  ].filter(Boolean).join(' ').toLowerCase();
   const filteredOptions = searchable && query
-    ? options.filter(option => option.text.toLowerCase().indexOf(query.toLowerCase()) !== -1)
+    ? options.filter(option => getSearchableOptionText(option).indexOf(query.trim().toLowerCase()) !== -1)
     : options;
 
   const updateMenuPosition = React.useCallback((): void => {
@@ -305,7 +311,7 @@ export const Dropdown = <TValue extends string | number = string>({
             </button>
           );
         }) : (
-          <span className={styles.emptyOption}>No options available.</span>
+          <span className={styles.emptyOption}>{query ? 'No matching options found.' : 'No options available.'}</span>
         )}
       </div>
     </div>

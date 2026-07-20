@@ -121,7 +121,13 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
     }
 
     if (route.key === 'customerCreate') {
-      return <CustomerCreatePage customerService={customerService} onNavigate={handleNavigate} />;
+      return (
+        <CustomerCreatePage
+          customerService={customerService}
+          masterDataService={masterDataService}
+          onNavigate={handleNavigate}
+        />
+      );
     }
 
     if (route.key === 'customerDetail') {

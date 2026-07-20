@@ -44,7 +44,13 @@ interface ICustomerCreateApiResponse {
   createdAt?: string;
 }
 
+export interface ICustomerLookupItem {
+  no: string;
+  name: string;
+}
+
 type CustomerListApiResponse = IPagedResult<ICustomerApiModel> | readonly ICustomerApiModel[];
+type CustomerLookupApiResponse = readonly ICustomerLookupItem[];
 
 const indiaCountryCode = 'IN';
 const normalizeText = (value: string): string => value.trim();
@@ -61,6 +67,15 @@ export class CustomerService {
     const response = await this.apiClient.get<CustomerListApiResponse>('/api/Customers');
 
     return this.mapCustomerListResult(response.data, filters, pagination, sorting);
+  }
+
+  public async getCustomerLookup(): Promise<readonly ICustomerLookupItem[]> {
+    const response = await this.apiClient.get<CustomerLookupApiResponse>('/api/Customers/lookup');
+
+    return (response.data || []).map(item => ({
+      no: normalizeText(item.no || ''),
+      name: normalizeText(item.name || '')
+    })).filter(item => item.no);
   }
 
   public async getCustomerById(id: string): Promise<ICustomerDetail> {

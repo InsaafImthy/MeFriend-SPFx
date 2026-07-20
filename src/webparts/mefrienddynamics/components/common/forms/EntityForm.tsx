@@ -67,6 +67,7 @@ const renderField = (
         errorMessage={errorMessage}
         onChange={nextValue => setValue(field.key, typeof nextValue === 'string' || typeof nextValue === 'number' ? nextValue : undefined)}
         placeholder={field.placeholder || 'Select'}
+        searchable={field.searchable || field.type === 'lookup'}
       />
     );
   }

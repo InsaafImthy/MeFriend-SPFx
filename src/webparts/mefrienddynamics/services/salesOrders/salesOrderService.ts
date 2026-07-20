@@ -24,8 +24,23 @@ interface ISalesOrderApiModel {
   Id?: string;
   no?: string;
   salesOrderNumber?: string;
+  DocumentType?: string;
+  documentType?: string;
+  documentDate?: string;
+  postingDescription?: string;
   sellToCustomerNo?: string;
   sellToCustomerName?: string;
+  customerName2?: string;
+  sellToAddress?: string;
+  sellToAddress2?: string;
+  sellToCity?: string;
+  sellToCounty?: string;
+  sellToPostCode?: string;
+  sellToCountryRegionCode?: string;
+  sellToPhoneNo?: string;
+  sellToEMail?: string;
+  sellToEmail?: string;
+  sellToContact?: string;
   customerNo?: string;
   customerName?: string;
   clientNo?: string;
@@ -37,12 +52,49 @@ interface ISalesOrderApiModel {
   eventName?: string;
   postingDate?: string;
   orderDate?: string;
-  documentDate?: string;
+  dueDate?: string;
+  requestedDeliveryDate?: string;
+  promisedDeliveryDate?: string;
+  externalDocumentNo?: string;
+  externalDocumentNumber?: string;
+  yourReference?: string;
   status?: string;
   amount?: number;
   amountIncludingVAT?: number;
+  amountLCY?: number;
+  amountIncludingVATLCY?: number;
   totalAmount?: number;
   currencyCode?: string;
+  pricesIncludingVAT?: boolean;
+  paymentTermsCode?: string;
+  paymentMethodCode?: string;
+  paymentDiscountPercent?: number;
+  prepaymentPercent?: number;
+  responsibilityCenter?: string;
+  assignedUserID?: string;
+  shortcutDimension1Code?: string;
+  shortcutDimension2Code?: string;
+  locationCode?: string;
+  shipmentDate?: string;
+  shippingAdvice?: string;
+  completelyShipped?: boolean;
+  shipToName?: string;
+  shipToAddress?: string;
+  shipToAddress2?: string;
+  shipToCity?: string;
+  shipToCounty?: string;
+  shipToPostCode?: string;
+  shipToCountryRegionCode?: string;
+  shipToContact?: string;
+  billToName?: string;
+  billToAddress?: string;
+  billToAddress2?: string;
+  billToCity?: string;
+  billToCounty?: string;
+  billToPostCode?: string;
+  billToCountryRegionCode?: string;
+  billToContactNo?: string;
+  billToContact?: string;
   SalesOrderLines?: readonly ISalesOrderLineItemApiModel[];
   lines?: readonly ISalesOrderLineItemApiModel[];
   relatedInvoices?: readonly ISalesOrderRelatedInvoiceApiModel[];
@@ -64,8 +116,21 @@ interface ISalesOrderLineItemApiModel {
   unitPrice?: number;
   unitpriceexclTax?: number;
   lineAmount?: number;
+  amountLCY?: number;
   amountIncludingVAT?: number;
   amountIncludingVATLCY?: number;
+  outstandingQuantity?: number;
+  outstandingAmountLCY?: number;
+  qtyToShip?: number;
+  quantityShipped?: number;
+  qtyToInvoice?: number;
+  quantityInvoiced?: number;
+  unitOfMeasureCode?: string;
+  shipmentDate?: string;
+  plannedShipmentDate?: string;
+  plannedDeliveryDate?: string;
+  requestedDeliveryDate?: string;
+  promisedDeliveryDate?: string;
   taxAmount?: number;
   tax?: number;
   lineStatus?: string;
@@ -98,6 +163,10 @@ interface ISalesOrderInvoiceSummaryApiModel {
   totalOutstandingAmount?: number;
 }
 
+interface ISalesOrderPostResponseApiModel extends ISalesOrderApiModel {
+  base64?: string;
+}
+
 type SalesOrderListApiResponse = IPagedResult<ISalesOrderApiModel> | readonly ISalesOrderApiModel[];
 type SalesInvoiceListApiResponse =
   | IPagedResult<ISalesOrderRelatedInvoiceApiModel>
@@ -128,12 +197,13 @@ export class SalesOrderService {
   }
 
   public async createSalesOrder(payload: ISalesOrderCreateFormState): Promise<ISalesOrderDetail> {
-    const response = await this.apiClient.post<ISalesOrderCreateRequest, ISalesOrderApiModel>(
-      '/api/sales-orders',
-      this.mapSalesOrderFormToApiRequest(payload)
+    const request = this.mapSalesOrderFormToApiRequest(payload);
+    const response = await this.apiClient.post<ISalesOrderCreateRequest, ISalesOrderPostResponseApiModel>(
+      '/api/SalesOrders',
+      request
     );
 
-    return this.mapSalesOrderApiToUiModel(response.data);
+    return this.mapSalesOrderPostResponseToUiModel(response.data, request);
   }
 
   public async getInvoicesForSalesOrder(salesOrderId: string): Promise<readonly ISalesOrderRelatedInvoice[]> {
@@ -151,12 +221,18 @@ export class SalesOrderService {
     const customerCode = api?.customerCode || api?.sellToCustomerNo || api?.customerNo || '';
     const customerName = api?.customerName || api?.sellToCustomerName || '';
     const lines = api?.SalesOrderLines || api?.lines || [];
+    const totalAmount = this.toNumber(api?.amount, this.toNumber(api?.totalAmount, this.sumLineAmount(lines, 'lineAmount')));
+    const amountIncludingVAT = this.toNumber(api?.amountIncludingVAT, this.sumLineAmount(lines, 'amountIncludingVAT'));
 
     return {
       id: api?.id || api?.Id || salesOrderNumber,
       salesOrderNumber,
+      documentType: api?.documentType || api?.DocumentType || '',
+      documentDate: api?.documentDate || undefined,
+      postingDescription: api?.postingDescription || '',
       customerCode,
       customerName,
+      customerName2: api?.customerName2 || '',
       clientCode: api?.clientNo || '',
       clientName: api?.clientName || '',
       salespersonCode: api?.salespersonCode || '',
@@ -165,10 +241,62 @@ export class SalesOrderService {
       eventName: api?.eventName || '',
       postingDate: api?.postingDate || undefined,
       orderDate: api?.orderDate || api?.documentDate || undefined,
+      dueDate: api?.dueDate || undefined,
+      shipmentDate: api?.shipmentDate || undefined,
+      requestedDeliveryDate: this.toBusinessDate(api?.requestedDeliveryDate),
+      promisedDeliveryDate: this.toBusinessDate(api?.promisedDeliveryDate),
+      externalDocumentNumber: api?.externalDocumentNumber || api?.externalDocumentNo || '',
+      yourReference: api?.yourReference || '',
       status: api?.status || 'Unknown',
-      totalAmount: this.toNumber(api?.amount, this.toNumber(api?.totalAmount, this.sumLineAmount(lines, 'lineAmount'))),
-      amountIncludingVAT: this.toNumber(api?.amountIncludingVAT, this.sumLineAmount(lines, 'amountIncludingVAT')),
+      totalAmount,
+      amountIncludingVAT,
+      amountLCY: this.toOptionalNumber(api?.amountLCY, totalAmount),
+      amountIncludingVATLCY: this.toOptionalNumber(api?.amountIncludingVATLCY, amountIncludingVAT),
+      outstandingQuantity: this.sumLineAmount(lines, 'outstandingQuantity'),
+      outstandingAmountLCY: this.sumLineAmount(lines, 'outstandingAmountLCY'),
+      quantityToShip: this.sumLineAmount(lines, 'qtyToShip'),
+      quantityShipped: this.sumLineAmount(lines, 'quantityShipped'),
+      quantityToInvoice: this.sumLineAmount(lines, 'qtyToInvoice'),
+      quantityInvoiced: this.sumLineAmount(lines, 'quantityInvoiced'),
       currencyCode: api?.currencyCode || '',
+      pricesIncludingVAT: api?.pricesIncludingVAT,
+      paymentTermsCode: api?.paymentTermsCode || '',
+      paymentMethodCode: api?.paymentMethodCode || '',
+      paymentDiscountPercent: this.toOptionalNumber(api?.paymentDiscountPercent),
+      prepaymentPercent: this.toOptionalNumber(api?.prepaymentPercent),
+      responsibilityCenter: api?.responsibilityCenter || '',
+      assignedUserID: api?.assignedUserID || '',
+      shortcutDimension1Code: api?.shortcutDimension1Code || '',
+      shortcutDimension2Code: api?.shortcutDimension2Code || '',
+      locationCode: api?.locationCode || '',
+      shippingAdvice: api?.shippingAdvice || '',
+      completelyShipped: api?.completelyShipped,
+      shipToName: api?.shipToName || '',
+      shipToAddress: api?.shipToAddress || '',
+      shipToAddress2: api?.shipToAddress2 || '',
+      shipToCity: api?.shipToCity || '',
+      shipToCounty: api?.shipToCounty || '',
+      shipToPostCode: api?.shipToPostCode || '',
+      shipToCountryRegionCode: api?.shipToCountryRegionCode || '',
+      shipToContact: api?.shipToContact || '',
+      billToName: api?.billToName || '',
+      billToAddress: api?.billToAddress || '',
+      billToAddress2: api?.billToAddress2 || '',
+      billToCity: api?.billToCity || '',
+      billToCounty: api?.billToCounty || '',
+      billToPostCode: api?.billToPostCode || '',
+      billToCountryRegionCode: api?.billToCountryRegionCode || '',
+      billToContactNo: api?.billToContactNo || '',
+      billToContact: api?.billToContact || '',
+      sellToAddress: api?.sellToAddress || '',
+      sellToAddress2: api?.sellToAddress2 || '',
+      sellToCity: api?.sellToCity || '',
+      sellToCounty: api?.sellToCounty || '',
+      sellToPostCode: api?.sellToPostCode || '',
+      sellToCountryRegionCode: api?.sellToCountryRegionCode || '',
+      sellToPhoneNo: api?.sellToPhoneNo || '',
+      sellToEmail: api?.sellToEmail || api?.sellToEMail || '',
+      sellToContact: api?.sellToContact || '',
       lines: lines.map(line => this.mapSalesOrderLineApiToUiModel(line)),
       relatedInvoices,
       invoiceSummary: this.mapInvoiceSummaryApiToUiModel(api?.invoiceSummary, relatedInvoices)
@@ -176,26 +304,51 @@ export class SalesOrderService {
   }
 
   public mapSalesOrderFormToApiRequest(form: ISalesOrderCreateFormState): ISalesOrderCreateRequest {
+    const customerNo = form.customerCode.trim();
+    const productDimensionValue = form.eventCode?.trim();
+
     return {
-      customerCode: form.customerCode.trim(),
-      salespersonCode: form.salespersonCode.trim(),
-      eventCode: form.eventCode?.trim() || undefined,
-      countryCode: form.countryCode?.trim() || undefined,
-      stateCode: form.stateCode?.trim() || undefined,
-      orderDate: form.orderDate,
       postingDate: form.postingDate,
-      externalDocumentNumber: form.externalDocumentNumber?.trim() || undefined,
-      remarks: form.remarks?.trim() || undefined,
-      currencyCode: form.currencyCode?.trim() || undefined,
-      lines: form.lines.map(line => ({
-        lineNumber: line.lineNumber.trim(),
-        itemCode: line.itemCode.trim(),
-        description: line.description.trim(),
+      sellToCustomerNo: customerNo,
+      billToCustomerNo: form.billToCustomerCode?.trim() || customerNo,
+      roNo: form.externalDocumentNumber?.trim() || undefined,
+      rodate: form.orderDate,
+      salesperson: form.salespersonCode.trim() || undefined,
+      locationcode: form.stateCode?.trim() || undefined,
+      salesLines: form.lines.map(line => ({
+        type: 'Item',
+        no: line.itemCode.trim(),
         quantity: line.quantity,
-        unitPrice: line.unitPrice,
-        lineAmount: line.lineAmount
+        rate: line.unitPrice,
+        dimension: productDimensionValue
+          ? [
+              {
+                dimensionCode: 'PRODUCT',
+                dimensionValueCode: productDimensionValue
+              }
+            ]
+          : undefined
       }))
     };
+  }
+
+  public mapSalesOrderPostResponseToUiModel(
+    api: ISalesOrderPostResponseApiModel | undefined,
+    request: ISalesOrderCreateRequest
+  ): ISalesOrderDetail {
+    const decodedSalesOrder = this.tryDecodeSalesOrderPostResponse(api?.base64 || undefined);
+    const mappedSalesOrder = this.mapSalesOrderApiToUiModel(decodedSalesOrder || api);
+
+    if (
+      mappedSalesOrder.id ||
+      mappedSalesOrder.salesOrderNumber ||
+      mappedSalesOrder.customerCode ||
+      mappedSalesOrder.lines.length > 0
+    ) {
+      return mappedSalesOrder;
+    }
+
+    return this.mapSalesOrderCreateRequestToUiModel(request);
   }
 
   public mapRelatedInvoicesApiToUiModel(
@@ -279,6 +432,20 @@ export class SalesOrderService {
       unitPriceExcludingTax: this.toOptionalNumber(api.unitpriceexclTax),
       lineAmount: this.toNumber(api.lineAmount, 0),
       amountIncludingVAT: this.toOptionalNumber(api.amountIncludingVAT, this.toOptionalNumber(api.amountIncludingVATLCY)),
+      amountLCY: this.toOptionalNumber(api.amountLCY),
+      amountIncludingVATLCY: this.toOptionalNumber(api.amountIncludingVATLCY),
+      outstandingQuantity: this.toOptionalNumber(api.outstandingQuantity),
+      outstandingAmountLCY: this.toOptionalNumber(api.outstandingAmountLCY),
+      quantityShipped: this.toOptionalNumber(api.quantityShipped),
+      quantityInvoiced: this.toOptionalNumber(api.quantityInvoiced),
+      quantityToShip: this.toOptionalNumber(api.qtyToShip),
+      quantityToInvoice: this.toOptionalNumber(api.qtyToInvoice),
+      unitOfMeasureCode: api.unitOfMeasureCode || '',
+      shipmentDate: api.shipmentDate || undefined,
+      plannedShipmentDate: api.plannedShipmentDate || undefined,
+      plannedDeliveryDate: api.plannedDeliveryDate || undefined,
+      requestedDeliveryDate: this.toBusinessDate(api.requestedDeliveryDate),
+      promisedDeliveryDate: this.toBusinessDate(api.promisedDeliveryDate),
       taxAmount: typeof api.taxAmount === 'number' ? api.taxAmount : this.toOptionalNumber(api.tax),
       lineStatus: api.lineStatus || ''
     };
@@ -299,6 +466,138 @@ export class SalesOrderService {
     }
 
     return summarizeRelatedInvoices(relatedInvoices);
+  }
+
+  private mapSalesOrderCreateRequestToUiModel(request: ISalesOrderCreateRequest): ISalesOrderDetail {
+    const lines = request.salesLines.map((line, index) => {
+      const quantity = this.toNumber(line.quantity, 0);
+      const unitPrice = this.toNumber(line.rate, 0);
+
+      return {
+        lineNumber: String(index + 1),
+        lineType: line.type,
+        itemCode: line.no,
+        description: '',
+        quantity,
+        unitPrice,
+        lineAmount: Number((quantity * unitPrice).toFixed(2))
+      };
+    });
+    const totalAmount = lines.reduce((total, line) => total + line.lineAmount, 0);
+    const productDimension = request.salesLines
+      .map(line => line.dimension || [])
+      .reduce(
+        (allDimensions, lineDimensions) => allDimensions.concat(lineDimensions),
+        [] as readonly { dimensionCode: string; dimensionValueCode: string }[]
+      )
+      .filter(dimension => dimension.dimensionCode.toUpperCase() === 'PRODUCT')[0];
+
+    return {
+      id: '',
+      salesOrderNumber: '',
+      documentType: '',
+      documentDate: undefined,
+      postingDescription: '',
+      customerCode: request.sellToCustomerNo,
+      customerName: '',
+      customerName2: '',
+      clientCode: '',
+      clientName: '',
+      salespersonCode: request.salesperson || '',
+      salespersonName: '',
+      eventCode: productDimension?.dimensionValueCode || '',
+      eventName: '',
+      postingDate: request.postingDate,
+      orderDate: request.rodate,
+      dueDate: undefined,
+      shipmentDate: undefined,
+      requestedDeliveryDate: undefined,
+      promisedDeliveryDate: undefined,
+      externalDocumentNumber: request.roNo || '',
+      yourReference: '',
+      status: 'Unknown',
+      totalAmount,
+      amountIncludingVAT: undefined,
+      amountLCY: undefined,
+      amountIncludingVATLCY: undefined,
+      outstandingQuantity: undefined,
+      outstandingAmountLCY: undefined,
+      quantityToShip: undefined,
+      quantityShipped: undefined,
+      quantityToInvoice: undefined,
+      quantityInvoiced: undefined,
+      currencyCode: '',
+      pricesIncludingVAT: undefined,
+      paymentTermsCode: '',
+      paymentMethodCode: '',
+      paymentDiscountPercent: undefined,
+      prepaymentPercent: undefined,
+      responsibilityCenter: '',
+      assignedUserID: '',
+      shortcutDimension1Code: '',
+      shortcutDimension2Code: '',
+      locationCode: request.locationcode || '',
+      shippingAdvice: '',
+      completelyShipped: undefined,
+      shipToName: '',
+      shipToAddress: '',
+      shipToAddress2: '',
+      shipToCity: '',
+      shipToCounty: '',
+      shipToPostCode: '',
+      shipToCountryRegionCode: '',
+      shipToContact: '',
+      billToName: '',
+      billToAddress: '',
+      billToAddress2: '',
+      billToCity: '',
+      billToCounty: '',
+      billToPostCode: '',
+      billToCountryRegionCode: '',
+      billToContactNo: '',
+      billToContact: '',
+      sellToAddress: '',
+      sellToAddress2: '',
+      sellToCity: '',
+      sellToCounty: '',
+      sellToPostCode: '',
+      sellToCountryRegionCode: '',
+      sellToPhoneNo: '',
+      sellToEmail: '',
+      sellToContact: '',
+      lines,
+      relatedInvoices: [],
+      invoiceSummary: this.mapInvoiceSummaryApiToUiModel(undefined, [])
+    };
+  }
+
+  private tryDecodeSalesOrderPostResponse(base64: string | undefined): ISalesOrderApiModel | undefined {
+    if (!base64) {
+      return undefined;
+    }
+
+    try {
+      const parsed = JSON.parse(this.decodeBase64Utf8(base64)) as unknown;
+
+      return this.isRecord(parsed) && !Array.isArray(parsed) ? parsed as ISalesOrderApiModel : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private decodeBase64Utf8(base64: string): string {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+
+    return new TextDecoder().decode(bytes);
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
   }
 
   private filterSalesOrders(
@@ -493,12 +792,20 @@ export class SalesOrderService {
 
   private sumLineAmount(
     lines: readonly ISalesOrderLineItemApiModel[],
-    fieldName: 'lineAmount' | 'amountIncludingVAT'
+    fieldName:
+      | 'lineAmount'
+      | 'amountIncludingVAT'
+      | 'outstandingQuantity'
+      | 'outstandingAmountLCY'
+      | 'qtyToShip'
+      | 'quantityShipped'
+      | 'qtyToInvoice'
+      | 'quantityInvoiced'
   ): number {
     return lines.reduce((total, line) => {
       const amount = fieldName === 'amountIncludingVAT'
         ? this.toNumber(line.amountIncludingVAT, this.toNumber(line.amountIncludingVATLCY, 0))
-        : this.toNumber(line.lineAmount, 0);
+        : this.toNumber(line[fieldName], 0);
 
       return total + amount;
     }, 0);
@@ -510,5 +817,9 @@ export class SalesOrderService {
 
   private toNumber(value: number | undefined, fallback: number): number {
     return typeof value === 'number' ? value : fallback;
+  }
+
+  private toBusinessDate(value: string | undefined): string | undefined {
+    return value && value !== '0001-01-01' ? value : undefined;
   }
 }

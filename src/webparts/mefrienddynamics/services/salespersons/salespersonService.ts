@@ -23,7 +23,13 @@ interface ISalespersonApiModel {
   department?: string;
 }
 
+export interface ISalespersonLookupItem {
+  code: string;
+  name: string;
+}
+
 type SalespersonListApiResponse = IPagedResult<ISalespersonApiModel> | readonly ISalespersonApiModel[];
+type SalespersonLookupApiResponse = readonly ISalespersonLookupItem[];
 
 export class SalespersonService {
   public constructor(private readonly apiClient: ApiClient) {}
@@ -36,6 +42,15 @@ export class SalespersonService {
     const response = await this.apiClient.get<SalespersonListApiResponse>('/api/Salespersons');
 
     return this.mapSalespersonListResult(response.data, filters, pagination, sorting);
+  }
+
+  public async getSalespersonLookup(): Promise<readonly ISalespersonLookupItem[]> {
+    const response = await this.apiClient.get<SalespersonLookupApiResponse>('/api/Salespersons/lookup');
+
+    return (response.data || []).map(item => ({
+      code: (item.code || '').trim(),
+      name: (item.name || '').trim()
+    })).filter(item => item.code);
   }
 
   public async getSalespersonById(id: string): Promise<ISalespersonDetail> {

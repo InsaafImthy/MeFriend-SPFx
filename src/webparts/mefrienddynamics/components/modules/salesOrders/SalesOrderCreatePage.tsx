@@ -5,16 +5,14 @@ import {
 } from '../../../config/modules/salesOrdersModuleConfig';
 import type { IFormFieldConfig } from '../../../models/common/IFormFieldConfig';
 import type { ILookupOption } from '../../../models/common/ILookupOption';
-import type { ICustomerListItem } from '../../../models/customers';
 import type { IEventListItem } from '../../../models/events';
 import type { ISalesOrderCreateFormState, ISalesOrderLineItem } from '../../../models/salesOrders';
-import type { ISalespersonListItem } from '../../../models/salespersons';
 import type { IMasterCodeItem } from '../../../models/settings/IMasterDataModels';
 import { getUserFriendlyError } from '../../../services/api/apiErrorHandler';
-import type { CustomerService } from '../../../services/customers/customerService';
+import type { CustomerService, ICustomerLookupItem } from '../../../services/customers/customerService';
 import type { EventService } from '../../../services/events/eventService';
 import type { SalesOrderService } from '../../../services/salesOrders/salesOrderService';
-import type { SalespersonService } from '../../../services/salespersons/salespersonService';
+import type { ISalespersonLookupItem, SalespersonService } from '../../../services/salespersons/salespersonService';
 import type { MasterDataService } from '../../../services/sharepoint/masterDataService';
 import type { EntityFormErrors, EntityFormValue, EntityFormValues } from '../../../utils/validationUtils';
 import { hasValidationErrors, validateFormValues } from '../../../utils/validationUtils';
@@ -43,7 +41,7 @@ interface ISalesOrderLineFormItem extends LineItemRecord {
   taxAmount?: number;
 }
 
-const pageSize = 100;
+const eventLookupPageSize = 100;
 
 const getStringValue = (values: EntityFormValues, key: keyof ISalesOrderCreateFormState): string => {
   const value = values[key];
@@ -108,6 +106,7 @@ const toSalesOrderFormState = (
   lines: readonly ISalesOrderLineFormItem[]
 ): ISalesOrderCreateFormState => ({
   customerCode: getStringValue(values, 'customerCode'),
+  billToCustomerCode: getStringValue(values, 'billToCustomerCode'),
   salespersonCode: getStringValue(values, 'salespersonCode'),
   eventCode: getStringValue(values, 'eventCode'),
   countryCode: getStringValue(values, 'countryCode'),
@@ -119,11 +118,12 @@ const toSalesOrderFormState = (
   lines: lines.map(toSalesOrderLineItem)
 });
 
-const toCustomerOptions = (items: readonly ICustomerListItem[]): readonly ILookupOption[] =>
+const toCustomerOptions = (items: readonly ICustomerLookupItem[]): readonly ILookupOption[] =>
   items.map(item => ({
-    key: item.customerCode || item.id,
-    text: item.customerName ? `${item.customerName} (${item.customerCode})` : item.customerCode,
-    value: item.customerCode
+    key: item.no,
+    text: item.name ? `${item.no} - ${item.name}` : item.no,
+    value: item.no,
+    description: item.name
   }));
 
 const toEventOptions = (items: readonly IEventListItem[]): readonly ILookupOption[] =>
@@ -133,11 +133,12 @@ const toEventOptions = (items: readonly IEventListItem[]): readonly ILookupOptio
     value: item.eventCode
   }));
 
-const toSalespersonOptions = (items: readonly ISalespersonListItem[]): readonly ILookupOption[] =>
+const toSalespersonOptions = (items: readonly ISalespersonLookupItem[]): readonly ILookupOption[] =>
   items.map(item => ({
-    key: item.salespersonCode || item.id,
-    text: item.salespersonName ? `${item.salespersonName} (${item.salespersonCode})` : item.salespersonCode,
-    value: item.salespersonCode
+    key: item.code,
+    text: item.name ? `${item.code} - ${item.name}` : item.code,
+    value: item.code,
+    description: item.name
   }));
 
 const toMasterCodeOptions = (items: readonly IMasterCodeItem[]): readonly ILookupOption[] =>
@@ -163,7 +164,6 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
   const [showCancelDialog, setShowCancelDialog] = React.useState<boolean>(false);
   const [showLineValidation, setShowLineValidation] = React.useState<boolean>(false);
   const [customerOptions, setCustomerOptions] = React.useState<readonly ILookupOption[]>([]);
-  const [countryOptions, setCountryOptions] = React.useState<readonly ILookupOption[]>([]);
   const [eventOptions, setEventOptions] = React.useState<readonly ILookupOption[]>([]);
   const [salespersonOptions, setSalespersonOptions] = React.useState<readonly ILookupOption[]>([]);
   const [stateOptions, setStateOptions] = React.useState<readonly ILookupOption[]>([]);
@@ -176,11 +176,10 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
       setLookupLoading(true);
 
       try {
-        const [customers, events, salespersons, countries, states] = await Promise.all([
-          customerService.getCustomers({}, { pageNumber: 1, pageSize }),
-          eventService.getEvents({}, { pageNumber: 1, pageSize }),
-          salespersonService.getSalespersons({}, { pageNumber: 1, pageSize }),
-          masterDataService.getCodes('countryCodes'),
+        const [customers, events, salespersons, states] = await Promise.all([
+          customerService.getCustomerLookup(),
+          eventService.getEvents({}, { pageNumber: 1, pageSize: eventLookupPageSize }),
+          salespersonService.getSalespersonLookup(),
           masterDataService.getCodes('stateCodes')
         ]);
 
@@ -188,10 +187,9 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
           return;
         }
 
-        setCustomerOptions(toCustomerOptions(customers.items));
+        setCustomerOptions(toCustomerOptions(customers));
         setEventOptions(toEventOptions(events.items));
-        setSalespersonOptions(toSalespersonOptions(salespersons.items));
-        setCountryOptions(toMasterCodeOptions(countries));
+        setSalespersonOptions(toSalespersonOptions(salespersons));
         setStateOptions(toMasterCodeOptions(states));
       } catch (error) {
         if (isMounted) {
@@ -213,7 +211,7 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
 
   const fields = React.useMemo<readonly IFormFieldConfig[]>(() => {
     return (salesOrdersModuleConfig.formFields || []).map(field => {
-      if (field.key === 'customerCode') {
+      if (field.key === 'customerCode' || field.key === 'billToCustomerCode') {
         return { ...field, options: customerOptions, disabled: lookupLoading };
       }
 
@@ -225,17 +223,13 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
         return { ...field, options: salespersonOptions, disabled: lookupLoading };
       }
 
-      if (field.key === 'countryCode') {
-        return { ...field, options: countryOptions, disabled: lookupLoading };
-      }
-
       if (field.key === 'stateCode') {
         return { ...field, options: stateOptions, disabled: lookupLoading };
       }
 
       return field;
     });
-  }, [countryOptions, customerOptions, eventOptions, lookupLoading, salespersonOptions, stateOptions]);
+  }, [customerOptions, eventOptions, lookupLoading, salespersonOptions, stateOptions]);
 
   const lineDirty = lines.length > 0;
   const isDirty = headerDirty || lineDirty;
@@ -265,8 +259,7 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
 
     try {
       const formState = toSalesOrderFormState(values, lines);
-      const request = salesOrderService.mapSalesOrderFormToApiRequest(formState);
-      const createdSalesOrder = await salesOrderService.createSalesOrder(request);
+      const createdSalesOrder = await salesOrderService.createSalesOrder(formState);
       toast.success('Sales order created successfully.', { title: 'Sales Order' });
 
       const detailId = createdSalesOrder.id || createdSalesOrder.salesOrderNumber;
@@ -286,16 +279,16 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
     >
       <EntityForm
         fields={fields}
-        initialValues={{ countryCode: 'IN' }}
+        initialValues={{ billToCustomerCode: '' }}
         submitLabel="Create Sales Order"
         cancelLabel="Cancel"
         loading={loading}
         disabled={loading}
         lookupLoadingKeys={{
           customerCode: lookupLoading,
+          billToCustomerCode: lookupLoading,
           eventCode: lookupLoading,
           salespersonCode: lookupLoading,
-          countryCode: lookupLoading,
           stateCode: lookupLoading
         }}
         onDirtyChange={setHeaderDirty}

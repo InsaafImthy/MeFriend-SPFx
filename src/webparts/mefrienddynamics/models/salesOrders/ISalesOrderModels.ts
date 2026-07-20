@@ -13,6 +13,20 @@ export interface ISalesOrderLineItem {
   unitPriceExcludingTax?: number;
   lineAmount: number;
   amountIncludingVAT?: number;
+  amountLCY?: number;
+  amountIncludingVATLCY?: number;
+  outstandingQuantity?: number;
+  outstandingAmountLCY?: number;
+  quantityShipped?: number;
+  quantityInvoiced?: number;
+  quantityToShip?: number;
+  quantityToInvoice?: number;
+  unitOfMeasureCode?: string;
+  shipmentDate?: string;
+  plannedShipmentDate?: string;
+  plannedDeliveryDate?: string;
+  requestedDeliveryDate?: string;
+  promisedDeliveryDate?: string;
   taxAmount?: number;
   lineStatus?: string;
 }
@@ -40,8 +54,12 @@ export interface ISalesOrderInvoiceSummary {
 export interface ISalesOrderListItem {
   id: string;
   salesOrderNumber: string;
+  documentType?: string;
+  documentDate?: string;
+  postingDescription?: string;
   customerCode: string;
   customerName: string;
+  customerName2?: string;
   clientCode?: string;
   clientName?: string;
   salespersonCode: string;
@@ -50,10 +68,62 @@ export interface ISalesOrderListItem {
   eventName: string;
   postingDate?: string;
   orderDate?: string;
+  dueDate?: string;
+  shipmentDate?: string;
+  requestedDeliveryDate?: string;
+  promisedDeliveryDate?: string;
+  externalDocumentNumber?: string;
+  yourReference?: string;
   status: SalesOrderStatus;
   totalAmount: number;
   amountIncludingVAT?: number;
+  amountLCY?: number;
+  amountIncludingVATLCY?: number;
+  outstandingQuantity?: number;
+  outstandingAmountLCY?: number;
+  quantityToShip?: number;
+  quantityShipped?: number;
+  quantityToInvoice?: number;
+  quantityInvoiced?: number;
   currencyCode: string;
+  pricesIncludingVAT?: boolean;
+  paymentTermsCode?: string;
+  paymentMethodCode?: string;
+  paymentDiscountPercent?: number;
+  prepaymentPercent?: number;
+  responsibilityCenter?: string;
+  assignedUserID?: string;
+  shortcutDimension1Code?: string;
+  shortcutDimension2Code?: string;
+  locationCode?: string;
+  shippingAdvice?: string;
+  completelyShipped?: boolean;
+  shipToName?: string;
+  shipToAddress?: string;
+  shipToAddress2?: string;
+  shipToCity?: string;
+  shipToCounty?: string;
+  shipToPostCode?: string;
+  shipToCountryRegionCode?: string;
+  shipToContact?: string;
+  billToName?: string;
+  billToAddress?: string;
+  billToAddress2?: string;
+  billToCity?: string;
+  billToCounty?: string;
+  billToPostCode?: string;
+  billToCountryRegionCode?: string;
+  billToContactNo?: string;
+  billToContact?: string;
+  sellToAddress?: string;
+  sellToAddress2?: string;
+  sellToCity?: string;
+  sellToCounty?: string;
+  sellToPostCode?: string;
+  sellToCountryRegionCode?: string;
+  sellToPhoneNo?: string;
+  sellToEmail?: string;
+  sellToContact?: string;
 }
 
 export interface ISalesOrderDetail extends ISalesOrderListItem {
@@ -64,6 +134,7 @@ export interface ISalesOrderDetail extends ISalesOrderListItem {
 
 export interface ISalesOrderCreateFormState {
   customerCode: string;
+  billToCustomerCode?: string;
   salespersonCode: string;
   eventCode?: string;
   countryCode?: string;
@@ -77,17 +148,27 @@ export interface ISalesOrderCreateFormState {
 }
 
 export interface ISalesOrderCreateRequest {
-  customerCode: string;
-  salespersonCode: string;
-  eventCode?: string;
-  countryCode?: string;
-  stateCode?: string;
-  orderDate?: string;
   postingDate?: string;
-  externalDocumentNumber?: string;
-  remarks?: string;
-  currencyCode?: string;
-  lines: readonly ISalesOrderLineItem[];
+  sellToCustomerNo: string;
+  billToCustomerNo: string;
+  roNo?: string;
+  rodate?: string;
+  salesperson?: string;
+  locationcode?: string;
+  salesLines: readonly ISalesOrderCreateLineRequest[];
+}
+
+export interface ISalesOrderCreateLineRequest {
+  type: 'Item';
+  no: string;
+  quantity: number;
+  rate: number;
+  dimension?: readonly ISalesOrderLineDimensionRequest[];
+}
+
+export interface ISalesOrderLineDimensionRequest {
+  dimensionCode: 'PRODUCT';
+  dimensionValueCode: string;
 }
 
 export interface ISalesOrderFilters {

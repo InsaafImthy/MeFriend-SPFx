@@ -1,19 +1,14 @@
-.anchor {
-  flex: 0 0 74px;
-  min-height: 74px;
-}
-
 .bar {
   background: #ffffff;
   border: 1px solid #ddd6ef;
-  border-left: 0;
-  border-right: 0;
-  bottom: 0;
+  border-radius: 8px;
   box-shadow: 0 -10px 28px rgba(33, 0, 109, 0.12);
   box-sizing: border-box;
-  padding: 14px calc(var(--mefriend-content-padding-right, 0px) + 18px) calc(14px + env(safe-area-inset-bottom, 0px)) calc(var(--mefriend-content-padding-left, 0px) + 18px);
-  position: fixed;
-  z-index: 1000;
+  margin-top: auto;
+  padding: 14px 18px calc(14px + env(safe-area-inset-bottom, 0px));
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
 }
 
 .actions {
@@ -25,11 +20,6 @@
 }
 
 @media (max-width: 767px) {
-  .anchor {
-    flex-basis: 96px;
-    min-height: 96px;
-  }
-
   .bar {
     padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
   }
