@@ -1,15 +1,29 @@
 import * as React from 'react';
 import type { IPaginationState } from '../../../models/common/IPaginationState';
 import type { ISortState, SortDirection } from '../../../models/common/ISortState';
-import type { ITableColumn } from '../../../models/common/ITableColumn';
+import type { ITableColumn, TableColumnAlign } from '../../../models/common/ITableColumn';
 import { AmountDisplay } from '../amountDisplay/AmountDisplay';
-import { Button } from '../buttons/Button';
 import { EmptyState } from '../emptyState/EmptyState';
 import { ErrorState } from '../errorState/ErrorState';
 import { Loader } from '../loaders/Loader';
 import { StatusBadge } from '../statusBadge/StatusBadge';
 import { formatDate, formatNullFallback } from '../../../utils/formatUtils';
 import styles from './EntityTable.module.scss';
+
+export interface IEntityTableAction<TItem> {
+  key: string;
+  label: string;
+  icon?: 'view' | 'edit' | 'delete' | 'download' | 'more';
+  variant?: 'neutral' | 'danger';
+  disabled?: boolean | ((item: TItem) => boolean);
+  visible?: boolean | ((item: TItem) => boolean);
+  onClick: (item: TItem) => void;
+}
+
+export interface IDocumentCellValue {
+  name: string;
+  url?: string;
+}
 
 export interface IEntityTableProps<TItem> {
   columns: readonly ITableColumn<TItem>[];
@@ -20,13 +34,27 @@ export interface IEntityTableProps<TItem> {
   emptyMessage?: string;
   sortState?: ISortState;
   paginationState?: IPaginationState;
-  onSort?: (fieldName: string, direction: SortDirection) => void;
+  onSort?: (fieldName: string, direction?: SortDirection) => void;
   onPageChange?: (pageNumber: number) => void;
   onRowClick?: (item: TItem) => void;
   getRowKey: (item: TItem, index: number) => string;
   actions?: React.ReactNode;
   rowActionLabel?: string;
+  rowActions?: readonly IEntityTableAction<TItem>[];
+  overflowActions?: readonly IEntityTableAction<TItem>[];
+  selectedRowKeys?: readonly string[];
+  onSelectionChange?: (selectedKeys: readonly string[]) => void;
+  selectionLabel?: string;
+  showGoToPage?: boolean;
 }
+
+interface IIconProps {
+  name: 'view' | 'edit' | 'delete' | 'download' | 'more' | 'previous' | 'next';
+}
+
+const DEFAULT_COLUMN_WIDTH = 136;
+const SELECTION_COLUMN_WIDTH = 42;
+const ACTION_COLUMN_WIDTH = 118;
 
 const getFieldValue = <TItem,>(item: TItem, fieldName: keyof TItem | string): unknown => {
   return (item as Record<string, unknown>)[String(fieldName)];
@@ -39,30 +67,176 @@ const getTextValue = <TItem,>(item: TItem, column: ITableColumn<TItem>): string 
     return '-';
   }
 
+  if (column.renderType === 'document' && typeof value === 'object' && value !== null && 'name' in value) {
+    return String((value as IDocumentCellValue).name || '-');
+  }
+
   return String(value);
 };
 
-const getMobileTitleColumn = <TItem,>(columns: readonly ITableColumn<TItem>[]): ITableColumn<TItem> | undefined => {
-  const preferredKeys = ['invoiceNumber', 'salesOrderNumber', 'eventName', 'salespersonName', 'customerName', 'customerCode'];
+const getColumnWidth = <TItem,>(column: ITableColumn<TItem>): number => {
+  if (column.width) {
+    return column.width;
+  }
 
-  return preferredKeys
-    .map(preferredKey => columns.filter(column => String(column.fieldName) === preferredKey || column.key === preferredKey)[0])
-    .filter((column): column is ITableColumn<TItem> => Boolean(column))[0] || columns[0];
+  if (column.minWidth) {
+    return column.minWidth;
+  }
+
+  const key = `${column.key} ${String(column.fieldName)} ${column.header}`.toLowerCase();
+
+  if (column.renderType === 'document' || key.indexOf('document') !== -1 || key.indexOf('attachment') !== -1) {
+    return 190;
+  }
+
+  if (column.renderType === 'amount') {
+    return 132;
+  }
+
+  if (column.renderType === 'date' || key.indexOf('date') !== -1) {
+    return 154;
+  }
+
+  if (column.renderType === 'status' || column.renderType === 'tag' || key.indexOf('status') !== -1 || key.indexOf('class') !== -1) {
+    return 136;
+  }
+
+  if (key.indexOf('name') !== -1 || key.indexOf('title') !== -1 || key.indexOf('description') !== -1 || key.indexOf('customer') !== -1) {
+    return 210;
+  }
+
+  if (key.indexOf('code') !== -1 || key.indexOf('number') !== -1 || key.indexOf('role') !== -1) {
+    return 148;
+  }
+
+  return DEFAULT_COLUMN_WIDTH;
 };
 
-const getAvatarText = (value: string): string => {
-  const cleanValue = value.replace(/[^a-zA-Z0-9 ]/g, ' ').trim();
-  const parts = cleanValue.split(' ').filter(Boolean);
-
-  if (!parts.length) {
-    return 'MF';
+const getCellClassName = (align?: TableColumnAlign): string => {
+  if (align === 'center') {
+    return `${styles.cell} ${styles.alignCenter}`;
   }
 
-  if (parts.length === 1) {
-    return parts[0].substring(0, 2).toUpperCase();
+  if (align === 'right') {
+    return `${styles.cell} ${styles.alignRight}`;
   }
 
-  return `${parts[0].charAt(0)}${parts[parts.length - 1].charAt(0)}`.toUpperCase();
+  return styles.cell;
+};
+
+const Icon: React.FC<IIconProps> = ({ name }) => {
+  if (name === 'more') {
+    return (
+      <svg aria-hidden="true" className={styles.icon} focusable="false" viewBox="0 0 16 16">
+        <circle cx="3.5" cy="8" r="1.1" />
+        <circle cx="8" cy="8" r="1.1" />
+        <circle cx="12.5" cy="8" r="1.1" />
+      </svg>
+    );
+  }
+
+  const paths: Record<IIconProps['name'], React.ReactNode> = {
+    view: (
+      <>
+        <path d="M2.2 8s2.2-3.6 5.8-3.6S13.8 8 13.8 8 11.6 11.6 8 11.6 2.2 8 2.2 8Z" />
+        <circle cx="8" cy="8" r="1.6" />
+      </>
+    ),
+    edit: (
+      <>
+        <path d="M9.7 3.2 12.8 6.3" />
+        <path d="M4.1 11.9 3 13l1.1-.2 7.8-7.8-1.9-1.9-7.8 7.8-.2 1.1Z" />
+      </>
+    ),
+    delete: (
+      <>
+        <path d="M3.2 4.6h9.6" />
+        <path d="M6.2 4.6V3.4h3.6v1.2" />
+        <path d="M5 6.3v6.2h6V6.3" />
+      </>
+    ),
+    download: (
+      <>
+        <path d="M8 2.8v6.5" />
+        <path d="M5.6 7.1 8 9.5l2.4-2.4" />
+        <path d="M3.6 12.6h8.8" />
+      </>
+    ),
+    previous: <path d="M9.8 3.8 5.6 8l4.2 4.2" />,
+    next: <path d="M6.2 3.8 10.4 8l-4.2 4.2" />,
+    more: null
+  };
+
+  return (
+    <svg aria-hidden="true" className={styles.icon} fill="none" focusable="false" viewBox="0 0 16 16">
+      {paths[name]}
+    </svg>
+  );
+};
+
+const SortIcon: React.FC<{ active?: boolean }> = ({ active = false }) => {
+  return (
+    <svg aria-hidden="true" className={active ? `${styles.sortIcon} ${styles.sortIconActive}` : styles.sortIcon} focusable="false" viewBox="0 0 16 16">
+      <path d="M5 12V4" />
+      <path d="M2.8 6.2 5 4l2.2 2.2" />
+      <path d="M11 4v8" />
+      <path d="M8.8 9.8 11 12l2.2-2.2" />
+    </svg>
+  );
+};
+
+const renderTag = (value: string): React.ReactNode => {
+  const normalized = value.toLowerCase();
+  let tone = styles.tagNeutral;
+
+  if (normalized.indexOf('active') !== -1 || normalized.indexOf('approved') !== -1 || normalized.indexOf('paid') !== -1 || normalized.indexOf('all') !== -1) {
+    tone = styles.tagSuccess;
+  } else if (normalized.indexOf('pending') !== -1 || normalized.indexOf('draft') !== -1 || normalized.indexOf('hold') !== -1) {
+    tone = styles.tagWarning;
+  } else if (normalized.indexOf('reject') !== -1 || normalized.indexOf('cancel') !== -1 || normalized.indexOf('delete') !== -1) {
+    tone = styles.tagDanger;
+  } else if (normalized.indexOf('legal') !== -1 || normalized.indexOf('asset') !== -1) {
+    tone = styles.tagPurple;
+  } else if (normalized.indexOf('subscription') !== -1 || normalized.indexOf('service') !== -1) {
+    tone = styles.tagBlue;
+  }
+
+  return (
+    <span className={`${styles.tag} ${tone}`} title={value}>
+      {value}
+    </span>
+  );
+};
+
+const renderDocumentCell = (value: unknown): React.ReactNode => {
+  const documentValue = typeof value === 'object' && value !== null && 'name' in value
+    ? value as IDocumentCellValue
+    : { name: value ? String(value) : '-' };
+
+  if (!documentValue.name || documentValue.name === '-') {
+    return <span className={styles.fallback}>-</span>;
+  }
+
+  const content = (
+    <>
+      <Icon name="download" />
+      <span className={styles.truncate}>{documentValue.name}</span>
+    </>
+  );
+
+  if (documentValue.url) {
+    return (
+      <a className={styles.documentLink} href={documentValue.url} title={documentValue.name}>
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <span className={styles.documentLink} title={documentValue.name}>
+      {content}
+    </span>
+  );
 };
 
 const renderCell = <TItem,>(item: TItem, column: ITableColumn<TItem>): React.ReactNode => {
@@ -80,6 +254,14 @@ const renderCell = <TItem,>(item: TItem, column: ITableColumn<TItem>): React.Rea
     return <StatusBadge value={typeof value === 'string' ? value : undefined} />;
   }
 
+  if (column.renderType === 'tag') {
+    return renderTag(typeof value === 'string' ? value : '-');
+  }
+
+  if (column.renderType === 'document') {
+    return renderDocumentCell(value);
+  }
+
   if (column.renderType === 'date') {
     return formatDate(typeof value === 'string' ? value : undefined);
   }
@@ -91,83 +273,66 @@ const renderCell = <TItem,>(item: TItem, column: ITableColumn<TItem>): React.Rea
   return String(value);
 };
 
-const renderMobileCards = <TItem,>(
-  columns: readonly ITableColumn<TItem>[],
-  items: readonly TItem[],
-  getRowKey: (item: TItem, index: number) => string,
-  onRowClick: ((item: TItem) => void) | undefined,
-  rowActionLabel: string
-): React.ReactNode => {
-  const titleColumn = getMobileTitleColumn(columns);
+const resolveActionState = <TItem,>(state: boolean | ((item: TItem) => boolean) | undefined, item: TItem): boolean => {
+  return typeof state === 'function' ? state(item) : Boolean(state);
+};
+
+const renderActionButton = <TItem,>(item: TItem, action: IEntityTableAction<TItem>, compact: boolean): React.ReactNode => {
+  const disabled = resolveActionState(action.disabled, item);
+  const iconName = action.icon || (action.key === 'delete' ? 'delete' : action.key === 'edit' ? 'edit' : action.key === 'view' ? 'view' : 'more');
 
   return (
-    <div className={styles.mobileCards}>
-      {items.map((item, index) => {
-        const title = titleColumn ? getTextValue(item, titleColumn) : 'Record';
-        const subtitleColumn = columns.filter(column => column !== titleColumn && column.renderType !== 'status' && column.renderType !== 'amount')[0];
-        const statusColumns = columns.filter(column => column.renderType === 'status');
-        const metaColumns = columns.filter(column => column !== titleColumn && statusColumns.indexOf(column) === -1).slice(0, 5);
-        const clickableProps = onRowClick
-          ? {
-              onClick: () => onRowClick(item),
-              onKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  onRowClick(item);
-                }
-              },
-              role: 'button',
-              tabIndex: 0
+    <button
+      aria-label={action.label}
+      className={`${compact ? styles.iconButton : styles.viewButton} ${action.variant === 'danger' ? styles.dangerButton : ''}`}
+      disabled={disabled}
+      key={action.key}
+      onClick={event => {
+        event.stopPropagation();
+        if (!disabled) {
+          if (action.variant === 'danger' || action.key === 'delete') {
+            const confirmed = window.confirm(`Are you sure you want to ${action.label.toLowerCase()}?`);
+
+            if (!confirmed) {
+              return;
             }
-          : {};
+          }
 
-        return (
-          <div className={onRowClick ? `${styles.mobileCard} ${styles.mobileCardClickable}` : styles.mobileCard} key={getRowKey(item, index)} {...clickableProps}>
-            <div className={styles.mobileCardHeader}>
-              <span className={styles.mobileCardAvatar} aria-hidden="true">{getAvatarText(title)}</span>
-              <div className={styles.mobileCardTitleGroup}>
-                <h3>{title}</h3>
-                {subtitleColumn ? <p>{getTextValue(item, subtitleColumn)}</p> : null}
-              </div>
-              {onRowClick ? (
-                <button
-                  aria-label={rowActionLabel}
-                  className={styles.mobileCardAction}
-                  onClick={event => {
-                    event.stopPropagation();
-                    onRowClick(item);
-                  }}
-                  type="button"
-                >
-                  <span aria-hidden="true">&gt;</span>
-                </button>
-              ) : null}
-            </div>
-            {statusColumns.length ? (
-              <div className={styles.mobileStatusRow}>
-                {statusColumns.map(column => (
-                  <span key={column.key}>{renderCell(item, column)}</span>
-                ))}
-              </div>
-            ) : null}
-            <dl className={styles.mobileMetaGrid}>
-              {metaColumns.map(column => {
-                const value = getFieldValue(item, column.fieldName);
-                const isHighlightedAmount = column.key.toLowerCase().indexOf('outstanding') !== -1 && typeof value === 'number' && value > 0;
-
-                return (
-                  <div className={isHighlightedAmount ? `${styles.mobileMetaItem} ${styles.mobileMetaHighlight}` : styles.mobileMetaItem} key={column.key}>
-                    <dt>{column.header}</dt>
-                    <dd>{renderCell(item, column)}</dd>
-                  </div>
-                );
-              })}
-            </dl>
-          </div>
-        );
-      })}
-    </div>
+          action.onClick(item);
+        }
+      }}
+      title={action.label}
+      type="button"
+    >
+      {compact ? <Icon name={iconName} /> : <><Icon name={iconName} /><span>View</span></>}
+    </button>
   );
+};
+
+const getVisibleActions = <TItem,>(item: TItem, actions: readonly IEntityTableAction<TItem>[]): readonly IEntityTableAction<TItem>[] => {
+  return actions.filter(action => {
+    if (action.visible === undefined) {
+      return true;
+    }
+
+    return resolveActionState(action.visible, item);
+  });
+};
+
+const buildPageNumbers = (currentPage: number, totalPages: number): readonly (number | 'ellipsis')[] => {
+  if (totalPages <= 5) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  if (currentPage <= 3) {
+    return [1, 2, 3, 4, 'ellipsis', totalPages];
+  }
+
+  if (currentPage >= totalPages - 2) {
+    return [1, 'ellipsis', totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+  }
+
+  return [1, 'ellipsis', currentPage - 1, currentPage, currentPage + 1, 'ellipsis', totalPages];
 };
 
 export const EntityTable = <TItem,>({
@@ -184,18 +349,55 @@ export const EntityTable = <TItem,>({
   onRowClick,
   getRowKey,
   actions,
-  rowActionLabel = 'View details'
+  rowActionLabel = 'View details',
+  rowActions = [],
+  overflowActions = [],
+  selectedRowKeys = [],
+  onSelectionChange,
+  selectionLabel = 'Select row',
+  showGoToPage = true
 }: IEntityTableProps<TItem>): React.ReactElement => {
+  const [openOverflowRowKey, setOpenOverflowRowKey] = React.useState<string | undefined>();
   const totalPages = paginationState ? Math.max(1, Math.ceil(paginationState.totalCount / paginationState.pageSize)) : 1;
+  const rowKeys = React.useMemo(() => items.map((item, index) => getRowKey(item, index)), [items, getRowKey]);
+  const selectedKeys = React.useMemo(() => new Set(selectedRowKeys), [selectedRowKeys]);
+  const hasSelection = Boolean(onSelectionChange);
+  const tableActions: readonly IEntityTableAction<TItem>[] = onRowClick
+    ? [{ key: 'view', label: rowActionLabel, icon: 'view', onClick: onRowClick }, ...rowActions]
+    : rowActions;
+  const hasActions = tableActions.length > 0 || overflowActions.length > 0;
+  const totalTableWidth = columns.reduce((total, column) => total + getColumnWidth(column), hasSelection ? SELECTION_COLUMN_WIDTH : 0) + (hasActions ? ACTION_COLUMN_WIDTH : 0);
 
   const handleSort = (column: ITableColumn<TItem>): void => {
     if (!column.sortable || !onSort) {
       return;
     }
 
-    const nextDirection: SortDirection =
-      sortState && sortState.fieldName === String(column.fieldName) && sortState.direction === 'asc' ? 'desc' : 'asc';
-    onSort(String(column.fieldName), nextDirection);
+    const fieldName = String(column.fieldName);
+    const isCurrentColumn = sortState && sortState.fieldName === fieldName;
+    const nextDirection: SortDirection | undefined = !isCurrentColumn
+      ? 'desc'
+      : sortState.direction === 'desc'
+        ? 'asc'
+        : undefined;
+
+    onSort(fieldName, nextDirection);
+  };
+
+  const handleSelectAll = (checked: boolean): void => {
+    onSelectionChange?.(checked ? rowKeys : []);
+  };
+
+  const handleSelectRow = (rowKey: string, checked: boolean): void => {
+    const nextKeys = new Set(selectedKeys);
+
+    if (checked) {
+      nextKeys.add(rowKey);
+    } else {
+      nextKeys.delete(rowKey);
+    }
+
+    onSelectionChange?.(Array.from(nextKeys));
   };
 
   if (loading) {
@@ -214,103 +416,239 @@ export const EntityTable = <TItem,>({
     return <EmptyState title={emptyTitle} message={emptyMessage} action={actions} />;
   }
 
+  const firstRecord = paginationState ? ((paginationState.pageNumber - 1) * paginationState.pageSize) + 1 : 1;
+  const lastRecord = paginationState ? Math.min(paginationState.totalCount, paginationState.pageNumber * paginationState.pageSize) : items.length;
+  const totalRecords = paginationState ? paginationState.totalCount : items.length;
+  const pageNumbers = buildPageNumbers(paginationState?.pageNumber || 1, totalPages);
+
   return (
     <div className={styles.tableShell}>
       {actions ? <div className={styles.toolbar}>{actions}</div> : null}
-      {renderMobileCards(columns, items, getRowKey, onRowClick, rowActionLabel)}
       <div className={styles.scrollArea}>
-        <table className={styles.table}>
+        <table className={styles.table} style={{ minWidth: totalTableWidth }}>
+          <colgroup>
+            {hasSelection ? <col style={{ width: SELECTION_COLUMN_WIDTH }} /> : null}
+            {columns.map(column => <col key={column.key} style={{ width: getColumnWidth(column) }} />)}
+            {hasActions ? <col style={{ width: ACTION_COLUMN_WIDTH }} /> : null}
+          </colgroup>
           <thead>
             <tr>
+              {hasSelection ? (
+                <th className={styles.selectionHeader} scope="col">
+                  <input
+                    aria-label="Select all rows"
+                    checked={items.length > 0 && rowKeys.every(rowKey => selectedKeys.has(rowKey))}
+                    className={styles.checkbox}
+                    onChange={event => handleSelectAll(event.currentTarget.checked)}
+                    type="checkbox"
+                  />
+                </th>
+              ) : null}
               {columns.map(column => {
                 const isSorted = sortState && sortState.fieldName === String(column.fieldName);
-                const headerStyle: React.CSSProperties = {
-                  maxWidth: column.maxWidth,
-                  minWidth: column.minWidth,
-                  width: column.width
-                };
+                const headerClassName = getCellClassName(column.align);
 
                 return (
-                  <th key={column.key} style={headerStyle} scope="col">
+                  <th
+                    aria-sort={isSorted ? (sortState && sortState.direction === 'asc' ? 'ascending' : 'descending') : undefined}
+                    className={headerClassName}
+                    key={column.key}
+                    scope="col"
+                    style={{ maxWidth: column.maxWidth, minWidth: column.minWidth, width: getColumnWidth(column) }}
+                    title={column.header}
+                  >
                     {column.sortable ? (
                       <button
-                        aria-sort={isSorted ? (sortState && sortState.direction === 'asc' ? 'ascending' : 'descending') : 'none'}
+                        aria-label={`Sort by ${column.header}`}
                         className={styles.sortButton}
                         onClick={() => handleSort(column)}
                         type="button"
                       >
-                        <span>{column.header}</span>
-                        <span className={styles.sortIcon} aria-hidden="true">
-                          {isSorted && sortState && sortState.direction === 'desc' ? 'v' : '^'}
-                        </span>
+                        <span className={styles.truncate}>{column.header}</span>
+                        <SortIcon active={Boolean(isSorted)} />
                       </button>
                     ) : (
-                      column.header
+                      <span className={styles.truncate}>{column.header}</span>
                     )}
                   </th>
                 );
               })}
-              {onRowClick ? (
+              {hasActions ? (
                 <th className={styles.actionHeader} scope="col">
-                  Action
+                  Actions
                 </th>
               ) : null}
             </tr>
           </thead>
           <tbody>
-            {items.map((item, index) => (
-              <tr
-                className={onRowClick ? styles.clickableRow : undefined}
-                key={getRowKey(item, index)}
-                onClick={onRowClick ? () => onRowClick(item) : undefined}
-                tabIndex={onRowClick ? 0 : undefined}
-                onKeyDown={event => {
-                  if (onRowClick && (event.key === 'Enter' || event.key === ' ')) {
-                    event.preventDefault();
-                    onRowClick(item);
-                  }
-                }}
-              >
-                {columns.map(column => (
-                  <td key={column.key}>{renderCell(item, column)}</td>
-                ))}
-                {onRowClick ? (
-                  <td className={styles.actionCell} onClick={event => event.stopPropagation()}>
-                    <Button
-                      label="View"
-                      ariaLabel={rowActionLabel}
-                      variant="secondary"
-                      size="small"
-                      onClick={() => onRowClick(item)}
-                    />
-                  </td>
-                ) : null}
-              </tr>
-            ))}
+            {items.map((item, index) => {
+              const rowKey = rowKeys[index];
+              const visibleRowActions = getVisibleActions(item, tableActions);
+              const visibleOverflowActions = getVisibleActions(item, overflowActions);
+
+              return (
+                <tr
+                  className={`${onRowClick ? styles.clickableRow : ''} ${selectedKeys.has(rowKey) ? styles.selectedRow : ''}`}
+                  key={rowKey}
+                  onClick={onRowClick ? () => onRowClick(item) : undefined}
+                  tabIndex={onRowClick ? 0 : undefined}
+                  onKeyDown={event => {
+                    if (onRowClick && (event.key === 'Enter' || event.key === ' ')) {
+                      event.preventDefault();
+                      onRowClick(item);
+                    }
+                  }}
+                >
+                  {hasSelection ? (
+                    <td className={styles.selectionCell} onClick={event => event.stopPropagation()}>
+                      <input
+                        aria-label={`${selectionLabel} ${index + 1}`}
+                        checked={selectedKeys.has(rowKey)}
+                        className={styles.checkbox}
+                        onChange={event => handleSelectRow(rowKey, event.currentTarget.checked)}
+                        type="checkbox"
+                      />
+                    </td>
+                  ) : null}
+                  {columns.map((column, columnIndex) => {
+                    const textValue = getTextValue(item, column);
+                    const cellClassName = `${getCellClassName(column.align)} ${columnIndex === 0 ? styles.primaryCell : ''}`;
+
+                    return (
+                      <td className={cellClassName} key={column.key} style={{ maxWidth: column.maxWidth, minWidth: column.minWidth, width: getColumnWidth(column) }}>
+                        <span className={styles.cellContent} title={textValue}>
+                          {renderCell(item, column)}
+                        </span>
+                      </td>
+                    );
+                  })}
+                  {hasActions ? (
+                    <td className={styles.actionCell} onClick={event => event.stopPropagation()}>
+                      <div className={styles.actionGroup}>
+                        {visibleRowActions.slice(0, 3).map((action, actionIndex) => renderActionButton(item, action, actionIndex > 0 || action.key !== 'view'))}
+                        {visibleOverflowActions.length ? (
+                          <div className={styles.overflowWrapper}>
+                            <button
+                              aria-expanded={openOverflowRowKey === rowKey}
+                              aria-haspopup="menu"
+                              aria-label="More actions"
+                              className={styles.iconButton}
+                              onClick={event => {
+                                event.stopPropagation();
+                                setOpenOverflowRowKey(openOverflowRowKey === rowKey ? undefined : rowKey);
+                              }}
+                              title="More actions"
+                              type="button"
+                            >
+                              <Icon name="more" />
+                            </button>
+                            {openOverflowRowKey === rowKey ? (
+                              <div className={styles.overflowMenu} role="menu">
+                                {visibleOverflowActions.map(action => {
+                                  const disabled = resolveActionState(action.disabled, item);
+
+                                  return (
+                                    <button
+                                      className={action.variant === 'danger' || action.key === 'delete' ? `${styles.overflowItem} ${styles.overflowItemDanger}` : styles.overflowItem}
+                                      disabled={disabled}
+                                      key={action.key}
+                                      onClick={event => {
+                                        event.stopPropagation();
+
+                                        if (disabled) {
+                                          return;
+                                        }
+
+                                        if (action.variant === 'danger' || action.key === 'delete') {
+                                          const confirmed = window.confirm(`Are you sure you want to ${action.label.toLowerCase()}?`);
+
+                                          if (!confirmed) {
+                                            return;
+                                          }
+                                        }
+
+                                        action.onClick(item);
+                                        setOpenOverflowRowKey(undefined);
+                                      }}
+                                      role="menuitem"
+                                      type="button"
+                                    >
+                                      {action.label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    </td>
+                  ) : null}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
       {paginationState ? (
         <div className={styles.pagination}>
-          <span>
-            Page {formatNullFallback(paginationState.pageNumber)} of {formatNullFallback(totalPages)}
+          <span className={styles.recordCount}>
+            Showing <strong>{formatNullFallback(firstRecord)}-{formatNullFallback(lastRecord)}</strong> of {formatNullFallback(totalRecords)} records
           </span>
-          <div className={styles.pageActions}>
-            <Button
-              label="Previous"
-              variant="secondary"
-              size="small"
+          <nav aria-label="Table pagination" className={styles.pageActions}>
+            <button
+              aria-label="Previous page"
+              className={styles.pageButton}
               disabled={paginationState.pageNumber <= 1}
-              onClick={() => onPageChange && onPageChange(paginationState.pageNumber - 1)}
-            />
-            <Button
-              label="Next"
-              variant="secondary"
-              size="small"
+              onClick={() => onPageChange?.(paginationState.pageNumber - 1)}
+              type="button"
+            >
+              <Icon name="previous" />
+            </button>
+            {pageNumbers.map((pageNumber, index) => pageNumber === 'ellipsis' ? (
+              <span className={styles.pageEllipsis} key={`ellipsis-${index}`}>...</span>
+            ) : (
+              <button
+                aria-current={pageNumber === paginationState.pageNumber ? 'page' : undefined}
+                aria-label={`Page ${pageNumber}`}
+                className={pageNumber === paginationState.pageNumber ? `${styles.pageButton} ${styles.pageButtonActive}` : styles.pageButton}
+                key={pageNumber}
+                onClick={() => onPageChange?.(pageNumber)}
+                type="button"
+              >
+                {pageNumber}
+              </button>
+            ))}
+            <button
+              aria-label="Next page"
+              className={styles.pageButton}
               disabled={paginationState.pageNumber >= totalPages}
-              onClick={() => onPageChange && onPageChange(paginationState.pageNumber + 1)}
-            />
-          </div>
+              onClick={() => onPageChange?.(paginationState.pageNumber + 1)}
+              type="button"
+            >
+              <Icon name="next" />
+            </button>
+          </nav>
+          {showGoToPage ? (
+            <label className={styles.goToPage}>
+              <span>Go to page</span>
+              <input
+                aria-label="Go to page"
+                max={totalPages}
+                min={1}
+                onKeyDown={event => {
+                  if (event.key === 'Enter') {
+                    const page = Number(event.currentTarget.value);
+
+                    if (Number.isFinite(page) && page >= 1 && page <= totalPages) {
+                      onPageChange?.(page);
+                    }
+                  }
+                }}
+                type="number"
+              />
+            </label>
+          ) : <span className={styles.paginationSpacer} aria-hidden="true" />}
         </div>
       ) : null}
     </div>

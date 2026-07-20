@@ -94,11 +94,11 @@ export const SalespersonPage: React.FC<ISalespersonPageProps> = ({ salespersonSe
     }));
   }, []);
 
-  const handleSort = React.useCallback((fieldName: string, direction: SortDirection): void => {
-    setSorting({
+  const handleSort = React.useCallback((fieldName: string, direction?: SortDirection): void => {
+    setSorting(direction ? {
       fieldName,
       direction
-    });
+    } : undefined);
     setPagination(current => ({
       ...current,
       pageNumber: 1

@@ -1,6 +1,7 @@
 import * as React from 'react';
 
-export type TableColumnRenderType = 'text' | 'date' | 'amount' | 'status' | 'custom';
+export type TableColumnRenderType = 'text' | 'date' | 'amount' | 'status' | 'tag' | 'document' | 'custom';
+export type TableColumnAlign = 'left' | 'center' | 'right';
 
 export interface ITableColumn<TItem> {
   key: string;
@@ -10,6 +11,7 @@ export interface ITableColumn<TItem> {
   width?: number;
   minWidth?: number;
   maxWidth?: number;
+  align?: TableColumnAlign;
   renderType: TableColumnRenderType;
   customRender?: (item: TItem) => React.ReactNode;
 }

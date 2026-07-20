@@ -58,6 +58,11 @@ body,
   min-height: 100dvh !important;
 }
 
+section.mainContent,
+section.mainContent > article {
+  min-height: 100dvh !important;
+}
+
 html,
 body,
 #spPageCanvasContent {
@@ -69,6 +74,10 @@ body {
 }
 
 #spPageCanvasContent,
+#workbenchPageContent,
+#workbenchPageContent > div,
+#workbenchPageContent > div > div,
+#workbenchPageContent > div > div > div,
 .sp-pageLayout-sideNav,
 div[class*="sp-pageLayout-sideNav"],
 .CanvasZone,

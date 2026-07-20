@@ -34,7 +34,7 @@ export interface IEntityDashboardProps<TItem> {
   pagination?: IPaginationState;
   onPageChange?: (pageNumber: number) => void;
   sorting?: ISortState;
-  onSort?: (fieldName: string, direction: SortDirection) => void;
+  onSort?: (fieldName: string, direction?: SortDirection) => void;
   getRowKey: (item: TItem, index: number) => string;
   emptyTitle?: string;
   emptyMessage?: string;
