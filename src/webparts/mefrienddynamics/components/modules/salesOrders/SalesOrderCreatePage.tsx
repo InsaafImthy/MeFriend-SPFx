@@ -11,6 +11,7 @@ import type { IMasterCodeItem } from '../../../models/settings/IMasterDataModels
 import { getUserFriendlyError } from '../../../services/api/apiErrorHandler';
 import type { CustomerService, ICustomerLookupItem } from '../../../services/customers/customerService';
 import type { EventService } from '../../../services/events/eventService';
+import type { IItemMasterLookupItem, ItemMasterService } from '../../../services/itemMasters';
 import type { SalesOrderService } from '../../../services/salesOrders/salesOrderService';
 import type { ISalespersonLookupItem, SalespersonService } from '../../../services/salespersons/salespersonService';
 import type { MasterDataService } from '../../../services/sharepoint/masterDataService';
@@ -19,12 +20,15 @@ import { hasValidationErrors, validateFormValues } from '../../../utils/validati
 import { Button } from '../../common/buttons/Button';
 import { ConfirmationDialog } from '../../common/confirmationDialog/ConfirmationDialog';
 import { EntityForm, LineItemsEditor, LineItemRecord } from '../../common/forms';
+import { InputField } from '../../common/inputs/InputField';
 import { PageContainer } from '../../common/pageContainer/PageContainer';
 import { useToast } from '../../common/toast/useToast';
+import styles from './SalesOrderCreatePage.module.scss';
 
 export interface ISalesOrderCreatePageProps {
   customerService: CustomerService;
   eventService: EventService;
+  itemMasterService: ItemMasterService;
   masterDataService: MasterDataService;
   salesOrderService: SalesOrderService;
   salespersonService: SalespersonService;
@@ -37,11 +41,13 @@ interface ISalesOrderLineFormItem extends LineItemRecord {
   description: string;
   quantity?: number;
   unitPrice?: number;
+  lineDiscountPercentage?: number;
   lineAmount?: number;
   taxAmount?: number;
 }
 
 const eventLookupPageSize = 100;
+type InvoiceDiscountMode = 'amount' | 'percent';
 
 const getStringValue = (values: EntityFormValues, key: keyof ISalesOrderCreateFormState): string => {
   const value = values[key];
@@ -52,20 +58,57 @@ const getNumberValue = (value: EntityFormValue): number => {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 };
 
+const toOptionalNumberValue = (value: string): number | undefined => {
+  if (!value.trim()) {
+    return undefined;
+  }
+
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : undefined;
+};
+
+const roundCurrency = (value: number): number => Number(value.toFixed(2));
+
+const roundPercent = (value: number): number => Number(value.toFixed(4));
+
+const calculateLineNetAmount = (item: ISalesOrderLineFormItem): number | undefined => {
+  const quantity = getNumberValue(item.quantity);
+  const unitPrice = getNumberValue(item.unitPrice);
+  const lineDiscountPercentage = getNumberValue(item.lineDiscountPercentage);
+
+  if (quantity <= 0 || unitPrice < 0) {
+    return undefined;
+  }
+
+  const grossAmount = quantity * unitPrice;
+  return roundCurrency(grossAmount - ((grossAmount * lineDiscountPercentage) / 100));
+};
+
+const calculateLinesSubtotal = (items: readonly ISalesOrderLineFormItem[]): number => {
+  return roundCurrency(items.reduce((total, item) => total + getNumberValue(calculateLineNetAmount(item)), 0));
+};
+
+const calculateDiscountAmountFromPercent = (subtotal: number, percent: number | undefined): number => {
+  return roundCurrency((subtotal * getNumberValue(percent)) / 100);
+};
+
+const calculateDiscountPercentFromAmount = (subtotal: number, amount: number | undefined): number => {
+  return subtotal > 0 ? roundPercent((getNumberValue(amount) / subtotal) * 100) : 0;
+};
+
 const createDefaultLine = (lineNumber: number): ISalesOrderLineFormItem => ({
   lineNumber: String(lineNumber),
   itemCode: '',
   description: '',
   quantity: undefined,
   unitPrice: undefined,
+  lineDiscountPercentage: undefined,
   lineAmount: undefined,
   taxAmount: undefined
 });
 
 const calculateLine = (item: ISalesOrderLineFormItem): ISalesOrderLineFormItem => {
-  const quantity = getNumberValue(item.quantity);
-  const unitPrice = getNumberValue(item.unitPrice);
-  const lineAmount = quantity > 0 && unitPrice >= 0 ? Number((quantity * unitPrice).toFixed(2)) : undefined;
+  const lineAmount = calculateLineNetAmount(item);
 
   return {
     ...item,
@@ -84,6 +127,10 @@ const validateLine = (item: ISalesOrderLineFormItem): EntityFormErrors => {
     errors.unitPrice = 'Unit price/rate cannot be negative.';
   }
 
+  if (item.lineDiscountPercentage !== undefined && (item.lineDiscountPercentage < 0 || item.lineDiscountPercentage > 100)) {
+    errors.lineDiscountPercentage = 'Line discount must be between 0 and 100%.';
+  }
+
   return errors;
 };
 
@@ -97,13 +144,16 @@ const toSalesOrderLineItem = (line: ISalesOrderLineFormItem, index: number): ISa
   description: line.description.trim(),
   quantity: getNumberValue(line.quantity),
   unitPrice: getNumberValue(line.unitPrice),
+  lineDiscountPercentage: getNumberValue(line.lineDiscountPercentage),
   lineAmount: getNumberValue(line.lineAmount),
   taxAmount: line.taxAmount
 });
 
 const toSalesOrderFormState = (
   values: EntityFormValues,
-  lines: readonly ISalesOrderLineFormItem[]
+  lines: readonly ISalesOrderLineFormItem[],
+  invoiceDiscountAmountExclVat: number,
+  invoiceDiscountPercent: number
 ): ISalesOrderCreateFormState => ({
   customerCode: getStringValue(values, 'customerCode'),
   billToCustomerCode: getStringValue(values, 'billToCustomerCode'),
@@ -115,6 +165,8 @@ const toSalesOrderFormState = (
   postingDate: getStringValue(values, 'postingDate'),
   externalDocumentNumber: getStringValue(values, 'externalDocumentNumber'),
   remarks: getStringValue(values, 'remarks'),
+  invoiceDiscountAmountExclVat,
+  invoiceDiscountPercent,
   lines: lines.map(toSalesOrderLineItem)
 });
 
@@ -141,6 +193,14 @@ const toSalespersonOptions = (items: readonly ISalespersonLookupItem[]): readonl
     description: item.name
   }));
 
+const toItemMasterOptions = (items: readonly IItemMasterLookupItem[]): readonly ILookupOption[] =>
+  items.map(item => ({
+    key: item.number,
+    text: item.description ? `${item.number} - ${item.description}` : item.number,
+    value: item.number,
+    description: item.description
+  }));
+
 const toMasterCodeOptions = (items: readonly IMasterCodeItem[]): readonly ILookupOption[] =>
   items.map(item => ({
     key: item.code,
@@ -152,6 +212,7 @@ const toMasterCodeOptions = (items: readonly IMasterCodeItem[]): readonly ILooku
 export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
   customerService,
   eventService,
+  itemMasterService,
   masterDataService,
   salesOrderService,
   salespersonService,
@@ -165,9 +226,19 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
   const [showLineValidation, setShowLineValidation] = React.useState<boolean>(false);
   const [customerOptions, setCustomerOptions] = React.useState<readonly ILookupOption[]>([]);
   const [eventOptions, setEventOptions] = React.useState<readonly ILookupOption[]>([]);
+  const [itemMasterOptions, setItemMasterOptions] = React.useState<readonly ILookupOption[]>([]);
   const [salespersonOptions, setSalespersonOptions] = React.useState<readonly ILookupOption[]>([]);
   const [stateOptions, setStateOptions] = React.useState<readonly ILookupOption[]>([]);
   const [lines, setLines] = React.useState<readonly ISalesOrderLineFormItem[]>([]);
+  const [invoiceDiscountMode, setInvoiceDiscountMode] = React.useState<InvoiceDiscountMode>('amount');
+  const [invoiceDiscountAmount, setInvoiceDiscountAmount] = React.useState<number | undefined>();
+  const [invoiceDiscountPercent, setInvoiceDiscountPercent] = React.useState<number | undefined>();
+
+  const linesSubtotal = React.useMemo(() => calculateLinesSubtotal(lines), [lines]);
+  const hasInvoiceDiscount = getNumberValue(invoiceDiscountAmount) > 0 || getNumberValue(invoiceDiscountPercent) > 0;
+  const invoiceDiscountAmountValue = getNumberValue(invoiceDiscountAmount);
+  const invoiceDiscountPercentValue = getNumberValue(invoiceDiscountPercent);
+  const orderTotalAfterDiscount = Math.max(0, roundCurrency(linesSubtotal - invoiceDiscountAmountValue));
 
   React.useEffect(() => {
     let isMounted = true;
@@ -176,9 +247,10 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
       setLookupLoading(true);
 
       try {
-        const [customers, events, salespersons, states] = await Promise.all([
+        const [customers, events, itemMasters, salespersons, states] = await Promise.all([
           customerService.getCustomerLookup(),
           eventService.getEvents({}, { pageNumber: 1, pageSize: eventLookupPageSize }),
+          itemMasterService.getItemMasterLookup(),
           salespersonService.getSalespersonLookup(),
           masterDataService.getCodes('stateCodes')
         ]);
@@ -189,6 +261,7 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
 
         setCustomerOptions(toCustomerOptions(customers));
         setEventOptions(toEventOptions(events.items));
+        setItemMasterOptions(toItemMasterOptions(itemMasters));
         setSalespersonOptions(toSalespersonOptions(salespersons));
         setStateOptions(toMasterCodeOptions(states));
       } catch (error) {
@@ -207,7 +280,7 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [customerService, eventService, masterDataService, salespersonService, toast]);
+  }, [customerService, eventService, itemMasterService, masterDataService, salespersonService, toast]);
 
   const fields = React.useMemo<readonly IFormFieldConfig[]>(() => {
     return (salesOrdersModuleConfig.formFields || []).map(field => {
@@ -231,8 +304,22 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
     });
   }, [customerOptions, eventOptions, lookupLoading, salespersonOptions, stateOptions]);
 
-  const lineDirty = lines.length > 0;
+  const lineDirty = lines.length > 0 || hasInvoiceDiscount;
   const isDirty = headerDirty || lineDirty;
+  const lineItemFields = React.useMemo<readonly IFormFieldConfig[]>(() => {
+    return (salesOrderLineItemFields as readonly IFormFieldConfig[]).map(field => {
+      if (field.key === 'itemCode') {
+        return {
+          ...field,
+          disabled: lookupLoading,
+          options: itemMasterOptions,
+          placeholder: lookupLoading ? 'Loading items...' : 'Select item'
+        };
+      }
+
+      return field;
+    });
+  }, [itemMasterOptions, lookupLoading]);
 
   const handleCancel = React.useCallback((): void => {
     if (isDirty) {
@@ -242,6 +329,40 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
 
     onNavigate(salesOrdersModuleConfig.route);
   }, [isDirty, onNavigate]);
+
+  const resetInvoiceDiscount = React.useCallback((): void => {
+    if (!hasInvoiceDiscount) {
+      return;
+    }
+
+    setInvoiceDiscountAmount(undefined);
+    setInvoiceDiscountPercent(undefined);
+  }, [hasInvoiceDiscount]);
+
+  const handleInvoiceDiscountModeChange = React.useCallback((mode: InvoiceDiscountMode): void => {
+    setInvoiceDiscountMode(mode);
+
+    if (mode === 'amount') {
+      setInvoiceDiscountAmount(calculateDiscountAmountFromPercent(linesSubtotal, invoiceDiscountPercent));
+      return;
+    }
+
+    setInvoiceDiscountPercent(calculateDiscountPercentFromAmount(linesSubtotal, invoiceDiscountAmount));
+  }, [invoiceDiscountAmount, invoiceDiscountPercent, linesSubtotal]);
+
+  const handleInvoiceDiscountAmountChange = React.useCallback((value: string): void => {
+    const amount = Math.min(Math.max(getNumberValue(toOptionalNumberValue(value)), 0), linesSubtotal);
+
+    setInvoiceDiscountAmount(amount || undefined);
+    setInvoiceDiscountPercent(calculateDiscountPercentFromAmount(linesSubtotal, amount) || undefined);
+  }, [linesSubtotal]);
+
+  const handleInvoiceDiscountPercentChange = React.useCallback((value: string): void => {
+    const percent = Math.min(Math.max(getNumberValue(toOptionalNumberValue(value)), 0), 100);
+
+    setInvoiceDiscountPercent(percent || undefined);
+    setInvoiceDiscountAmount(calculateDiscountAmountFromPercent(linesSubtotal, percent) || undefined);
+  }, [linesSubtotal]);
 
   const handleSubmit = React.useCallback(async (values: EntityFormValues): Promise<void> => {
     if (loading) {
@@ -258,18 +379,17 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
     setLoading(true);
 
     try {
-      const formState = toSalesOrderFormState(values, lines);
-      const createdSalesOrder = await salesOrderService.createSalesOrder(formState);
+      const formState = toSalesOrderFormState(values, lines, invoiceDiscountAmountValue, invoiceDiscountPercentValue);
+      await salesOrderService.createSalesOrder(formState);
       toast.success('Sales order created successfully.', { title: 'Sales Order' });
 
-      const detailId = createdSalesOrder.id || createdSalesOrder.salesOrderNumber;
-      onNavigate(detailId ? `${salesOrdersModuleConfig.route}/detail/${encodeURIComponent(detailId)}` : salesOrdersModuleConfig.route);
+      onNavigate(salesOrdersModuleConfig.route);
     } catch (error) {
       toast.error(getUserFriendlyError(error), { title: 'Unable to create sales order' });
     } finally {
       setLoading(false);
     }
-  }, [lines, loading, onNavigate, salesOrderService, toast]);
+  }, [invoiceDiscountAmountValue, invoiceDiscountPercentValue, lines, loading, onNavigate, salesOrderService, toast]);
 
   return (
     <PageContainer
@@ -299,7 +419,7 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
       >
         <LineItemsEditor<ISalesOrderLineFormItem>
           title="Line Items"
-          fields={salesOrderLineItemFields as readonly IFormFieldConfig[]}
+          fields={lineItemFields}
           items={lines}
           addLabel="Add Line"
           disabled={loading}
@@ -309,12 +429,69 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
           calculateItem={calculateLine}
           validateLine={validateLine}
           onChange={nextLines => {
+            resetInvoiceDiscount();
             setLines(nextLines.map((line, index) => ({ ...line, lineNumber: String(index + 1) })));
           }}
           getRowKey={(item, index) => item.lineNumber || String(index)}
           emptyTitle="No line items"
           emptyMessage="Add at least one line item to create a sales order."
         />
+        <section className={styles.discountPanel} aria-label="Invoice discount">
+          <div className={styles.discountHeader}>
+            <div>
+              <h3>Invoice Discount</h3>
+              <p>Choose whether the invoice-level discount is entered as an amount or as a percentage.</p>
+            </div>
+            <div className={styles.discountMode} aria-label="Invoice discount entry mode">
+              <button
+                className={invoiceDiscountMode === 'amount' ? styles.activeModeButton : styles.modeButton}
+                disabled={loading}
+                onClick={() => handleInvoiceDiscountModeChange('amount')}
+                type="button"
+              >
+                Amount
+              </button>
+              <button
+                className={invoiceDiscountMode === 'percent' ? styles.activeModeButton : styles.modeButton}
+                disabled={loading}
+                onClick={() => handleInvoiceDiscountModeChange('percent')}
+                type="button"
+              >
+                Percent
+              </button>
+            </div>
+          </div>
+          <div className={styles.discountGrid}>
+            <InputField
+              label="Invoice Discount Amount Excl. VAT"
+              type="number"
+              value={invoiceDiscountAmountValue || ''}
+              disabled={loading || linesSubtotal <= 0}
+              readOnly={invoiceDiscountMode !== 'amount'}
+              min={0}
+              max={linesSubtotal}
+              onChange={handleInvoiceDiscountAmountChange}
+            />
+            <InputField
+              label="Invoice Discount %"
+              type="number"
+              value={invoiceDiscountPercentValue || ''}
+              disabled={loading || linesSubtotal <= 0}
+              readOnly={invoiceDiscountMode !== 'percent'}
+              min={0}
+              max={100}
+              onChange={handleInvoiceDiscountPercentChange}
+            />
+            <div className={styles.discountMetric}>
+              <span>Line Subtotal</span>
+              <strong>{linesSubtotal.toFixed(2)}</strong>
+            </div>
+            <div className={styles.discountMetric}>
+              <span>Total After Discount</span>
+              <strong>{orderTotalAfterDiscount.toFixed(2)}</strong>
+            </div>
+          </div>
+        </section>
       </EntityForm>
       <ConfirmationDialog
         isOpen={showCancelDialog}

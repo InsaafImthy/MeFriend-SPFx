@@ -68,6 +68,11 @@ interface ISalesOrderApiModel {
   pricesIncludingVAT?: boolean;
   paymentTermsCode?: string;
   paymentMethodCode?: string;
+  invoiceDiscountAmountExclVat?: number;
+  invoiceDiscountAmountExclVAT?: number;
+  invoiceDiscountAmount?: number;
+  invoiceDiscountPercent?: number;
+  invoiceDiscountPercentage?: number;
   paymentDiscountPercent?: number;
   prepaymentPercent?: number;
   responsibilityCenter?: string;
@@ -115,6 +120,9 @@ interface ISalesOrderLineItemApiModel {
   quantity?: number;
   unitPrice?: number;
   unitpriceexclTax?: number;
+  lineDiscountPercentage?: number;
+  lineDiscountPercent?: number;
+  lineDiscountPct?: number;
   lineAmount?: number;
   amountLCY?: number;
   amountIncludingVAT?: number;
@@ -221,7 +229,12 @@ export class SalesOrderService {
     const customerCode = api?.customerCode || api?.sellToCustomerNo || api?.customerNo || '';
     const customerName = api?.customerName || api?.sellToCustomerName || '';
     const lines = api?.SalesOrderLines || api?.lines || [];
-    const totalAmount = this.toNumber(api?.amount, this.toNumber(api?.totalAmount, this.sumLineAmount(lines, 'lineAmount')));
+    const invoiceDiscountAmountExclVat = this.toOptionalNumber(
+      api?.invoiceDiscountAmountExclVat,
+      this.toOptionalNumber(api?.invoiceDiscountAmountExclVAT, api?.invoiceDiscountAmount)
+    );
+    const invoiceDiscountPercent = this.toOptionalNumber(api?.invoiceDiscountPercent, api?.invoiceDiscountPercentage);
+    const totalAmount = this.toNumber(api?.amount, this.toNumber(api?.totalAmount, this.sumLineAmount(lines, 'lineAmount') - this.toNumber(invoiceDiscountAmountExclVat, 0)));
     const amountIncludingVAT = this.toNumber(api?.amountIncludingVAT, this.sumLineAmount(lines, 'amountIncludingVAT'));
 
     return {
@@ -262,6 +275,8 @@ export class SalesOrderService {
       pricesIncludingVAT: api?.pricesIncludingVAT,
       paymentTermsCode: api?.paymentTermsCode || '',
       paymentMethodCode: api?.paymentMethodCode || '',
+      invoiceDiscountAmountExclVat,
+      invoiceDiscountPercent,
       paymentDiscountPercent: this.toOptionalNumber(api?.paymentDiscountPercent),
       prepaymentPercent: this.toOptionalNumber(api?.prepaymentPercent),
       responsibilityCenter: api?.responsibilityCenter || '',
@@ -315,11 +330,14 @@ export class SalesOrderService {
       rodate: form.orderDate,
       salesperson: form.salespersonCode.trim() || undefined,
       locationcode: form.stateCode?.trim() || undefined,
+      invoiceDiscountAmountExclVat: this.toPositiveOptionalNumber(form.invoiceDiscountAmountExclVat),
+      invoiceDiscountPercent: this.toPositiveOptionalNumber(form.invoiceDiscountPercent),
       salesLines: form.lines.map(line => ({
         type: 'Item',
         no: line.itemCode.trim(),
         quantity: line.quantity,
         rate: line.unitPrice,
+        lineDiscountPercentage: this.toPositiveOptionalNumber(line.lineDiscountPercentage),
         dimension: productDimensionValue
           ? [
               {
@@ -429,6 +447,10 @@ export class SalesOrderService {
       description: api.description || '',
       quantity: this.toNumber(api.quantity, 0),
       unitPrice: this.toNumber(api.unitPrice, 0),
+      lineDiscountPercentage: this.toOptionalNumber(
+        api.lineDiscountPercentage,
+        this.toOptionalNumber(api.lineDiscountPercent, api.lineDiscountPct)
+      ),
       unitPriceExcludingTax: this.toOptionalNumber(api.unitpriceexclTax),
       lineAmount: this.toNumber(api.lineAmount, 0),
       amountIncludingVAT: this.toOptionalNumber(api.amountIncludingVAT, this.toOptionalNumber(api.amountIncludingVATLCY)),
@@ -472,6 +494,9 @@ export class SalesOrderService {
     const lines = request.salesLines.map((line, index) => {
       const quantity = this.toNumber(line.quantity, 0);
       const unitPrice = this.toNumber(line.rate, 0);
+      const lineDiscountPercentage = this.toNumber(line.lineDiscountPercentage, 0);
+      const grossLineAmount = quantity * unitPrice;
+      const lineAmount = Number((grossLineAmount - ((grossLineAmount * lineDiscountPercentage) / 100)).toFixed(2));
 
       return {
         lineNumber: String(index + 1),
@@ -480,10 +505,11 @@ export class SalesOrderService {
         description: '',
         quantity,
         unitPrice,
-        lineAmount: Number((quantity * unitPrice).toFixed(2))
+        lineDiscountPercentage,
+        lineAmount
       };
     });
-    const totalAmount = lines.reduce((total, line) => total + line.lineAmount, 0);
+    const totalAmount = Number((lines.reduce((total, line) => total + line.lineAmount, 0) - this.toNumber(request.invoiceDiscountAmountExclVat, 0)).toFixed(2));
     const productDimension = request.salesLines
       .map(line => line.dimension || [])
       .reduce(
@@ -530,6 +556,8 @@ export class SalesOrderService {
       pricesIncludingVAT: undefined,
       paymentTermsCode: '',
       paymentMethodCode: '',
+      invoiceDiscountAmountExclVat: request.invoiceDiscountAmountExclVat,
+      invoiceDiscountPercent: request.invoiceDiscountPercent,
       paymentDiscountPercent: undefined,
       prepaymentPercent: undefined,
       responsibilityCenter: '',
@@ -727,6 +755,8 @@ export class SalesOrderService {
         return item.totalAmount;
       case 'amountIncludingVAT':
         return item.amountIncludingVAT;
+      case 'invoiceDiscountAmountExclVat':
+        return item.invoiceDiscountAmountExclVat;
       case 'currencyCode':
         return item.currencyCode;
       default:
@@ -817,6 +847,10 @@ export class SalesOrderService {
 
   private toNumber(value: number | undefined, fallback: number): number {
     return typeof value === 'number' ? value : fallback;
+  }
+
+  private toPositiveOptionalNumber(value: number | undefined): number | undefined {
+    return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
   }
 
   private toBusinessDate(value: string | undefined): string | undefined {

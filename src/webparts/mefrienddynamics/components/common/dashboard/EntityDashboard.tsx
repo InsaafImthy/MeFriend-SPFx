@@ -7,6 +7,7 @@ import { Button, ButtonVariant } from '../buttons/Button';
 import { EntityFilters, EntityFilterValues, FilterValue } from '../filters/EntityFilters';
 import { PageContainer } from '../pageContainer/PageContainer';
 import { EntityTable } from '../table/EntityTable';
+import type { IEntityTableAction } from '../table/EntityTable';
 import styles from './EntityDashboard.module.scss';
 
 export interface IEntityDashboardCreateButtonConfig {
@@ -28,6 +29,8 @@ export interface IEntityDashboardProps<TItem> {
   createButton?: IEntityDashboardCreateButtonConfig;
   onCreate?: () => void;
   onRowClick?: (item: TItem) => void;
+  rowActions?: readonly IEntityTableAction<TItem>[];
+  overflowActions?: readonly IEntityTableAction<TItem>[];
   onFilterChange?: (key: string, value: FilterValue) => void;
   onFilterApply?: () => void;
   onFilterClear?: () => void;
@@ -52,6 +55,8 @@ export const EntityDashboard = <TItem,>({
   createButton,
   onCreate,
   onRowClick,
+  rowActions,
+  overflowActions,
   onFilterChange,
   onFilterApply,
   onFilterClear,
@@ -97,6 +102,8 @@ export const EntityDashboard = <TItem,>({
           onSort={onSort}
           onPageChange={onPageChange}
           onRowClick={onRowClick}
+          rowActions={rowActions}
+          overflowActions={overflowActions}
           getRowKey={getRowKey}
         />
       </div>

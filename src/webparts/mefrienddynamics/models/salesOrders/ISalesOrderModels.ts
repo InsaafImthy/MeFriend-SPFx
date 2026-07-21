@@ -11,6 +11,7 @@ export interface ISalesOrderLineItem {
   quantity: number;
   unitPrice: number;
   unitPriceExcludingTax?: number;
+  lineDiscountPercentage?: number;
   lineAmount: number;
   amountIncludingVAT?: number;
   amountLCY?: number;
@@ -89,6 +90,8 @@ export interface ISalesOrderListItem {
   pricesIncludingVAT?: boolean;
   paymentTermsCode?: string;
   paymentMethodCode?: string;
+  invoiceDiscountAmountExclVat?: number;
+  invoiceDiscountPercent?: number;
   paymentDiscountPercent?: number;
   prepaymentPercent?: number;
   responsibilityCenter?: string;
@@ -144,6 +147,8 @@ export interface ISalesOrderCreateFormState {
   externalDocumentNumber?: string;
   remarks?: string;
   currencyCode?: string;
+  invoiceDiscountAmountExclVat?: number;
+  invoiceDiscountPercent?: number;
   lines: readonly ISalesOrderLineItem[];
 }
 
@@ -155,6 +160,8 @@ export interface ISalesOrderCreateRequest {
   rodate?: string;
   salesperson?: string;
   locationcode?: string;
+  invoiceDiscountAmountExclVat?: number;
+  invoiceDiscountPercent?: number;
   salesLines: readonly ISalesOrderCreateLineRequest[];
 }
 
@@ -163,6 +170,7 @@ export interface ISalesOrderCreateLineRequest {
   no: string;
   quantity: number;
   rate: number;
+  lineDiscountPercentage?: number;
   dimension?: readonly ISalesOrderLineDimensionRequest[];
 }
 

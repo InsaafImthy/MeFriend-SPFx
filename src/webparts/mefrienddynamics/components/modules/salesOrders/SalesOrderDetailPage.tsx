@@ -30,6 +30,7 @@ const lineColumns: readonly ITableColumn<ISalesOrderLineItem>[] = [
   { key: 'quantity', header: 'Quantity', fieldName: 'quantity', sortable: false, renderType: 'text' },
   { key: 'unitOfMeasureCode', header: 'UOM', fieldName: 'unitOfMeasureCode', sortable: false, renderType: 'text' },
   { key: 'unitPrice', header: 'Unit Price/Rate', fieldName: 'unitPrice', sortable: false, renderType: 'amount' },
+  { key: 'lineDiscountPercentage', header: 'Line Discount %', fieldName: 'lineDiscountPercentage', sortable: false, renderType: 'text' },
   { key: 'lineAmount', header: 'Amount', fieldName: 'lineAmount', sortable: false, renderType: 'amount' },
   { key: 'amountIncludingVAT', header: 'Amount Including VAT', fieldName: 'amountIncludingVAT', sortable: false, renderType: 'amount' },
   { key: 'outstandingQuantity', header: 'Outstanding Qty.', fieldName: 'outstandingQuantity', sortable: false, renderType: 'text' },
@@ -70,6 +71,8 @@ const salesOrderDetailFields: readonly IFormFieldConfig[] = [
   { key: 'amountLCY', label: 'Amount LCY', type: 'amount', required: false, section: 'Amounts' },
   { key: 'amountIncludingVATLCY', label: 'Amount Including VAT LCY', type: 'amount', required: false, section: 'Amounts' },
   { key: 'outstandingAmountLCY', label: 'Outstanding Amount LCY', type: 'amount', required: false, section: 'Amounts' },
+  { key: 'invoiceDiscountAmountExclVat', label: 'Invoice Discount Amount Excl. VAT', type: 'amount', required: false, section: 'Amounts' },
+  { key: 'invoiceDiscountPercent', label: 'Invoice Discount %', type: 'number', required: false, section: 'Amounts' },
   { key: 'currencyCode', label: 'Currency Code', type: 'text', required: false, section: 'Amounts' },
   { key: 'pricesIncludingVAT', label: 'Prices Including VAT', type: 'text', required: false, section: 'Amounts' },
   { key: 'outstandingQuantity', label: 'Outstanding Quantity', type: 'number', required: false, section: 'Fulfillment' },
@@ -235,6 +238,8 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
       amountLCY: salesOrder?.amountLCY !== undefined ? String(salesOrder.amountLCY) : '',
       amountIncludingVATLCY: salesOrder?.amountIncludingVATLCY !== undefined ? String(salesOrder.amountIncludingVATLCY) : '',
       outstandingAmountLCY: salesOrder?.outstandingAmountLCY !== undefined ? String(salesOrder.outstandingAmountLCY) : '',
+      invoiceDiscountAmountExclVat: salesOrder?.invoiceDiscountAmountExclVat !== undefined ? String(salesOrder.invoiceDiscountAmountExclVat) : '',
+      invoiceDiscountPercent: salesOrder?.invoiceDiscountPercent !== undefined ? salesOrder.invoiceDiscountPercent : undefined,
       currencyCode: salesOrder?.currencyCode || '',
       pricesIncludingVAT: yesNo(salesOrder?.pricesIncludingVAT),
       outstandingQuantity: salesOrder?.outstandingQuantity !== undefined ? salesOrder.outstandingQuantity : undefined,
@@ -325,6 +330,13 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
               amount: salesOrder?.amountIncludingVAT,
               currencyCode,
               type: 'total'
+            },
+            {
+              key: 'invoiceDiscount',
+              label: 'Invoice Discount',
+              amount: salesOrder?.invoiceDiscountAmountExclVat,
+              currencyCode,
+              type: 'outstanding'
             },
             {
               key: 'outstandingAmountLCY',

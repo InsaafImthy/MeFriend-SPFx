@@ -140,6 +140,7 @@ export const LineItemsEditor = <TItem extends LineItemRecord>({
           errorMessage={errorMessage}
           onChange={nextValue => updateLine(rowIndex, field.key, typeof nextValue === 'string' || typeof nextValue === 'number' ? nextValue : undefined)}
           placeholder={field.placeholder || 'Select'}
+          searchable={field.searchable || field.type === 'lookup'}
         />
       );
     }

@@ -28,6 +28,7 @@ export const salesOrdersModuleConfig: IModuleConfig<ISalesOrderListItem> = {
     { key: 'postingDate', header: 'Posting Date', fieldName: 'postingDate', sortable: true, renderType: 'date' },
     { key: 'status', header: 'Status', fieldName: 'status', sortable: true, renderType: 'status' },
     { key: 'totalAmount', header: 'Amount', fieldName: 'totalAmount', sortable: true, renderType: 'amount' },
+    { key: 'invoiceDiscountAmountExclVat', header: 'Invoice Discount', fieldName: 'invoiceDiscountAmountExclVat', sortable: true, renderType: 'amount' },
     { key: 'amountIncludingVAT', header: 'Amount Including VAT', fieldName: 'amountIncludingVAT', sortable: true, renderType: 'amount' }
   ],
   filters: [
@@ -55,7 +56,7 @@ export const salesOrdersModuleConfig: IModuleConfig<ISalesOrderListItem> = {
 };
 
 export const salesOrderLineItemFields = [
-  { key: 'itemCode', label: 'Item No.', type: 'text', required: true },
+  { key: 'itemCode', label: 'Item No.', type: 'lookup', required: true, searchable: true },
   {
     key: 'quantity',
     label: 'Quantity',
@@ -69,5 +70,15 @@ export const salesOrderLineItemFields = [
     type: 'amount',
     required: true,
     validationRules: [{ type: 'min', value: 0, message: 'Unit price/rate cannot be negative.' }]
+  },
+  {
+    key: 'lineDiscountPercentage',
+    label: 'Line Discount %',
+    type: 'number',
+    required: false,
+    validationRules: [
+      { type: 'min', value: 0, message: 'Line discount cannot be negative.' },
+      { type: 'max', value: 100, message: 'Line discount cannot exceed 100%.' }
+    ]
   }
 ] as const;

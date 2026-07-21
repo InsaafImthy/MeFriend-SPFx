@@ -13,7 +13,7 @@ import styles from './EntityTable.module.scss';
 export interface IEntityTableAction<TItem> {
   key: string;
   label: string;
-  icon?: 'view' | 'edit' | 'delete' | 'download' | 'more';
+  icon?: 'view' | 'edit' | 'delete' | 'download' | 'more' | 'print';
   variant?: 'neutral' | 'danger';
   disabled?: boolean | ((item: TItem) => boolean);
   visible?: boolean | ((item: TItem) => boolean);
@@ -49,12 +49,16 @@ export interface IEntityTableProps<TItem> {
 }
 
 interface IIconProps {
-  name: 'view' | 'edit' | 'delete' | 'download' | 'more' | 'previous' | 'next';
+  name: 'view' | 'edit' | 'delete' | 'download' | 'more' | 'previous' | 'next' | 'print';
 }
 
 const DEFAULT_COLUMN_WIDTH = 136;
 const SELECTION_COLUMN_WIDTH = 42;
 const ACTION_COLUMN_WIDTH = 118;
+const ACTION_CELL_HORIZONTAL_PADDING = 20;
+const ACTION_GAP_WIDTH = 6;
+const ICON_ACTION_WIDTH = 26;
+const TEXT_ACTION_MIN_WIDTH = 64;
 
 const getFieldValue = <TItem,>(item: TItem, fieldName: keyof TItem | string): unknown => {
   return (item as Record<string, unknown>)[String(fieldName)];
@@ -112,6 +116,30 @@ const getColumnWidth = <TItem,>(column: ITableColumn<TItem>): number => {
   return DEFAULT_COLUMN_WIDTH;
 };
 
+const getTextActionWidth = (label: string): number => {
+  return Math.max(TEXT_ACTION_MIN_WIDTH, Math.min(112, (label.length * 6) + 28));
+};
+
+const getActionColumnWidth = <TItem,>(
+  rowActions: readonly IEntityTableAction<TItem>[],
+  overflowActions: readonly IEntityTableAction<TItem>[],
+  hasRowClick: boolean,
+  rowActionLabel: string
+): number => {
+  if (!hasRowClick && !rowActions.length && !overflowActions.length) {
+    return 0;
+  }
+
+  const primaryWidth = hasRowClick ? getTextActionWidth(rowActionLabel) : (rowActions.length ? getTextActionWidth(rowActions[0].label) : 0);
+  const compactRowActionCount = Math.max(0, rowActions.length - (hasRowClick ? 0 : 1));
+  const compactButtonCount = compactRowActionCount + (overflowActions.length ? 1 : 0);
+  const visibleButtonCount = (primaryWidth ? 1 : 0) + compactButtonCount;
+  const gapWidth = Math.max(0, visibleButtonCount - 1) * ACTION_GAP_WIDTH;
+  const calculatedWidth = primaryWidth + (compactButtonCount * ICON_ACTION_WIDTH) + gapWidth + ACTION_CELL_HORIZONTAL_PADDING;
+
+  return Math.max(ACTION_COLUMN_WIDTH, calculatedWidth);
+};
+
 const getCellClassName = (align?: TableColumnAlign): string => {
   if (align === 'center') {
     return `${styles.cell} ${styles.alignCenter}`;
@@ -160,6 +188,14 @@ const Icon: React.FC<IIconProps> = ({ name }) => {
         <path d="M8 2.8v6.5" />
         <path d="M5.6 7.1 8 9.5l2.4-2.4" />
         <path d="M3.6 12.6h8.8" />
+      </>
+    ),
+    print: (
+      <>
+        <path d="M4.5 5V2.8h7V5" />
+        <path d="M4.5 11.2H3.2V6.4h9.6v4.8h-1.3" />
+        <path d="M4.5 9.2h7v4h-7z" />
+        <path d="M10.8 7.6h.1" />
       </>
     ),
     previous: <path d="M9.8 3.8 5.6 8l4.2 4.2" />,
@@ -304,7 +340,7 @@ const renderActionButton = <TItem,>(item: TItem, action: IEntityTableAction<TIte
       title={action.label}
       type="button"
     >
-      {compact ? <Icon name={iconName} /> : <><Icon name={iconName} /><span>View</span></>}
+      {compact ? <Icon name={iconName} /> : <><Icon name={iconName} /><span>{action.label}</span></>}
     </button>
   );
 };
@@ -366,7 +402,8 @@ export const EntityTable = <TItem,>({
     ? [{ key: 'view', label: rowActionLabel, icon: 'view', onClick: onRowClick }, ...rowActions]
     : rowActions;
   const hasActions = tableActions.length > 0 || overflowActions.length > 0;
-  const totalTableWidth = columns.reduce((total, column) => total + getColumnWidth(column), hasSelection ? SELECTION_COLUMN_WIDTH : 0) + (hasActions ? ACTION_COLUMN_WIDTH : 0);
+  const actionColumnWidth = getActionColumnWidth(rowActions, overflowActions, Boolean(onRowClick), rowActionLabel);
+  const totalTableWidth = columns.reduce((total, column) => total + getColumnWidth(column), hasSelection ? SELECTION_COLUMN_WIDTH : 0) + (hasActions ? actionColumnWidth : 0);
 
   const handleSort = (column: ITableColumn<TItem>): void => {
     if (!column.sortable || !onSort) {
@@ -429,7 +466,7 @@ export const EntityTable = <TItem,>({
           <colgroup>
             {hasSelection ? <col style={{ width: SELECTION_COLUMN_WIDTH }} /> : null}
             {columns.map(column => <col key={column.key} style={{ width: getColumnWidth(column) }} />)}
-            {hasActions ? <col style={{ width: ACTION_COLUMN_WIDTH }} /> : null}
+            {hasActions ? <col style={{ width: actionColumnWidth }} /> : null}
           </colgroup>
           <thead>
             <tr>
@@ -474,7 +511,7 @@ export const EntityTable = <TItem,>({
                 );
               })}
               {hasActions ? (
-                <th className={styles.actionHeader} scope="col">
+                <th className={styles.actionHeader} scope="col" style={{ width: actionColumnWidth }}>
                   Actions
                 </th>
               ) : null}
@@ -523,7 +560,7 @@ export const EntityTable = <TItem,>({
                     );
                   })}
                   {hasActions ? (
-                    <td className={styles.actionCell} onClick={event => event.stopPropagation()}>
+                    <td className={styles.actionCell} onClick={event => event.stopPropagation()} style={{ width: actionColumnWidth }}>
                       <div className={styles.actionGroup}>
                         {visibleRowActions.slice(0, 3).map((action, actionIndex) => renderActionButton(item, action, actionIndex > 0 || action.key !== 'view'))}
                         {visibleOverflowActions.length ? (

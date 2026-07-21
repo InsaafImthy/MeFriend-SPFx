@@ -33,9 +33,9 @@ export const invoicesModuleConfig: IModuleConfig<IInvoiceListItem> = {
     { key: 'dueDate', header: 'Due Date', fieldName: 'dueDate', sortable: true, renderType: 'date' },
     { key: 'totalAmount', header: 'Total Amount', fieldName: 'totalAmount', sortable: true, renderType: 'amount' },
     { key: 'paidAmount', header: 'Paid Amount', fieldName: 'paidAmount', sortable: true, renderType: 'amount' },
-    { key: 'outstandingAmount', header: 'Outstanding Amount', fieldName: 'outstandingAmount', sortable: true, renderType: 'amount' },
-    { key: 'paymentStatus', header: 'Payment Status', fieldName: 'paymentStatus', sortable: true, renderType: 'status' },
-    { key: 'invoiceStatus', header: 'Invoice Status', fieldName: 'invoiceStatus', sortable: true, renderType: 'status' }
+    { key: 'outstandingAmount', header: 'Outstanding Amount', fieldName: 'outstandingAmount', sortable: true, renderType: 'amount', minWidth: 150 },
+    { key: 'paymentStatus', header: 'Payment Status', fieldName: 'paymentStatus', sortable: true, renderType: 'status', minWidth: 142 },
+    { key: 'invoiceStatus', header: 'Invoice Status', fieldName: 'invoiceStatus', sortable: true, renderType: 'status', minWidth: 142 }
   ],
   filters: [
     { key: 'searchText', label: 'Search', type: 'text' },

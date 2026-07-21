@@ -26,6 +26,7 @@ const lineColumns: readonly ITableColumn<IInvoiceLineItem>[] = [
   { key: 'description', header: 'Description', fieldName: 'description', sortable: false, renderType: 'text', minWidth: 220 },
   { key: 'quantity', header: 'Quantity', fieldName: 'quantity', sortable: false, renderType: 'text' },
   { key: 'unitPrice', header: 'Unit Price', fieldName: 'unitPrice', sortable: false, renderType: 'amount' },
+  { key: 'lineDiscountPercentage', header: 'Line Discount %', fieldName: 'lineDiscountPercentage', sortable: false, renderType: 'text' },
   { key: 'lineAmount', header: 'Line Amount', fieldName: 'lineAmount', sortable: false, renderType: 'amount' },
   { key: 'amountIncludingVAT', header: 'Amount Including VAT', fieldName: 'amountIncludingVAT', sortable: false, renderType: 'amount' }
 ];
@@ -153,11 +154,16 @@ export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ invoiceId
               type: 'total'
             },
             {
-              key: 'tradeDiscount',
-              label: 'Trade Discount',
-              amount: invoice?.tradeDiscount,
+              key: 'invoiceDiscountAmountExclVat',
+              label: 'Invoice Discount Excl. VAT',
+              amount: invoice?.invoiceDiscountAmountExclVat ?? invoice?.tradeDiscount,
               currencyCode: invoice?.currencyCode,
               type: 'outstanding'
+            },
+            {
+              key: 'invoiceDiscountPercent',
+              label: 'Invoice Discount %',
+              value: invoice?.invoiceDiscountPercent !== undefined ? invoice.invoiceDiscountPercent : '-'
             },
             {
               key: 'sgst',

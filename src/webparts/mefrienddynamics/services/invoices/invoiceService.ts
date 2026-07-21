@@ -24,23 +24,60 @@ interface IInvoiceApiModel {
   customerName?: string;
   customerAddress?: string;
   customerGSTNo?: string;
+  customerGstin?: string;
+  customerGSTIN?: string;
+  customerGSTState?: string;
+  customerGstState?: string;
+  customerState?: string;
   clientCode?: string;
   clientName?: string;
   clientAddress?: string;
   clientGSTNo?: string;
+  clientGstin?: string;
+  clientGSTIN?: string;
+  clientGSTState?: string;
+  clientGstState?: string;
+  clientState?: string;
   salesPerson?: string;
+  salesperson?: string;
+  salesPersonName?: string;
   salesOrderNo?: string;
   salesOrderNumber?: string;
   salesOrderReference?: string;
+  bookingOrderNo?: string;
+  bookingOrderNumber?: string;
+  bookingOrderDate?: string;
+  salesOrderDate?: string;
   postingDate?: string;
   invoiceDate?: string;
   dueDate?: string;
   totalAmount?: number;
   netAmount?: number;
   tradeDiscount?: number;
+  invoiceDiscountAmountExclVat?: number;
+  invoiceDiscountAmountExclVAT?: number;
+  invoiceDiscountAmount?: number;
+  invoiceDiscountPercent?: number;
+  invoiceDiscountPercentage?: number;
   sgst?: number;
   cgst?: number;
   igst?: number;
+  roundOffAmount?: number;
+  roundOff?: number;
+  amountInWords?: string;
+  amountInWordsText?: string;
+  irn?: string;
+  IRN?: string;
+  acknowledgementNumber?: string;
+  ackNo?: string;
+  AckNo?: string;
+  acknowledgementDate?: string;
+  ackDate?: string;
+  AckDate?: string;
+  qrCodeData?: string;
+  qrCode?: string;
+  qrCodeUrl?: string;
+  signedQRCode?: string;
   paidAmount?: number;
   outstandingAmount?: number;
   paymentStatus?: PaymentStatus;
@@ -60,13 +97,21 @@ interface IInvoiceLineItemApiModel {
   no?: string;
   itemNo?: string;
   HSNCode?: string;
+  hsnCode?: string;
+  hsnSac?: string;
+  hsnsac?: string;
   GSTRate?: string;
+  gstRate?: string;
+  gstPercent?: string | number;
   Amount?: number;
   lineNumber?: string;
   itemCode?: string;
   description?: string;
   quantity?: number;
   unitPrice?: number;
+  lineDiscountPercentage?: number;
+  lineDiscountPercent?: number;
+  lineDiscountPct?: number;
   lineAmount?: number;
   amountIncludingVAT?: number;
   currencyCode?: string;
@@ -123,7 +168,12 @@ export class InvoiceService {
 
   public mapInvoiceApiToUiModel(api?: IInvoiceApiModel): IInvoiceDetail {
     const netAmount = this.toOptionalAmount(api?.netAmount);
-    const tradeDiscount = this.toOptionalAmount(api?.tradeDiscount);
+    const invoiceDiscountAmountExclVat = this.toOptionalAmount(
+      api?.invoiceDiscountAmountExclVat,
+      this.toOptionalAmount(api?.invoiceDiscountAmountExclVAT, api?.invoiceDiscountAmount)
+    );
+    const tradeDiscount = this.toOptionalAmount(api?.tradeDiscount, invoiceDiscountAmountExclVat);
+    const invoiceDiscountPercent = this.toOptionalAmount(api?.invoiceDiscountPercent, api?.invoiceDiscountPercentage);
     const sgst = this.toOptionalAmount(api?.sgst);
     const cgst = this.toOptionalAmount(api?.cgst);
     const igst = this.toOptionalAmount(api?.igst);
@@ -141,21 +191,32 @@ export class InvoiceService {
       customerCode: api?.customerCode || api?.sellToCustomerNo || '',
       customerName: api?.customerName || api?.sellToCustomerName || '',
       customerAddress: api?.customerAddress || '',
-      customerGSTNo: api?.customerGSTNo || '',
+      customerGSTNo: api?.customerGSTNo || api?.customerGstin || api?.customerGSTIN || '',
+      customerGSTState: api?.customerGSTState || api?.customerGstState || api?.customerState || '',
       clientCode: api?.clientCode || '',
       clientName: api?.clientName || '',
       clientAddress: api?.clientAddress || '',
-      clientGSTNo: api?.clientGSTNo || '',
-      salesPerson: api?.salesPerson || '',
-      salesOrderNumber: api?.salesOrderNumber || api?.salesOrderNo || api?.salesOrderReference || '',
+      clientGSTNo: api?.clientGSTNo || api?.clientGstin || api?.clientGSTIN || '',
+      clientGSTState: api?.clientGSTState || api?.clientGstState || api?.clientState || '',
+      salesPerson: api?.salesPerson || api?.salesperson || api?.salesPersonName || '',
+      salesOrderNumber: api?.bookingOrderNumber || api?.bookingOrderNo || api?.salesOrderNumber || api?.salesOrderNo || api?.salesOrderReference || '',
+      salesOrderDate: api?.bookingOrderDate || api?.salesOrderDate,
       invoiceDate: api?.invoiceDate || api?.postingDate,
       dueDate: api?.dueDate,
       totalAmount,
       netAmount,
       tradeDiscount,
+      invoiceDiscountAmountExclVat,
+      invoiceDiscountPercent,
       sgst,
       cgst,
       igst,
+      roundOffAmount: this.toOptionalAmount(api?.roundOffAmount, api?.roundOff),
+      amountInWords: api?.amountInWords || api?.amountInWordsText || '',
+      irn: api?.irn || api?.IRN || '',
+      acknowledgementNumber: api?.acknowledgementNumber || api?.ackNo || api?.AckNo || '',
+      acknowledgementDate: api?.acknowledgementDate || api?.ackDate || api?.AckDate,
+      qrCodeData: api?.qrCodeData || api?.qrCode || api?.qrCodeUrl || api?.signedQRCode || '',
       paidAmount,
       outstandingAmount,
       paymentStatus,
@@ -231,11 +292,15 @@ export class InvoiceService {
       lineType: api.type || undefined,
       documentNumber: api.documentNo || undefined,
       itemCode: api.itemCode || api.no || api.itemNo || '',
-      hsnCode: api.HSNCode || undefined,
-      gstRate: api.GSTRate || undefined,
+      hsnCode: api.HSNCode || api.hsnCode || api.hsnSac || api.hsnsac || undefined,
+      gstRate: this.toGstRate(api.GSTRate ?? api.gstRate ?? api.gstPercent),
       description: api.description || '',
       quantity,
       unitPrice: this.toAmount(api.unitPrice, quantity > 0 ? lineAmount / quantity : 0),
+      lineDiscountPercentage: this.toOptionalAmount(
+        api.lineDiscountPercentage,
+        this.toOptionalAmount(api.lineDiscountPercent, api.lineDiscountPct)
+      ),
       lineAmount,
       amountIncludingVAT: this.toOptionalAmount(api.amountIncludingVAT),
       currencyCode: api.currencyCode || currencyCode || ''
@@ -267,6 +332,14 @@ export class InvoiceService {
 
   private isValidNumber(value: number | undefined): value is number {
     return typeof value === 'number' && Number.isFinite(value);
+  }
+
+  private toGstRate(value: string | number | undefined): string | undefined {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return `${value}%`;
+    }
+
+    return typeof value === 'string' && value ? value : undefined;
   }
 
   private calculateInvoiceTotal(

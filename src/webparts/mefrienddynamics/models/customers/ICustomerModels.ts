@@ -11,6 +11,7 @@ export interface ICustomerListItem {
   stateCode?: string;
   countryCode?: string;
   locationCode?: string;
+  phoneNumber?: string;
   status?: string;
 }
 
@@ -18,8 +19,10 @@ export interface ICustomerDetail extends ICustomerListItem {
   name: string;
   name2: string;
   address: string;
+  address2: string;
   countryRegionCode: string;
   postCode: string;
+  phoneNumber: string;
   PAN: string;
   gstRegistrationNo: string;
   genPostingGroup: string;
@@ -31,11 +34,13 @@ export interface ICustomerCreateFormState {
   name: string;
   name2: string;
   address: string;
+  address2: string;
   stateCode: string;
   countryRegionCode: string;
   city: string;
   postCode: string;
   locationCode: string;
+  phoneNumber: string;
   PAN: string;
   gstRegistrationNo: string;
   genPostingGroup: string;

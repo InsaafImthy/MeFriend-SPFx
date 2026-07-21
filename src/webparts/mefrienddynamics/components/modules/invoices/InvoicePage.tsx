@@ -7,6 +7,7 @@ import { getUserFriendlyError, normalizeError } from '../../../services/api/apiE
 import type { InvoiceService } from '../../../services/invoices/invoiceService';
 import { EntityDashboard } from '../../common/dashboard/EntityDashboard';
 import type { EntityFilterValues, FilterValue } from '../../common/filters/EntityFilters';
+import { downloadInvoicePdf, openInvoicePrintPreviewWindow, writeInvoicePrintError, writeInvoicePrintPreview } from './invoicePrintTemplate';
 
 export interface IInvoicePageProps {
   invoiceService: InvoiceService;
@@ -50,6 +51,7 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({ invoiceService, onNav
   const [sorting, setSorting] = React.useState<ISortState | undefined>();
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | undefined>();
+  const [printingInvoiceId, setPrintingInvoiceId] = React.useState<string | undefined>();
 
   const loadInvoices = React.useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -113,6 +115,29 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({ invoiceService, onNav
     }));
   }, []);
 
+  const handlePrint = React.useCallback(async (item: IInvoiceListItem): Promise<void> => {
+    const invoiceId = item.id || item.invoiceNumber;
+    let preview: Window | undefined;
+
+    setPrintingInvoiceId(invoiceId);
+    setError(undefined);
+
+    try {
+      preview = openInvoicePrintPreviewWindow();
+      const invoice = await invoiceService.getInvoiceById(invoiceId);
+      downloadInvoicePdf(invoice);
+      writeInvoicePrintPreview(preview, invoice);
+    } catch (printError) {
+      const message = getUserFriendlyError(normalizeError(printError));
+      setError(message);
+      if (preview) {
+        writeInvoicePrintError(preview, message);
+      }
+    } finally {
+      setPrintingInvoiceId(undefined);
+    }
+  }, [invoiceService]);
+
   const outstandingOnlyActive = appliedFilterValues.outstandingOnly === true;
 
   return (
@@ -130,6 +155,17 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({ invoiceService, onNav
           ? item => onNavigate(`${invoicesModuleConfig.route}/detail/${encodeURIComponent(item.id || item.invoiceNumber)}`)
           : undefined
       }
+      rowActions={[
+        {
+          key: 'print',
+          label: 'Print',
+          icon: 'print',
+          disabled: item => printingInvoiceId === (item.id || item.invoiceNumber),
+          onClick: item => {
+            handlePrint(item).catch(() => undefined);
+          }
+        }
+      ]}
       onFilterChange={handleFilterChange}
       onFilterApply={handleFilterApply}
       onFilterClear={handleFilterClear}

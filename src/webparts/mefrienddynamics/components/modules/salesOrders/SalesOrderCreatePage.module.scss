@@ -1,0 +1,112 @@
+.discountPanel {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px;
+}
+
+.discountHeader {
+  align-items: flex-start;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+}
+
+.discountHeader h3 {
+  color: #0f172a;
+  font-size: 17px;
+  line-height: 1.3;
+  margin: 0;
+}
+
+.discountHeader p {
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 5px 0 0;
+}
+
+.discountMode {
+  align-items: center;
+  background: #f7f8fb;
+  border: 1px solid #ddd6ef;
+  border-radius: 7px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 4px;
+  padding: 4px;
+}
+
+.modeButton,
+.activeModeButton {
+  border: 0;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  min-height: 30px;
+  padding: 0 12px;
+}
+
+.modeButton {
+  background: transparent;
+  color: #4b5563;
+}
+
+.activeModeButton {
+  background: #21006d;
+  color: #ffffff;
+  box-shadow: 0 5px 14px rgba(33, 0, 109, 0.18);
+}
+
+.modeButton:disabled,
+.activeModeButton:disabled {
+  cursor: not-allowed;
+  opacity: .64;
+}
+
+.discountGrid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.discountMetric {
+  background: #f8fafc;
+  border: 1px solid #e7e9ee;
+  border-radius: 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  justify-content: center;
+  min-height: 62px;
+  padding: 10px 12px;
+}
+
+.discountMetric span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.discountMetric strong {
+  color: #0f172a;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+@media (max-width: 767px) {
+  .discountHeader {
+    flex-direction: column;
+  }
+
+  .discountMode {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+}

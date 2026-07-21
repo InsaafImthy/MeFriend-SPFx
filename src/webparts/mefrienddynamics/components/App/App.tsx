@@ -19,6 +19,7 @@ import { AuthClient } from '../../services/api/authClient';
 import { CustomerService } from '../../services/customers/customerService';
 import { EventService } from '../../services/events/eventService';
 import { InvoiceService } from '../../services/invoices/invoiceService';
+import { ItemMasterService } from '../../services/itemMasters';
 import { SalesOrderService } from '../../services/salesOrders/salesOrderService';
 import { SalespersonService } from '../../services/salespersons/salespersonService';
 import { MasterDataService } from '../../services/sharepoint/masterDataService';
@@ -49,6 +50,7 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
   const customerService = React.useMemo(() => new CustomerService(apiClient), [apiClient]);
   const eventService = React.useMemo(() => new EventService(apiClient), [apiClient]);
   const invoiceService = React.useMemo(() => new InvoiceService(apiClient), [apiClient]);
+  const itemMasterService = React.useMemo(() => new ItemMasterService(apiClient), [apiClient]);
   const salesOrderService = React.useMemo(() => new SalesOrderService(apiClient), [apiClient]);
   const salespersonService = React.useMemo(() => new SalespersonService(apiClient), [apiClient]);
   const masterDataService = React.useMemo(
@@ -185,6 +187,7 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
         <SalesOrderCreatePage
           customerService={customerService}
           eventService={eventService}
+          itemMasterService={itemMasterService}
           masterDataService={masterDataService}
           salesOrderService={salesOrderService}
           salespersonService={salespersonService}

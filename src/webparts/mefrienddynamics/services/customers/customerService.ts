@@ -12,6 +12,7 @@ import type { ISortState } from '../../models/common/ISortState';
 
 interface ICustomerApiModel {
   id?: string;
+  number?: string;
   no?: string;
   name?: string;
   name2?: string;
@@ -26,7 +27,9 @@ interface ICustomerApiModel {
   locationCode?: string;
   status?: string;
   address?: string;
+  address2?: string;
   postCode?: string;
+  phoneNumber?: string;
   panNo?: string;
   PAN?: string;
   gstNo?: string;
@@ -37,6 +40,9 @@ interface ICustomerApiModel {
 }
 
 interface ICustomerCreateApiResponse {
+  id?: string;
+  number?: string;
+  name?: string;
   customerCode?: string;
   customerName?: string;
   businessCentralDocumentNumber?: string;
@@ -45,6 +51,7 @@ interface ICustomerCreateApiResponse {
 }
 
 export interface ICustomerLookupItem {
+  number?: string;
   no: string;
   name: string;
 }
@@ -73,7 +80,8 @@ export class CustomerService {
     const response = await this.apiClient.get<CustomerLookupApiResponse>('/api/Customers/lookup');
 
     return (response.data || []).map(item => ({
-      no: normalizeText(item.no || ''),
+      number: normalizeText(item.number || item.no || ''),
+      no: normalizeText(item.no || item.number || ''),
       name: normalizeText(item.name || '')
     })).filter(item => item.no);
   }
@@ -98,10 +106,10 @@ export class CustomerService {
   }
 
   public mapCustomerApiToUiModel(api?: ICustomerApiModel): ICustomerDetail {
-    const customerCode = api?.customerCode || api?.no || api?.name2 || '';
+    const customerCode = api?.customerCode || api?.number || api?.no || '';
 
     return {
-      id: api?.id || api?.no || api?.customerCode || api?.name2 || '',
+      id: api?.id || api?.number || api?.no || api?.customerCode || '',
       customerCode,
       customerName: api?.customerName || api?.name || '',
       branch: api?.branch || '',
@@ -115,7 +123,9 @@ export class CustomerService {
       locationCode: api?.locationCode || '',
       status: api?.status || api?.gstCustomerType || api?.customerPostingGroup || '',
       address: api?.address || '',
+      address2: api?.address2 || '',
       postCode: api?.postCode || '',
+      phoneNumber: api?.phoneNumber || '',
       PAN: api?.PAN || api?.panNo || '',
       gstRegistrationNo: api?.gstRegistrationNo || api?.gstNo || '',
       genPostingGroup: api?.genPostingGroup || '',
@@ -132,11 +142,13 @@ export class CustomerService {
       name: normalizeText(form.name),
       name2: normalizeText(form.name2),
       address: normalizeText(form.address),
+      address2: normalizeText(form.address2),
       stateCode: isIndia ? normalizeCode(form.stateCode) : '',
       countryRegionCode,
       city: normalizeText(form.city),
       postCode: normalizeCode(form.postCode),
       locationCode: normalizeCode(form.locationCode),
+      phoneNumber: normalizeText(form.phoneNumber),
       PAN: isIndia ? normalizeCode(form.PAN) : '',
       gstRegistrationNo: isIndia ? normalizeCode(form.gstRegistrationNo) : '',
       genPostingGroup: normalizeCode(form.genPostingGroup),
@@ -240,6 +252,7 @@ export class CustomerService {
       customer.stateCode,
       customer.countryCode,
       customer.locationCode,
+      customer.phoneNumber,
       customer.status
     ].map(value => this.normalizeFilterText(value)).join(' ');
 
@@ -289,9 +302,9 @@ export class CustomerService {
   private customerMatchesId(customer: ICustomerApiModel, normalizedId: string): boolean {
     return [
       customer.id,
+      customer.number,
       customer.no,
-      customer.customerCode,
-      customer.name2
+      customer.customerCode
     ].some(value => this.normalizeFilterText(value) === normalizedId);
   }
 

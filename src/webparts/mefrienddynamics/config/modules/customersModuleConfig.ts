@@ -170,6 +170,14 @@ export const getCustomerFormFields = (
       validationRules: [maxTrimmedLengthRule(100, 'Address')]
     },
     {
+      key: 'address2',
+      label: 'Address 2',
+      type: 'textarea',
+      required: false,
+      section: 'Address Details',
+      validationRules: [maxTrimmedLengthRule(100, 'Address 2')]
+    },
+    {
       key: 'countryRegionCode',
       label: 'Country / Region Code',
       type: 'dropdown',
@@ -251,6 +259,14 @@ export const getCustomerFormFields = (
       section: 'Address Details',
       options: resolvedLookups.locationCodeOptions,
       validationRules: [validLookupRule('location code', resolvedLookups.locationCodeOptions)]
+    },
+    {
+      key: 'phoneNumber',
+      label: 'Phone Number',
+      type: 'text',
+      required: false,
+      section: 'Address Details',
+      validationRules: [maxTrimmedLengthRule(30, 'Phone Number')]
     },
     {
       key: 'PAN',
@@ -369,15 +385,14 @@ export const customersModuleConfig: IModuleConfig<ICustomerListItem> = {
     { key: 'city', header: 'City', fieldName: 'city', sortable: true, renderType: 'text' },
     { key: 'stateCode', header: 'State', fieldName: 'stateCode', sortable: true, renderType: 'text' },
     { key: 'countryCode', header: 'Country', fieldName: 'countryCode', sortable: true, renderType: 'text' },
-    { key: 'branch', header: 'Branch', fieldName: 'branch', sortable: true, renderType: 'text' },
-    { key: 'department', header: 'Department', fieldName: 'department', sortable: true, renderType: 'text' }
+    { key: 'phoneNumber', header: 'Phone', fieldName: 'phoneNumber', sortable: true, renderType: 'text' },
+    { key: 'gstCustomerType', header: 'GST Type', fieldName: 'status', sortable: true, renderType: 'status' }
   ],
   filters: [
     { key: 'searchText', label: 'Search', type: 'text' },
-    { key: 'branch', label: 'Branch', type: 'dropdown', options: customerBranchOptions },
-    { key: 'department', label: 'Department', type: 'dropdown', options: customerDepartmentOptions },
     { key: 'city', label: 'City', type: 'text' },
-    { key: 'stateCode', label: 'State', type: 'text' }
+    { key: 'stateCode', label: 'State', type: 'text' },
+    { key: 'status', label: 'GST Type', type: 'text' }
   ],
   formFields: getCustomerFormFields(indiaCountryCode)
 };
