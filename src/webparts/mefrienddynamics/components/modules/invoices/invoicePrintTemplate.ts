@@ -121,241 +121,6 @@ const renderBlankLine = (className: string = 'blankLine'): string => `
     <td></td>
   </tr>`;
 
-const normalizePdfText = (value?: string | number): string => String(value ?? '')
-  .replace(/\r?\n/g, ' ')
-  .replace(/[^\x20-\x7E]/g, ' ')
-  .replace(/\s+/g, ' ')
-  .trim();
-
-const escapePdfText = (value?: string | number): string => normalizePdfText(value)
-  .replace(/\\/g, '\\\\')
-  .replace(/\(/g, '\\(')
-  .replace(/\)/g, '\\)');
-
-const sanitizeFileName = (value: string): string => normalizePdfText(value)
-  .replace(/[^a-zA-Z0-9._-]+/g, '-')
-  .replace(/^-+|-+$/g, '') || 'invoice';
-
-const wrapPdfText = (value: string | undefined, maxLength: number, maxLines: number = 2): string[] => {
-  const words = normalizePdfText(value).split(' ').filter(Boolean);
-  const lines: string[] = [];
-
-  words.forEach(word => {
-    const currentLine = lines[lines.length - 1];
-
-    if (!currentLine) {
-      lines.push(word);
-      return;
-    }
-
-    if (`${currentLine} ${word}`.length <= maxLength) {
-      lines[lines.length - 1] = `${currentLine} ${word}`;
-      return;
-    }
-
-    if (lines.length < maxLines) {
-      lines.push(word);
-    }
-  });
-
-  if (lines.length > maxLines) {
-    return lines.slice(0, maxLines);
-  }
-
-  return lines.length ? lines : [''];
-};
-
-const padPdfOffset = (value: number): string => {
-  const offset = String(value);
-
-  return `${'0000000000'.slice(offset.length)}${offset}`;
-};
-
-const buildInvoicePdfContent = (invoice: IInvoiceDetail): string => {
-  const pageHeight = 841.89;
-  const left = 56;
-  const right = 539;
-  const width = right - left;
-  const commands: string[] = [];
-  const text = (value: string | number | undefined, x: number, y: number, size: number = 7, bold: boolean = false): void => {
-    commands.push(`BT /${bold ? 'F2' : 'F1'} ${size} Tf ${x.toFixed(2)} ${y.toFixed(2)} Td (${escapePdfText(value)}) Tj ET`);
-  };
-  const line = (x1: number, y1: number, x2: number, y2: number): void => {
-    commands.push(`${x1.toFixed(2)} ${y1.toFixed(2)} m ${x2.toFixed(2)} ${y2.toFixed(2)} l S`);
-  };
-  const rect = (x: number, y: number, w: number, h: number, fill: boolean = false): void => {
-    commands.push(`${x.toFixed(2)} ${y.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re ${fill ? 'f' : 'S'}`);
-  };
-  const fill = (gray: number): void => {
-    commands.push(`${gray.toFixed(2)} g`);
-  };
-  const stroke = (gray: number): void => {
-    commands.push(`${gray.toFixed(2)} G`);
-  };
-
-  stroke(0);
-  text(companyName, left, pageHeight - 80, 12, true);
-  companyAddress.forEach((addressLine, index) => text(addressLine, left, pageHeight - 96 - (index * 9), 7));
-  text('mefriend', right - 76, pageHeight - 92, 13, true);
-  text('Your Media & Events Partner', right - 84, pageHeight - 104, 5);
-  text('TAX INVOICE', 255, pageHeight - 145, 13, true);
-  line(254, pageHeight - 149, 340, pageHeight - 149);
-
-  const metaTop = pageHeight - 168;
-  const metaHeight = 150;
-  const halfWidth = width / 2;
-  rect(left, metaTop - metaHeight, width, metaHeight);
-  line(left + halfWidth, metaTop, left + halfWidth, metaTop - metaHeight);
-  line(left, metaTop - 22, right, metaTop - 22);
-  line(left, metaTop - 42, right, metaTop - 42);
-  line(left, metaTop - 114, right, metaTop - 114);
-  fill(0.9);
-  rect(left, metaTop - 42, width, 20, true);
-  rect(left, metaTop - 150, width, 36, true);
-  fill(0);
-  text(`Invoice No : ${invoice.invoiceNumber}`, left + 8, metaTop - 14, 7, true);
-  text(`Invoice Date : ${formatPrintDate(invoice.invoiceDate)}`, left + halfWidth + 8, metaTop - 14, 7, true);
-  text('Bill To', left + 8, metaTop - 34, 7, true);
-  text('Advertiser', left + halfWidth + 8, metaTop - 34, 7, true);
-
-  const renderParty = (x: number, name?: string, address?: string, gst?: string, state?: string): void => {
-    text('Name', x, metaTop - 58, 6);
-    text(':', x + 52, metaTop - 58, 6);
-    wrapPdfText(name, 42, 2).forEach((value, index) => text(value, x + 64, metaTop - 58 - (index * 8), 6));
-    text('Address', x, metaTop - 82, 6);
-    text(':', x + 52, metaTop - 82, 6);
-    wrapPdfText(address, 42, 2).forEach((value, index) => text(value, x + 64, metaTop - 82 - (index * 8), 6));
-    text('GSTIN', x, metaTop - 106, 6);
-    text(':', x + 52, metaTop - 106, 6);
-    text(gst, x + 64, metaTop - 106, 6);
-    text('GST State', x, metaTop - 122, 6);
-    text(':', x + 52, metaTop - 122, 6);
-    text(state, x + 64, metaTop - 122, 6);
-  };
-
-  renderParty(left + 8, invoice.customerName, invoice.customerAddress, invoice.customerGSTNo, invoice.customerGSTState);
-  renderParty(left + halfWidth + 8, invoice.clientName, invoice.clientAddress, invoice.clientGSTNo, invoice.clientGSTState);
-  text('Sales Person', left + 8, metaTop - 136, 7, true);
-  text(':', left + 86, metaTop - 136, 7);
-  text(invoice.salesPerson, left + 100, metaTop - 136, 7, true);
-  text('Booking Order No', left + halfWidth + 8, metaTop - 132, 7);
-  text(':', left + halfWidth + 90, metaTop - 132, 7);
-  text(invoice.salesOrderNumber, left + halfWidth + 104, metaTop - 132, 7);
-  text('Booking Order Date', left + halfWidth + 8, metaTop - 144, 7);
-  text(':', left + halfWidth + 90, metaTop - 144, 7);
-  text(formatPrintDate(invoice.salesOrderDate), left + halfWidth + 104, metaTop - 144, 7);
-
-  const tableTop = metaTop - metaHeight - 22;
-  const columns = [0, 38, 200, 250, 300, 340, 402, width];
-  const headers = ['Sl. No.', 'Description', 'HSN/SAC', 'GST Rate', 'Quantity', 'Rate', 'Amount(INR)'];
-  rect(left, tableTop - 220, width, 220);
-  columns.slice(1, -1).forEach(column => line(left + column, tableTop, left + column, tableTop - 220));
-  line(left, tableTop - 22, right, tableTop - 22);
-  headers.forEach((header, index) => text(header, left + columns[index] + 5, tableTop - 14, 6, true));
-
-  const displayLines = invoice.lines.length ? invoice.lines.slice(0, 7) : [];
-  displayLines.forEach((item, index) => {
-    const rowY = tableTop - 44 - (index * 24);
-    line(left, rowY + 12, right, rowY + 12);
-    text(index + 1, left + 18, rowY, 6);
-    wrapPdfText(item.description, 36, 2).forEach((value, lineIndex) => text(value, left + 44, rowY - (lineIndex * 8), 6));
-    text(item.hsnCode, left + 205, rowY, 6);
-    text(item.gstRate, left + 255, rowY, 6);
-    text(formatQty(item.quantity), left + 316, rowY, 6);
-    text(formatMoney(item.unitPrice), left + 350, rowY, 6);
-    text(formatMoney(item.lineAmount), left + 430, rowY, 6);
-  });
-
-  const grossAmount = invoice.netAmount ?? invoice.lines.reduce((total, item) => total + item.lineAmount, 0);
-  const invoiceDiscountAmount = invoice.invoiceDiscountAmountExclVat ?? invoice.tradeDiscount ?? 0;
-  const subTotal = grossAmount - invoiceDiscountAmount;
-  const summaryRows = [
-    ['Gross Amount', formatMoney(grossAmount)],
-    ['Invoice Discount', formatMoney(invoiceDiscountAmount)],
-    ['Sub Total', formatMoney(subTotal)],
-    ['SGST', formatMoney(invoice.sgst)],
-    ['CGST', formatMoney(invoice.cgst)],
-    ['IGST', formatMoney(invoice.igst)],
-    ['Round Off', formatMoney(invoice.roundOffAmount)]
-  ];
-  const summaryTop = tableTop - 182;
-  summaryRows.forEach((row, index) => {
-    const rowY = summaryTop - (index * 14);
-    line(left, rowY + 7, right, rowY + 7);
-    text(row[0], left + 350, rowY, 6);
-    text(row[1], left + 430, rowY, 6);
-  });
-  fill(0);
-  rect(left, tableTop - 220, width, 16, true);
-  fill(1);
-  text('Grand Total', left + 350, tableTop - 214, 6, true);
-  text(formatMoney(invoice.totalAmount), left + 430, tableTop - 214, 6, true);
-  fill(0);
-
-  const footerTop = tableTop - 238;
-  fill(0.9);
-  rect(left, footerTop - 16, 410, 16, true);
-  fill(0);
-  text(`Amount in Words: ${resolveAmountInWords(invoice)}`, left + 5, footerTop - 11, 6, true);
-  text('Bank Account Details', left, footerTop - 56, 8, true);
-  bankDetails.forEach((detail, index) => text(detail, left, footerTop - 68 - (index * 9), 7));
-  text('IRN', left + 250, footerTop - 72, 7, true);
-  text(':', left + 325, footerTop - 72, 7);
-  text(invoice.irn, left + 340, footerTop - 72, 7);
-  text('Ack No', left + 250, footerTop - 84, 7, true);
-  text(':', left + 325, footerTop - 84, 7);
-  text(invoice.acknowledgementNumber, left + 340, footerTop - 84, 7);
-  text('Ack Date', left + 250, footerTop - 96, 7, true);
-  text(':', left + 325, footerTop - 96, 7);
-  text(formatPrintDate(invoice.acknowledgementDate), left + 340, footerTop - 96, 7);
-  text('Payment Terms: All payments are to be made in favor of Mefriend Business Solutions LLP through Crossed', left, footerTop - 126, 7);
-  text('Cheques/ Demand Drafts / Direct Bank Transfer.', left, footerTop - 136, 7);
-  text('For Mefriend Business Solutions LLP', right - 168, footerTop - 162, 7, true);
-  text('Authorised Signatory', right - 100, footerTop - 190, 7, true);
-
-  return commands.join('\n');
-};
-
-const buildInvoicePdfBlob = (invoice: IInvoiceDetail): Blob => {
-  const content = buildInvoicePdfContent(invoice);
-  const objects = [
-    '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>',
-    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
-    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>',
-    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`
-  ];
-  let pdf = '%PDF-1.4\n';
-  const offsets = [0];
-
-  objects.forEach((object, index) => {
-    offsets.push(pdf.length);
-    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
-  });
-
-  const xrefOffset = pdf.length;
-  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-  offsets.slice(1).forEach(offset => {
-    pdf += `${padPdfOffset(offset)} 00000 n \n`;
-  });
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
-
-  return new Blob([pdf], { type: 'application/pdf' });
-};
-
-export const downloadInvoicePdf = (invoice: IInvoiceDetail): void => {
-  const url = window.URL.createObjectURL(buildInvoicePdfBlob(invoice));
-  const link = document.createElement('a');
-
-  link.href = url;
-  link.download = `${sanitizeFileName(invoice.invoiceNumber)}.pdf`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
-};
-
 const buildStyles = (): string => `
   @page {
     margin: 0;
@@ -958,6 +723,257 @@ export const buildInvoicePrintHtml = (invoice: IInvoiceDetail): string => {
   </main>
 </body>
 </html>`;
+};
+
+const normalizePdfText = (value?: string | number): string => String(value ?? '')
+  .replace(/\r?\n/g, ' ')
+  .replace(/[^\x20-\x7E]/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const sanitizeFileName = (value: string): string => normalizePdfText(value)
+  .replace(/[^a-zA-Z0-9._-]+/g, '-')
+  .replace(/^-+|-+$/g, '') || 'invoice';
+
+const padPdfOffset = (value: number): string => {
+  const offset = String(value);
+
+  return `${'0000000000'.slice(offset.length)}${offset}`;
+};
+
+const getInvoicePdfFileName = (invoice: IInvoiceDetail): string => `${sanitizeFileName(invoice.invoiceNumber)}.pdf`;
+
+const escapePdfText = (value?: string | number): string => normalizePdfText(value)
+  .replace(/\\/g, '\\\\')
+  .replace(/\(/g, '\\(')
+  .replace(/\)/g, '\\)');
+
+const wrapPdfText = (value: string | undefined, maxLength: number, maxLines: number = 2): readonly string[] => {
+  const words = normalizePdfText(value).split(' ').filter(Boolean);
+  const lines: string[] = [];
+
+  words.forEach(word => {
+    const currentLine = lines[lines.length - 1];
+
+    if (!currentLine) {
+      lines.push(word);
+      return;
+    }
+
+    if (`${currentLine} ${word}`.length <= maxLength) {
+      lines[lines.length - 1] = `${currentLine} ${word}`;
+      return;
+    }
+
+    if (lines.length < maxLines) {
+      lines.push(word);
+    }
+  });
+
+  return lines.length ? lines.slice(0, maxLines) : [''];
+};
+
+const buildInvoicePdfContent = (invoice: IInvoiceDetail): string => {
+  const pageHeight = 841.89;
+  const left = 56;
+  const right = 539;
+  const width = right - left;
+  const halfWidth = width / 2;
+  const commands: string[] = [];
+  const text = (value: string | number | undefined, x: number, y: number, size: number = 6.5, bold: boolean = false): void => {
+    commands.push(`BT /${bold ? 'F2' : 'F1'} ${size} Tf ${x.toFixed(2)} ${y.toFixed(2)} Td (${escapePdfText(value)}) Tj ET`);
+  };
+  const line = (x1: number, y1: number, x2: number, y2: number): void => {
+    commands.push(`${x1.toFixed(2)} ${y1.toFixed(2)} m ${x2.toFixed(2)} ${y2.toFixed(2)} l S`);
+  };
+  const rect = (x: number, y: number, w: number, h: number, fill: boolean = false): void => {
+    commands.push(`${x.toFixed(2)} ${y.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re ${fill ? 'f' : 'S'}`);
+  };
+  const gray = (value: number): void => {
+    commands.push(`${value.toFixed(2)} g ${value.toFixed(2)} G`);
+  };
+
+  const grossAmount = invoice.netAmount ?? invoice.lines.reduce((total, lineItem) => total + lineItem.lineAmount, 0);
+  const invoiceDiscountAmount = invoice.invoiceDiscountAmountExclVat ?? invoice.tradeDiscount ?? 0;
+  const subTotal = grossAmount - invoiceDiscountAmount;
+  const lineRows = invoice.lines.length ? invoice.lines.slice(0, 4) : [];
+
+  gray(0);
+  commands.push('0.6 w');
+  text(companyName, left, pageHeight - 80, 12, true);
+  companyAddress.forEach((addressLine, index) => text(addressLine, left, pageHeight - 95 - (index * 8), 6.2));
+  text('mefriend', right - 72, pageHeight - 99, 10, true);
+  text('Your Media & Events Partner', right - 75, pageHeight - 109, 4);
+  text('TAX INVOICE', 256, pageHeight - 145, 12, true);
+  line(255, pageHeight - 149, 340, pageHeight - 149);
+
+  const metaTop = pageHeight - 168;
+  const metaBottom = metaTop - 142;
+  rect(left, metaBottom, width, 142);
+  line(left + halfWidth, metaTop, left + halfWidth, metaBottom);
+  line(left, metaTop - 20, right, metaTop - 20);
+  line(left, metaTop - 42, right, metaTop - 42);
+  line(left, metaTop - 108, right, metaTop - 108);
+  gray(0.9);
+  rect(left, metaTop - 42, width, 22, true);
+  rect(left, metaBottom, width, 34, true);
+  gray(0);
+  text(`Invoice No : ${invoice.invoiceNumber}`, left + 8, metaTop - 13, 6.6, true);
+  text(`Invoice Date : ${formatPrintDate(invoice.invoiceDate)}`, left + halfWidth + 8, metaTop - 13, 6.6, true);
+  text('Bill To', left + 8, metaTop - 34, 6.6, true);
+  text('Advertiser', left + halfWidth + 8, metaTop - 34, 6.6, true);
+
+  const party = (x: number, name?: string, address?: string, gst?: string, state?: string): void => {
+    text('Name', x, metaTop - 59, 6);
+    text(':', x + 74, metaTop - 59, 6);
+    wrapPdfText(name, 40, 2).forEach((lineText, index) => text(lineText, x + 88, metaTop - 59 - (index * 8), 5.6));
+    text('Address', x, metaTop - 87, 6);
+    text(':', x + 74, metaTop - 87, 6);
+    wrapPdfText(address, 40, 2).forEach((lineText, index) => text(lineText, x + 88, metaTop - 87 - (index * 8), 5.6));
+    text('GSTIN', x, metaTop - 113, 6);
+    text(':', x + 74, metaTop - 113, 6);
+    text(gst, x + 88, metaTop - 113, 5.8);
+    text('GST State', x, metaTop - 130, 6);
+    text(':', x + 74, metaTop - 130, 6);
+    text(state, x + 88, metaTop - 130, 5.8);
+  };
+
+  party(left + 8, invoice.customerName, invoice.customerAddress, invoice.customerGSTNo, invoice.customerGSTState);
+  party(left + halfWidth + 8, invoice.clientName, invoice.clientAddress, invoice.clientGSTNo, invoice.clientGSTState);
+  text('Sales Person', left + 8, metaBottom + 20, 6.5, true);
+  text(':', left + 84, metaBottom + 20, 6.5);
+  text(invoice.salesPerson, left + 100, metaBottom + 20, 6.5, true);
+  text('Booking Order No', left + halfWidth + 8, metaBottom + 24, 6);
+  text(':', left + halfWidth + 88, metaBottom + 24, 6);
+  text(invoice.salesOrderNumber, left + halfWidth + 102, metaBottom + 24, 6);
+  text('Booking Order Date', left + halfWidth + 8, metaBottom + 12, 6);
+  text(':', left + halfWidth + 88, metaBottom + 12, 6);
+  text(formatPrintDate(invoice.salesOrderDate), left + halfWidth + 102, metaBottom + 12, 6);
+
+  const itemsTop = metaBottom - 24;
+  const itemColumns = [0, 39, 205, 255, 305, 345, 405, width];
+  const headers = ['Sl. No.', 'Description', 'HSN/SAC', 'GST Rate', 'Quantity', 'Rate', 'Amount(INR)'];
+  const headerHeight = 22;
+  const itemRowHeight = 48;
+  const itemRowsHeight = Math.max(96, lineRows.length * itemRowHeight);
+  const summaryRowHeight = 17;
+  const summaryRows = [
+    ['Gross Amount', formatMoney(grossAmount)],
+    ['Invoice Discount', formatMoney(invoiceDiscountAmount)],
+    ['Sub Total', formatMoney(subTotal)],
+    ['SGST', formatMoney(invoice.sgst)],
+    ['CGST', formatMoney(invoice.cgst)],
+    ['IGST', formatMoney(invoice.igst)],
+    ['Round Off', formatMoney(invoice.roundOffAmount)]
+  ];
+  const grandTotalHeight = 18;
+  const itemsHeight = headerHeight + itemRowsHeight + (summaryRows.length * summaryRowHeight) + grandTotalHeight;
+  const itemsBottom = itemsTop - itemsHeight;
+
+  rect(left, itemsBottom, width, itemsHeight);
+  itemColumns.slice(1, -1).forEach(column => line(left + column, itemsTop, left + column, itemsBottom));
+  line(left, itemsTop - headerHeight, right, itemsTop - headerHeight);
+  headers.forEach((header, index) => text(header, left + itemColumns[index] + 5, itemsTop - 14, 5.8, true));
+  lineRows.forEach((item, index) => {
+    const rowTop = itemsTop - headerHeight - (index * itemRowHeight);
+    const rowBaseline = rowTop - 18;
+
+    line(left, rowTop - itemRowHeight, right, rowTop - itemRowHeight);
+    text(index + 1, left + 18, rowBaseline, 5.8);
+    wrapPdfText(item.description, 38, 2).forEach((lineText, lineIndex) => text(lineText, left + 44, rowBaseline - (lineIndex * 8), 5.6));
+    text(item.hsnCode, left + 212, rowBaseline, 5.6);
+    text(item.gstRate, left + 263, rowBaseline, 5.6);
+    text(formatQty(item.quantity), left + 326, rowBaseline, 5.6);
+    text(formatMoney(item.unitPrice), left + 356, rowBaseline, 5.6);
+    text(formatMoney(item.lineAmount), left + 430, rowBaseline, 5.6);
+  });
+
+  const summaryTop = itemsTop - headerHeight - itemRowsHeight;
+  summaryRows.forEach((row, index) => {
+    const rowTop = summaryTop - (index * summaryRowHeight);
+
+    line(left, rowTop, right, rowTop);
+    text(row[0], left + 346, rowTop - 11, 5.8);
+    text(row[1], left + 430, rowTop - 11, 5.8);
+  });
+  line(left, summaryTop - (summaryRows.length * summaryRowHeight), right, summaryTop - (summaryRows.length * summaryRowHeight));
+  gray(0);
+  rect(left, itemsBottom, width, grandTotalHeight, true);
+  gray(1);
+  text('Grand Total', left + 346, itemsBottom + 6, 6.2, true);
+  text(formatMoney(invoice.totalAmount), left + 430, itemsBottom + 6, 6.2, true);
+  gray(0);
+
+  const footerTop = itemsBottom - 18;
+  gray(0.9);
+  rect(left, footerTop - 16, 410, 16, true);
+  gray(0);
+  text(`Amount in Words: ${resolveAmountInWords(invoice)}`, left + 5, footerTop - 11, 5.7, true);
+  rect(right - 60, footerTop - 58, 60, 58);
+  text('Bank Account Details', left, footerTop - 80, 7.2, true);
+  bankDetails.forEach((detail, index) => text(detail, left, footerTop - 91 - (index * 8), 6.2));
+  text('IRN', left + 250, footerTop - 94, 6.4, true);
+  text(':', left + 323, footerTop - 94, 6.4);
+  text(invoice.irn, left + 338, footerTop - 94, 6.2);
+  text('Ack No', left + 250, footerTop - 107, 6.4, true);
+  text(':', left + 323, footerTop - 107, 6.4);
+  text(invoice.acknowledgementNumber, left + 338, footerTop - 107, 6.2);
+  text('Ack Date', left + 250, footerTop - 120, 6.4, true);
+  text(':', left + 323, footerTop - 120, 6.4);
+  text(formatPrintDate(invoice.acknowledgementDate), left + 338, footerTop - 120, 6.2);
+  text('Payment Terms: All payments are to be made in favor of Mefriend Business Solutions LLP through Crossed', left, footerTop - 150, 6);
+  text('Cheques/ Demand Drafts / Direct Bank Transfer.', left, footerTop - 160, 6);
+  text('For Mefriend Business Solutions LLP', right - 160, footerTop - 184, 6.3, true);
+  text('Authorised Signatory', right - 92, footerTop - 214, 6.3, true);
+
+  return commands.join('\n');
+};
+
+const buildInvoicePdfBlob = (invoice: IInvoiceDetail): Blob => {
+  const content = buildInvoicePdfContent(invoice);
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>',
+    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`
+  ];
+  const parts: (string | Uint8Array)[] = [];
+  const offsets = [0];
+  let length = 0;
+  const append = (part: string | Uint8Array): void => {
+    parts.push(part);
+    length += typeof part === 'string' ? part.length : part.length;
+  };
+
+  append('%PDF-1.4\n');
+  objects.forEach((object, index) => {
+    offsets.push(length);
+    append(`${index + 1} 0 obj\n${object}`);
+    append('\nendobj\n');
+  });
+
+  const xrefOffset = length;
+  append(`xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`);
+  offsets.slice(1).forEach(offset => {
+    append(`${padPdfOffset(offset)} 00000 n \n`);
+  });
+  append(`trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`);
+
+  return new Blob(parts, { type: 'application/pdf' });
+};
+
+export const downloadInvoicePdf = (invoice: IInvoiceDetail): void => {
+  const url = window.URL.createObjectURL(buildInvoicePdfBlob(invoice));
+  const link = document.createElement('a');
+
+  link.href = url;
+  link.download = getInvoicePdfFileName(invoice);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
 };
 
 export const openInvoicePrintPreviewWindow = (): Window => {
