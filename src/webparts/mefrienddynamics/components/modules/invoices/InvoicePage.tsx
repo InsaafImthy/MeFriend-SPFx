@@ -125,10 +125,10 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({ invoiceService, onNav
     try {
       preview = openInvoicePrintPreviewWindow();
       const invoice = await invoiceService.getInvoiceById(invoiceId);
-      writeInvoicePrintPreview(preview, invoice);
+      await writeInvoicePrintPreview(preview, invoice);
 
       try {
-        await downloadInvoicePdf(invoice);
+        await downloadInvoicePdf(invoice, preview);
       } catch (pdfError) {
         setError(getUserFriendlyError(normalizeError(pdfError)));
       }

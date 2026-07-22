@@ -19,6 +19,12 @@ const bankDetails = [
   'IFSC : FDRL0001300'
 ];
 
+interface IInvoicePrintWindow extends Window {
+  openSystemPrintDialog?: () => void;
+}
+
+let embeddedLogoSrcPromise: Promise<string> | undefined;
+
 const escapeHtml = (value?: string | number): string => String(value ?? '')
   .replace(/&/g, '&amp;')
   .replace(/</g, '&lt;')
@@ -29,6 +35,39 @@ const escapeHtml = (value?: string | number): string => String(value ?? '')
 const formatPrintDate = (value?: string): string => value ? formatDate(value, '') : '';
 const formatMoney = (value?: number): string => typeof value === 'number' && Number.isFinite(value) ? formatAmount(value, '') : '';
 const formatQty = (value: number): string => Number.isInteger(value) ? String(value) : formatAmount(value, String(value));
+
+const resolveAbsoluteAssetUrl = (assetUrl: string): string => {
+  try {
+    return new URL(assetUrl, window.location.href).href;
+  } catch {
+    return assetUrl;
+  }
+};
+
+const readBlobAsDataUri = (blob: Blob): Promise<string> => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+
+  reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+  reader.onerror = () => reject(reader.error || new Error('Unable to read invoice logo asset.'));
+  reader.readAsDataURL(blob);
+});
+
+const resolveEmbeddedLogoSrc = async (): Promise<string> => {
+  if (!embeddedLogoSrcPromise) {
+    embeddedLogoSrcPromise = fetch(resolveAbsoluteAssetUrl(mefriendLogo))
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Unable to load invoice logo asset: ${response.status}`);
+        }
+
+        return response.blob();
+      })
+      .then(readBlobAsDataUri)
+      .catch(() => mefriendLogo);
+  }
+
+  return embeddedLogoSrcPromise;
+};
 
 const numberWordsUnderThousand = (value: number): string => {
   const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
@@ -121,9 +160,44 @@ const renderBlankLine = (className: string = 'blankLine'): string => `
     <td></td>
   </tr>`;
 
+const resolvePageModeClass = (invoice: IInvoiceDetail): string => {
+  const lineCount = invoice.lines.length;
+
+  if (lineCount > 8) {
+    return 'multiPage';
+  }
+
+  if (lineCount <= 2) {
+    return 'singlePage compactPage';
+  }
+
+  return 'singlePage';
+};
+
+const waitForInvoiceAssetsScript = (): string => `
+    function waitForInvoiceAssets() {
+      var images = Array.prototype.slice.call(document.images || []);
+
+      if (!images.length) {
+        return Promise.resolve();
+      }
+
+      return Promise.all(images.map(function (image) {
+        if (image.complete) {
+          return Promise.resolve();
+        }
+
+        return new Promise(function (resolve) {
+          image.addEventListener('load', resolve, { once: true });
+          image.addEventListener('error', resolve, { once: true });
+        });
+      }));
+    }
+`;
+
 const buildStyles = (): string => `
   @page {
-    margin: 0;
+    margin: 15mm 16.5mm 8mm;
     size: A4 portrait;
   }
 
@@ -181,7 +255,7 @@ const buildStyles = (): string => `
   .header {
     display: grid;
     grid-template-columns: 1fr 30mm;
-    min-height: 31mm;
+    min-height: 28mm;
   }
 
   .companyName {
@@ -195,7 +269,7 @@ const buildStyles = (): string => `
     font-size: 8.8pt;
     font-weight: 500;
     line-height: 1.08;
-    margin-top: 3mm;
+    margin-top: 2.5mm;
   }
 
   .brand {
@@ -230,7 +304,7 @@ const buildStyles = (): string => `
     font-size: 13.5pt;
     font-weight: 800;
     line-height: 1;
-    margin: 0 auto 5.5mm;
+    margin: 0 auto 4.5mm;
     padding-bottom: 0.8mm;
     text-align: center;
   }
@@ -270,30 +344,30 @@ const buildStyles = (): string => `
   }
 
   .meta td {
-    padding: 2.2mm 3mm;
+    padding: 1.8mm 3mm;
     vertical-align: top;
   }
 
   .invoiceInfo td {
     font-size: 7.6pt;
     font-weight: 800;
-    height: 8.5mm;
+    height: 7.6mm;
   }
 
   .sectionHead td {
     background: #e6e6e6;
     font-weight: 800;
-    height: 7.2mm;
+    height: 6.6mm;
   }
 
   .party td {
-    height: 32mm;
+    height: 28mm;
   }
 
   .partyLine {
     display: grid;
     grid-template-columns: 27mm 5mm minmax(0, 1fr);
-    margin-bottom: 3.2mm;
+    margin-bottom: 2.4mm;
   }
 
   .partyLine span,
@@ -304,14 +378,14 @@ const buildStyles = (): string => `
   }
 
   .partyLine.address {
-    min-height: 9.5mm;
+    min-height: 8mm;
   }
 
   .reference td {
     background: #e6e6e6;
-    height: 11.2mm;
-    padding-bottom: 1.8mm;
-    padding-top: 1.8mm;
+    height: 9.5mm;
+    padding-bottom: 1.4mm;
+    padding-top: 1.4mm;
   }
 
   .salesPerson {
@@ -323,41 +397,41 @@ const buildStyles = (): string => `
   .bookingLine {
     display: grid;
     grid-template-columns: 33mm 5mm 1fr;
-    margin-bottom: 1.7mm;
+    margin-bottom: 1.1mm;
   }
 
   .items {
-    margin-top: 4mm;
+    margin-top: 3.3mm;
   }
 
   .items th {
     font-size: 7pt;
     font-weight: 800;
-    height: 8mm;
+    height: 7.2mm;
     line-height: 1.1;
-    padding: 1.7mm 1.2mm;
+    padding: 1.35mm 1.2mm;
     text-align: left;
   }
 
   .items td {
     font-size: 7pt;
-    height: 6.5mm;
+    height: 5.8mm;
     line-height: 1.15;
-    padding: 1.55mm 1.2mm;
+    padding: 1.25mm 1.2mm;
     vertical-align: top;
   }
 
   .items .lineBody td {
     height: auto;
-    min-height: 6.5mm;
+    min-height: 5.8mm;
   }
 
   .items .blankLine td {
-    height: 17mm;
+    height: clamp(8mm, 5.8mm + 5vh, 14mm);
   }
 
   .items .compactBlankLine td {
-    height: 9mm;
+    height: 7mm;
   }
 
   .items .summaryLabel {
@@ -376,7 +450,7 @@ const buildStyles = (): string => `
     border-color: #151515 #747474;
     color: #ffffff;
     font-weight: 800;
-    height: 7mm;
+    height: 6.4mm;
   }
 
   .itemRow {
@@ -406,14 +480,14 @@ const buildStyles = (): string => `
 
   .footerArea {
     break-inside: avoid;
-    margin-top: 3mm;
+    margin-top: 2.6mm;
     page-break-inside: avoid;
   }
 
   .amountQr {
     align-items: start;
     display: grid;
-    gap: 4mm;
+    gap: 3.2mm;
     grid-template-columns: 1fr 22mm;
   }
 
@@ -421,8 +495,8 @@ const buildStyles = (): string => `
     background: #e6e6e6;
     font-size: 7.8pt;
     font-weight: 800;
-    min-height: 6.6mm;
-    padding: 1.7mm 2mm;
+    min-height: 5.8mm;
+    padding: 1.35mm 2mm;
   }
 
   .amountText {
@@ -456,7 +530,7 @@ const buildStyles = (): string => `
   .bankIrn {
     display: grid;
     grid-template-columns: 76mm 1fr;
-    margin-top: 2.5mm;
+    margin-top: 2mm;
   }
 
   .bankTitle {
@@ -464,7 +538,7 @@ const buildStyles = (): string => `
     display: inline-block;
     font-size: 8.7pt;
     font-weight: 800;
-    margin-bottom: 0.8mm;
+    margin-bottom: 0.5mm;
   }
 
   .bankLine {
@@ -476,19 +550,19 @@ const buildStyles = (): string => `
     align-self: end;
     font-size: 8pt;
     font-weight: 800;
-    margin-bottom: 1.4mm;
+    margin-bottom: 1mm;
   }
 
   .irnLine {
     display: grid;
     grid-template-columns: 27mm 5mm 1fr;
-    margin-top: 1.6mm;
+    margin-top: 1.2mm;
   }
 
   .terms {
     font-size: 8pt;
     line-height: 1.13;
-    margin: 4mm 0 0;
+    margin: 3mm 0 0;
   }
 
   .terms strong {
@@ -498,12 +572,28 @@ const buildStyles = (): string => `
   .signatory {
     font-size: 8.2pt;
     font-weight: 800;
-    margin-top: 5.5mm;
+    margin-top: 4.2mm;
     text-align: right;
   }
 
   .signatoryName {
-    margin-bottom: 8mm;
+    margin-bottom: 6.5mm;
+  }
+
+  .compactPage .header {
+    min-height: 26mm;
+  }
+
+  .compactPage .items .blankLine td {
+    height: 8mm;
+  }
+
+  .compactPage .party td {
+    height: 26mm;
+  }
+
+  .compactPage .footerArea {
+    margin-top: 2mm;
   }
 
   @media screen {
@@ -530,7 +620,7 @@ const buildStyles = (): string => `
     body {
       height: auto;
       min-height: 0;
-      width: 210mm;
+      width: auto;
     }
 
     .previewBar {
@@ -541,8 +631,8 @@ const buildStyles = (): string => `
       box-shadow: none;
       margin: 0;
       min-height: 0;
-      padding: 15mm 16.5mm 8mm;
-      width: 210mm;
+      padding: 0;
+      width: auto;
     }
 
     thead {
@@ -566,7 +656,7 @@ const buildStyles = (): string => `
   }
 `;
 
-export const buildInvoicePrintHtml = (invoice: IInvoiceDetail): string => {
+export const buildInvoicePrintHtml = (invoice: IInvoiceDetail, logoSrc: string = mefriendLogo): string => {
   const lineRows = invoice.lines.length
     ? invoice.lines.map(renderLine).join('')
     : renderBlankLine();
@@ -574,7 +664,7 @@ export const buildInvoicePrintHtml = (invoice: IInvoiceDetail): string => {
   const grossAmount = invoice.netAmount ?? invoice.lines.reduce((total, line) => total + line.lineAmount, 0);
   const invoiceDiscountAmount = invoice.invoiceDiscountAmountExclVat ?? invoice.tradeDiscount ?? 0;
   const subTotal = grossAmount - invoiceDiscountAmount;
-  const pageModeClass = invoice.lines.length > 8 ? 'multiPage' : 'singlePage';
+  const pageModeClass = resolvePageModeClass(invoice);
 
   return `<!doctype html>
 <html>
@@ -586,6 +676,7 @@ export const buildInvoicePrintHtml = (invoice: IInvoiceDetail): string => {
   <script>
     (function () {
       var printStarted = false;
+${waitForInvoiceAssetsScript()}
 
       function openSystemPrintDialog() {
         if (printStarted) {
@@ -593,8 +684,10 @@ export const buildInvoicePrintHtml = (invoice: IInvoiceDetail): string => {
         }
 
         printStarted = true;
-        window.focus();
-        window.print();
+        waitForInvoiceAssets().then(function () {
+          window.focus();
+          window.print();
+        });
       }
 
       window.addEventListener('load', function () {
@@ -616,7 +709,7 @@ export const buildInvoicePrintHtml = (invoice: IInvoiceDetail): string => {
         <div class="companyAddress">${companyAddress.map(escapeHtml).join('<br />')}</div>
       </div>
       <div class="brand">
-        <img src="${mefriendLogo}" alt="mefriend" />
+        <img src="${escapeHtml(logoSrc)}" alt="mefriend" />
         <div class="brandName">mefriend</div>
         <div class="brandCaption">Your Media &amp; Events Partner</div>
       </div>
@@ -725,256 +818,17 @@ export const buildInvoicePrintHtml = (invoice: IInvoiceDetail): string => {
 </html>`;
 };
 
-const normalizePdfText = (value?: string | number): string => String(value ?? '')
+const normalizeFileName = (value?: string | number): string => String(value ?? '')
   .replace(/\r?\n/g, ' ')
   .replace(/[^\x20-\x7E]/g, ' ')
   .replace(/\s+/g, ' ')
   .trim();
 
-const sanitizeFileName = (value: string): string => normalizePdfText(value)
+const sanitizeFileName = (value: string): string => normalizeFileName(value)
   .replace(/[^a-zA-Z0-9._-]+/g, '-')
   .replace(/^-+|-+$/g, '') || 'invoice';
 
-const padPdfOffset = (value: number): string => {
-  const offset = String(value);
-
-  return `${'0000000000'.slice(offset.length)}${offset}`;
-};
-
 const getInvoicePdfFileName = (invoice: IInvoiceDetail): string => `${sanitizeFileName(invoice.invoiceNumber)}.pdf`;
-
-const escapePdfText = (value?: string | number): string => normalizePdfText(value)
-  .replace(/\\/g, '\\\\')
-  .replace(/\(/g, '\\(')
-  .replace(/\)/g, '\\)');
-
-const wrapPdfText = (value: string | undefined, maxLength: number, maxLines: number = 2): readonly string[] => {
-  const words = normalizePdfText(value).split(' ').filter(Boolean);
-  const lines: string[] = [];
-
-  words.forEach(word => {
-    const currentLine = lines[lines.length - 1];
-
-    if (!currentLine) {
-      lines.push(word);
-      return;
-    }
-
-    if (`${currentLine} ${word}`.length <= maxLength) {
-      lines[lines.length - 1] = `${currentLine} ${word}`;
-      return;
-    }
-
-    if (lines.length < maxLines) {
-      lines.push(word);
-    }
-  });
-
-  return lines.length ? lines.slice(0, maxLines) : [''];
-};
-
-const buildInvoicePdfContent = (invoice: IInvoiceDetail): string => {
-  const pageHeight = 841.89;
-  const left = 56;
-  const right = 539;
-  const width = right - left;
-  const halfWidth = width / 2;
-  const commands: string[] = [];
-  const text = (value: string | number | undefined, x: number, y: number, size: number = 6.5, bold: boolean = false): void => {
-    commands.push(`BT /${bold ? 'F2' : 'F1'} ${size} Tf ${x.toFixed(2)} ${y.toFixed(2)} Td (${escapePdfText(value)}) Tj ET`);
-  };
-  const line = (x1: number, y1: number, x2: number, y2: number): void => {
-    commands.push(`${x1.toFixed(2)} ${y1.toFixed(2)} m ${x2.toFixed(2)} ${y2.toFixed(2)} l S`);
-  };
-  const rect = (x: number, y: number, w: number, h: number, fill: boolean = false): void => {
-    commands.push(`${x.toFixed(2)} ${y.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re ${fill ? 'f' : 'S'}`);
-  };
-  const gray = (value: number): void => {
-    commands.push(`${value.toFixed(2)} g ${value.toFixed(2)} G`);
-  };
-
-  const grossAmount = invoice.netAmount ?? invoice.lines.reduce((total, lineItem) => total + lineItem.lineAmount, 0);
-  const invoiceDiscountAmount = invoice.invoiceDiscountAmountExclVat ?? invoice.tradeDiscount ?? 0;
-  const subTotal = grossAmount - invoiceDiscountAmount;
-  const lineRows = invoice.lines.length ? invoice.lines.slice(0, 4) : [];
-
-  gray(0);
-  commands.push('0.6 w');
-  text(companyName, left, pageHeight - 80, 12, true);
-  companyAddress.forEach((addressLine, index) => text(addressLine, left, pageHeight - 95 - (index * 8), 6.2));
-  text('mefriend', right - 72, pageHeight - 99, 10, true);
-  text('Your Media & Events Partner', right - 75, pageHeight - 109, 4);
-  text('TAX INVOICE', 256, pageHeight - 145, 12, true);
-  line(255, pageHeight - 149, 340, pageHeight - 149);
-
-  const metaTop = pageHeight - 168;
-  const metaBottom = metaTop - 142;
-  rect(left, metaBottom, width, 142);
-  line(left + halfWidth, metaTop, left + halfWidth, metaBottom);
-  line(left, metaTop - 20, right, metaTop - 20);
-  line(left, metaTop - 42, right, metaTop - 42);
-  line(left, metaTop - 108, right, metaTop - 108);
-  gray(0.9);
-  rect(left, metaTop - 42, width, 22, true);
-  rect(left, metaBottom, width, 34, true);
-  gray(0);
-  text(`Invoice No : ${invoice.invoiceNumber}`, left + 8, metaTop - 13, 6.6, true);
-  text(`Invoice Date : ${formatPrintDate(invoice.invoiceDate)}`, left + halfWidth + 8, metaTop - 13, 6.6, true);
-  text('Bill To', left + 8, metaTop - 34, 6.6, true);
-  text('Advertiser', left + halfWidth + 8, metaTop - 34, 6.6, true);
-
-  const party = (x: number, name?: string, address?: string, gst?: string, state?: string): void => {
-    text('Name', x, metaTop - 59, 6);
-    text(':', x + 74, metaTop - 59, 6);
-    wrapPdfText(name, 40, 2).forEach((lineText, index) => text(lineText, x + 88, metaTop - 59 - (index * 8), 5.6));
-    text('Address', x, metaTop - 87, 6);
-    text(':', x + 74, metaTop - 87, 6);
-    wrapPdfText(address, 40, 2).forEach((lineText, index) => text(lineText, x + 88, metaTop - 87 - (index * 8), 5.6));
-    text('GSTIN', x, metaTop - 113, 6);
-    text(':', x + 74, metaTop - 113, 6);
-    text(gst, x + 88, metaTop - 113, 5.8);
-    text('GST State', x, metaTop - 130, 6);
-    text(':', x + 74, metaTop - 130, 6);
-    text(state, x + 88, metaTop - 130, 5.8);
-  };
-
-  party(left + 8, invoice.customerName, invoice.customerAddress, invoice.customerGSTNo, invoice.customerGSTState);
-  party(left + halfWidth + 8, invoice.clientName, invoice.clientAddress, invoice.clientGSTNo, invoice.clientGSTState);
-  text('Sales Person', left + 8, metaBottom + 20, 6.5, true);
-  text(':', left + 84, metaBottom + 20, 6.5);
-  text(invoice.salesPerson, left + 100, metaBottom + 20, 6.5, true);
-  text('Booking Order No', left + halfWidth + 8, metaBottom + 24, 6);
-  text(':', left + halfWidth + 88, metaBottom + 24, 6);
-  text(invoice.salesOrderNumber, left + halfWidth + 102, metaBottom + 24, 6);
-  text('Booking Order Date', left + halfWidth + 8, metaBottom + 12, 6);
-  text(':', left + halfWidth + 88, metaBottom + 12, 6);
-  text(formatPrintDate(invoice.salesOrderDate), left + halfWidth + 102, metaBottom + 12, 6);
-
-  const itemsTop = metaBottom - 24;
-  const itemColumns = [0, 39, 205, 255, 305, 345, 405, width];
-  const headers = ['Sl. No.', 'Description', 'HSN/SAC', 'GST Rate', 'Quantity', 'Rate', 'Amount(INR)'];
-  const headerHeight = 22;
-  const itemRowHeight = 48;
-  const itemRowsHeight = Math.max(96, lineRows.length * itemRowHeight);
-  const summaryRowHeight = 17;
-  const summaryRows = [
-    ['Gross Amount', formatMoney(grossAmount)],
-    ['Invoice Discount', formatMoney(invoiceDiscountAmount)],
-    ['Sub Total', formatMoney(subTotal)],
-    ['SGST', formatMoney(invoice.sgst)],
-    ['CGST', formatMoney(invoice.cgst)],
-    ['IGST', formatMoney(invoice.igst)],
-    ['Round Off', formatMoney(invoice.roundOffAmount)]
-  ];
-  const grandTotalHeight = 18;
-  const itemsHeight = headerHeight + itemRowsHeight + (summaryRows.length * summaryRowHeight) + grandTotalHeight;
-  const itemsBottom = itemsTop - itemsHeight;
-
-  rect(left, itemsBottom, width, itemsHeight);
-  itemColumns.slice(1, -1).forEach(column => line(left + column, itemsTop, left + column, itemsBottom));
-  line(left, itemsTop - headerHeight, right, itemsTop - headerHeight);
-  headers.forEach((header, index) => text(header, left + itemColumns[index] + 5, itemsTop - 14, 5.8, true));
-  lineRows.forEach((item, index) => {
-    const rowTop = itemsTop - headerHeight - (index * itemRowHeight);
-    const rowBaseline = rowTop - 18;
-
-    line(left, rowTop - itemRowHeight, right, rowTop - itemRowHeight);
-    text(index + 1, left + 18, rowBaseline, 5.8);
-    wrapPdfText(item.description, 38, 2).forEach((lineText, lineIndex) => text(lineText, left + 44, rowBaseline - (lineIndex * 8), 5.6));
-    text(item.hsnCode, left + 212, rowBaseline, 5.6);
-    text(item.gstRate, left + 263, rowBaseline, 5.6);
-    text(formatQty(item.quantity), left + 326, rowBaseline, 5.6);
-    text(formatMoney(item.unitPrice), left + 356, rowBaseline, 5.6);
-    text(formatMoney(item.lineAmount), left + 430, rowBaseline, 5.6);
-  });
-
-  const summaryTop = itemsTop - headerHeight - itemRowsHeight;
-  summaryRows.forEach((row, index) => {
-    const rowTop = summaryTop - (index * summaryRowHeight);
-
-    line(left, rowTop, right, rowTop);
-    text(row[0], left + 346, rowTop - 11, 5.8);
-    text(row[1], left + 430, rowTop - 11, 5.8);
-  });
-  line(left, summaryTop - (summaryRows.length * summaryRowHeight), right, summaryTop - (summaryRows.length * summaryRowHeight));
-  gray(0);
-  rect(left, itemsBottom, width, grandTotalHeight, true);
-  gray(1);
-  text('Grand Total', left + 346, itemsBottom + 6, 6.2, true);
-  text(formatMoney(invoice.totalAmount), left + 430, itemsBottom + 6, 6.2, true);
-  gray(0);
-
-  const footerTop = itemsBottom - 18;
-  gray(0.9);
-  rect(left, footerTop - 16, 410, 16, true);
-  gray(0);
-  text(`Amount in Words: ${resolveAmountInWords(invoice)}`, left + 5, footerTop - 11, 5.7, true);
-  rect(right - 60, footerTop - 58, 60, 58);
-  text('Bank Account Details', left, footerTop - 80, 7.2, true);
-  bankDetails.forEach((detail, index) => text(detail, left, footerTop - 91 - (index * 8), 6.2));
-  text('IRN', left + 250, footerTop - 94, 6.4, true);
-  text(':', left + 323, footerTop - 94, 6.4);
-  text(invoice.irn, left + 338, footerTop - 94, 6.2);
-  text('Ack No', left + 250, footerTop - 107, 6.4, true);
-  text(':', left + 323, footerTop - 107, 6.4);
-  text(invoice.acknowledgementNumber, left + 338, footerTop - 107, 6.2);
-  text('Ack Date', left + 250, footerTop - 120, 6.4, true);
-  text(':', left + 323, footerTop - 120, 6.4);
-  text(formatPrintDate(invoice.acknowledgementDate), left + 338, footerTop - 120, 6.2);
-  text('Payment Terms: All payments are to be made in favor of Mefriend Business Solutions LLP through Crossed', left, footerTop - 150, 6);
-  text('Cheques/ Demand Drafts / Direct Bank Transfer.', left, footerTop - 160, 6);
-  text('For Mefriend Business Solutions LLP', right - 160, footerTop - 184, 6.3, true);
-  text('Authorised Signatory', right - 92, footerTop - 214, 6.3, true);
-
-  return commands.join('\n');
-};
-
-const buildInvoicePdfBlob = (invoice: IInvoiceDetail): Blob => {
-  const content = buildInvoicePdfContent(invoice);
-  const objects = [
-    '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> /Contents 6 0 R >>',
-    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
-    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>',
-    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`
-  ];
-  const parts: (string | Uint8Array)[] = [];
-  const offsets = [0];
-  let length = 0;
-  const append = (part: string | Uint8Array): void => {
-    parts.push(part);
-    length += typeof part === 'string' ? part.length : part.length;
-  };
-
-  append('%PDF-1.4\n');
-  objects.forEach((object, index) => {
-    offsets.push(length);
-    append(`${index + 1} 0 obj\n${object}`);
-    append('\nendobj\n');
-  });
-
-  const xrefOffset = length;
-  append(`xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`);
-  offsets.slice(1).forEach(offset => {
-    append(`${padPdfOffset(offset)} 00000 n \n`);
-  });
-  append(`trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`);
-
-  return new Blob(parts, { type: 'application/pdf' });
-};
-
-export const downloadInvoicePdf = (invoice: IInvoiceDetail): void => {
-  const url = window.URL.createObjectURL(buildInvoicePdfBlob(invoice));
-  const link = document.createElement('a');
-
-  link.href = url;
-  link.download = getInvoicePdfFileName(invoice);
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
-};
 
 export const openInvoicePrintPreviewWindow = (): Window => {
   const preview = window.open('', '_blank', 'width=900,height=1100');
@@ -1010,11 +864,32 @@ export const openInvoicePrintPreviewWindow = (): Window => {
   return preview;
 };
 
-export const writeInvoicePrintPreview = (preview: Window, invoice: IInvoiceDetail): void => {
+export const writeInvoicePrintPreview = async (preview: Window, invoice: IInvoiceDetail): Promise<void> => {
+  const logoSrc = await resolveEmbeddedLogoSrc();
+
   preview.document.open();
-  preview.document.write(buildInvoicePrintHtml(invoice));
+  preview.document.write(buildInvoicePrintHtml(invoice, logoSrc));
   preview.document.close();
   preview.focus();
+};
+
+export const downloadInvoicePdf = async (invoice: IInvoiceDetail, preview?: Window): Promise<void> => {
+  const printWindow = preview || openInvoicePrintPreviewWindow();
+
+  if (!preview) {
+    await writeInvoicePrintPreview(printWindow, invoice);
+  }
+
+  printWindow.document.title = getInvoicePdfFileName(invoice);
+  const openSystemPrintDialog = (printWindow as IInvoicePrintWindow).openSystemPrintDialog;
+
+  if (typeof openSystemPrintDialog === 'function') {
+    openSystemPrintDialog.call(printWindow);
+    return;
+  }
+
+  printWindow.focus();
+  printWindow.print();
 };
 
 export const writeInvoicePrintError = (preview: Window, message: string): void => {
