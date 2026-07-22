@@ -29,7 +29,7 @@ export interface ICustomerFormLookupSets {
 }
 
 const indiaCountryCode = 'IN';
-const gstRegisteredCustomerTypes = ['REGISTERED', 'SEZ', 'DEEMED EXPORT', 'UIN HOLDER'];
+const gstRegisteredCustomerTypes = ['REGISTERED', 'DEEMED EXPORT', 'SEZ DEVELOPMENT', 'SEZ UNIT'];
 const alphanumericCodePattern = /^[A-Z0-9 -]*$/;
 const panPattern = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
 const gstinPattern = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][A-Z0-9]Z[A-Z0-9]$/;
@@ -107,19 +107,23 @@ export const customerIndiaStateOptions: readonly ILookupOption[] = [
 export const customerGstCustomerTypeOptions: readonly ILookupOption[] = [
   { key: 'REGISTERED', text: 'Registered', value: 'Registered' },
   { key: 'UNREGISTERED', text: 'Unregistered', value: 'Unregistered' },
-  { key: 'EXEMPTED', text: 'Exempted', value: 'Exempted' },
-  { key: 'SEZ', text: 'SEZ', value: 'SEZ' },
+  { key: 'EXPORT', text: 'Export', value: 'Export' },
   { key: 'DEEMED EXPORT', text: 'Deemed Export', value: 'Deemed Export' },
-  { key: 'UIN HOLDER', text: 'UIN Holder', value: 'UIN Holder' }
+  { key: 'EXEMPTED', text: 'Exempted', value: 'Exempted' },
+  { key: 'SEZ DEVELOPMENT', text: 'SEZ Development', value: 'SEZ Development' },
+  { key: 'SEZ UNIT', text: 'SEZ Unit', value: 'SEZ Unit' }
 ];
 
 export const customerGenPostingGroupOptions: readonly ILookupOption[] = [
+  { key: 'B2B', text: 'B2B', value: 'B2B' },
+  { key: 'B2C', text: 'B2C', value: 'B2C' },
   { key: 'DOMESTIC', text: 'DOMESTIC', value: 'DOMESTIC' },
   { key: 'FOREIGN', text: 'FOREIGN', value: 'FOREIGN' }
 ];
 
 export const customerPostingGroupOptions: readonly ILookupOption[] = [
-  { key: 'DOMESTIC', text: 'DOMESTIC', value: 'DOMESTIC' },
+  { key: 'B2B', text: 'B2B', value: 'B2B' },
+  { key: 'B2C', text: 'B2C', value: 'B2C' },
   { key: 'FOREIGN', text: 'FOREIGN', value: 'FOREIGN' }
 ];
 
