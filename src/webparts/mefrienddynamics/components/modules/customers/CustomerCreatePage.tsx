@@ -8,6 +8,7 @@ import type { IMasterCodeItem } from '../../../models/settings/IMasterDataModels
 import { getUserFriendlyError } from '../../../services/api/apiErrorHandler';
 import type { CustomerService } from '../../../services/customers/customerService';
 import type { MasterDataService } from '../../../services/sharepoint/masterDataService';
+import type { RequestSubmissionService } from '../../../services/sharepoint/requestSubmissionService';
 import type { EntityFormValues } from '../../../utils/validationUtils';
 import { EntityForm } from '../../common/forms/EntityForm';
 import { PageContainer } from '../../common/pageContainer/PageContainer';
@@ -16,6 +17,7 @@ import { useToast } from '../../common/toast/useToast';
 export interface ICustomerCreatePageProps {
   customerService: CustomerService;
   masterDataService: MasterDataService;
+  requestSubmissionService: RequestSubmissionService;
   onNavigate: (path: string) => void;
 }
 
@@ -50,7 +52,7 @@ const toMasterCodeOptions = (items: readonly IMasterCodeItem[]): readonly ILooku
     description: item.name
   }));
 
-export const CustomerCreatePage: React.FC<ICustomerCreatePageProps> = ({ customerService, masterDataService, onNavigate }) => {
+export const CustomerCreatePage: React.FC<ICustomerCreatePageProps> = ({ customerService, masterDataService, requestSubmissionService, onNavigate }) => {
   const toast = useToast();
   const [loading, setLoading] = React.useState<boolean>(false);
   const [lookupLoading, setLookupLoading] = React.useState<boolean>(true);
@@ -113,27 +115,31 @@ export const CustomerCreatePage: React.FC<ICustomerCreatePageProps> = ({ custome
   );
 
   const handleSubmit = React.useCallback(async (values: EntityFormValues): Promise<void> => {
+    if (loading) {
+      return;
+    }
+
     setLoading(true);
 
     try {
       const formState = toCustomerFormState(values);
       const request = customerService.mapCustomerFormToApiRequest(formState);
-      await customerService.createCustomer(request);
-      toast.success('Customer created successfully.', { title: 'Customer Master' });
-      onNavigate(customersModuleConfig.route);
+      const result = await requestSubmissionService.submitCustomerRequest(request);
+      toast.success('Customer request submitted for approval.', { title: 'Customer Master' });
+      onNavigate(`${customersModuleConfig.route}/requests/detail/${encodeURIComponent(String(result.request.id))}`);
     } catch (error) {
-      toast.error(getUserFriendlyError(error), { title: 'Unable to create customer' });
+      toast.error(getUserFriendlyError(error), { title: 'Unable to submit customer request' });
     } finally {
       setLoading(false);
     }
-  }, [customerService, onNavigate, toast]);
+  }, [customerService, loading, onNavigate, requestSubmissionService, toast]);
 
   return (
-    <PageContainer title="Create Customer" description="Create a Business Central customer through the MeFriend API.">
+    <PageContainer title="Create Customer" description="Submit a customer request for approval.">
       <EntityForm
         fields={fields}
         initialValues={initialValues}
-        submitLabel="Create Customer"
+        submitLabel="Submit for Approval"
         cancelLabel="Back"
         loading={loading}
         disabled={loading || lookupLoading}

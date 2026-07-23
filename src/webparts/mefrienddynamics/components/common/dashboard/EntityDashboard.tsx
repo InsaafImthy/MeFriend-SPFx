@@ -27,6 +27,7 @@ export interface IEntityDashboardProps<TItem> {
   loading?: boolean;
   error?: string;
   createButton?: IEntityDashboardCreateButtonConfig;
+  headerActions?: React.ReactNode;
   onCreate?: () => void;
   onRowClick?: (item: TItem) => void;
   rowActions?: readonly IEntityTableAction<TItem>[];
@@ -53,6 +54,7 @@ export const EntityDashboard = <TItem,>({
   loading = false,
   error,
   createButton,
+  headerActions,
   onCreate,
   onRowClick,
   rowActions,
@@ -68,13 +70,19 @@ export const EntityDashboard = <TItem,>({
   emptyTitle,
   emptyMessage
 }: IEntityDashboardProps<TItem>): React.ReactElement => {
-  const actions = createButton && createButton.visible !== false ? (
+  const createAction = createButton && createButton.visible !== false ? (
     <Button
       label={createButton.label}
       variant={createButton.variant || 'primary'}
       disabled={createButton.disabled}
       onClick={onCreate}
     />
+  ) : undefined;
+  const actions = headerActions || createAction ? (
+    <>
+      {headerActions}
+      {createAction}
+    </>
   ) : undefined;
 
   return (

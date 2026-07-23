@@ -234,6 +234,144 @@
   grid-template-columns: 220px minmax(240px, 1fr) 128px;
 }
 
+.userGrid {
+  grid-template-columns: minmax(240px, 1fr) minmax(140px, .5fr) 120px 128px;
+}
+
+.select,
+.fieldLabel select {
+  background: #ffffff;
+  border: 1px solid #dfe3ea;
+  border-radius: 8px;
+  color: #111827;
+  font: inherit;
+  font-size: 13px;
+  min-height: 38px;
+  min-width: 180px;
+  padding: 0 10px;
+}
+
+.matrix {
+  display: flex;
+  flex-direction: column;
+  min-width: 760px;
+}
+
+.matrixRow {
+  align-items: center;
+  border-bottom: 1px solid #edf0f3;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(180px, 1fr) repeat(6, 72px);
+  min-height: 48px;
+  padding: 8px 12px;
+}
+
+.matrixRow:last-child {
+  border-bottom: 0;
+}
+
+.checkCell {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.checkCell input {
+  height: 16px;
+  width: 16px;
+}
+
+.workflowGrid {
+  align-items: start;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 320px minmax(0, 1fr);
+}
+
+.workflowListItem {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid #edf0f3;
+  color: #111827;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  text-align: left;
+}
+
+.workflowListItem:hover,
+.workflowListItemActive {
+  background: #f6f4ff;
+}
+
+.workflowListItem span,
+.workflowListItem small {
+  color: #667085;
+  font-size: 12px;
+}
+
+.formGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 14px;
+}
+
+.fieldLabel {
+  color: #344054;
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 6px;
+}
+
+.fieldLabel select {
+  width: 100%;
+}
+
+.levelToolbar {
+  align-items: center;
+  border-top: 1px solid #edf0f3;
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 14px;
+}
+
+.levelCard {
+  border-top: 1px solid #edf0f3;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.finalLevel {
+  box-shadow: inset 4px 0 0 #5b35d5;
+}
+
+.levelHeader {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.approverList {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.formActions {
+  border-top: 1px solid #edf0f3;
+  display: flex;
+  justify-content: flex-end;
+  padding: 14px;
+}
+
 .recordTitle {
   display: flex;
   flex-direction: column;

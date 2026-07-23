@@ -5,6 +5,7 @@ import type { ISortState, SortDirection } from '../../../models/common/ISortStat
 import type { ISalesOrderFilters, ISalesOrderListItem, SalesOrderStatus } from '../../../models/salesOrders';
 import { getUserFriendlyError, normalizeError } from '../../../services/api/apiErrorHandler';
 import type { SalesOrderService } from '../../../services/salesOrders/salesOrderService';
+import { Button } from '../../common/buttons/Button';
 import { EntityDashboard } from '../../common/dashboard/EntityDashboard';
 import type { EntityFilterValues, FilterValue } from '../../common/filters/EntityFilters';
 
@@ -119,6 +120,7 @@ export const SalesOrderPage: React.FC<ISalesOrderPageProps> = ({ canCreateSalesO
       items={items}
       loading={loading}
       error={error}
+      headerActions={<Button label="Sales Order Requests" variant="secondary" onClick={() => onNavigate(`${salesOrdersModuleConfig.route}/requests`)} />}
       createButton={{ label: 'Create Sales Order', visible: canCreateSalesOrder }}
       onCreate={() => onNavigate(`${salesOrdersModuleConfig.route}/create`)}
       onRowClick={

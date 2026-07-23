@@ -5,6 +5,7 @@ import type { IPaginationState } from '../../../models/common/IPaginationState';
 import type { ISortState, SortDirection } from '../../../models/common/ISortState';
 import { getUserFriendlyError, normalizeError } from '../../../services/api/apiErrorHandler';
 import type { CustomerService } from '../../../services/customers/customerService';
+import { Button } from '../../common/buttons/Button';
 import { EntityDashboard } from '../../common/dashboard/EntityDashboard';
 import type { EntityFilterValues, FilterValue } from '../../common/filters/EntityFilters';
 
@@ -118,6 +119,7 @@ export const CustomerPage: React.FC<ICustomerPageProps> = ({ canCreateCustomer, 
       items={items}
       loading={loading}
       error={error}
+      headerActions={<Button label="Customer Requests" variant="secondary" onClick={() => onNavigate(`${customersModuleConfig.route}/requests`)} />}
       createButton={customersModuleConfig.createEnabled ? { label: 'Create Customer', visible: canCreateCustomer } : undefined}
       onCreate={() => onNavigate(`${customersModuleConfig.route}/create`)}
       onRowClick={

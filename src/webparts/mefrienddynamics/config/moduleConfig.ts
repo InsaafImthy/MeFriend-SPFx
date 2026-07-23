@@ -50,6 +50,20 @@ export const routeDefinitions: readonly IAppRouteDefinition[] = [
     showInNavigation: false
   },
   {
+    key: 'customerRequests',
+    path: `${customersModuleConfig.route}/requests`,
+    title: 'Customer Requests',
+    moduleKey: customersModuleConfig.key,
+    showInNavigation: false
+  },
+  {
+    key: 'customerRequestDetail',
+    path: `${customersModuleConfig.route}/requests/detail/:id`,
+    title: 'Customer Request Detail',
+    moduleKey: customersModuleConfig.key,
+    showInNavigation: false
+  },
+  {
     key: 'events',
     path: eventsModuleConfig.route,
     title: eventsModuleConfig.title,
@@ -109,6 +123,20 @@ export const routeDefinitions: readonly IAppRouteDefinition[] = [
     key: 'salesOrderDetail',
     path: `${salesOrdersModuleConfig.route}/detail/:id`,
     title: 'Sales Order Detail',
+    moduleKey: salesOrdersModuleConfig.key,
+    showInNavigation: false
+  },
+  {
+    key: 'salesOrderRequests',
+    path: `${salesOrdersModuleConfig.route}/requests`,
+    title: 'Sales Order Requests',
+    moduleKey: salesOrdersModuleConfig.key,
+    showInNavigation: false
+  },
+  {
+    key: 'salesOrderRequestDetail',
+    path: `${salesOrdersModuleConfig.route}/requests/detail/:id`,
+    title: 'Sales Order Request Detail',
     moduleKey: salesOrdersModuleConfig.key,
     showInNavigation: false
   },

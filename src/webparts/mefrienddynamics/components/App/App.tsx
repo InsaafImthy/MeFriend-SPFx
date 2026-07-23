@@ -8,10 +8,10 @@ import { AppLoader } from '../common/loaders/AppLoader';
 import { ToastProvider } from '../common/toast/ToastProvider';
 import { AppLayout } from '../Layout/AppLayout';
 import { PlaceholderModulePage } from '../modules/PlaceholderModulePage';
-import { CustomerCreatePage, CustomerDetailPage, CustomerPage } from '../modules/customers';
+import { CustomerCreatePage, CustomerDetailPage, CustomerPage, CustomerRequestDetailPage, CustomerRequestsPage } from '../modules/customers';
 import { EventDetailPage, EventPage } from '../modules/events';
 import { InvoiceDetailPage, InvoicePage } from '../modules/invoices';
-import { SalesOrderCreatePage, SalesOrderDetailPage, SalesOrderPage } from '../modules/salesOrders';
+import { SalesOrderCreatePage, SalesOrderDetailPage, SalesOrderPage, SalesOrderRequestDetailPage, SalesOrderRequestsPage } from '../modules/salesOrders';
 import { SalespersonDetailPage, SalespersonPage } from '../modules/salespersons';
 import { PermissionSettingsPage } from '../modules/settings';
 import { ApiClient } from '../../services/api/apiClient';
@@ -24,7 +24,12 @@ import { SalesOrderService } from '../../services/salesOrders/salesOrderService'
 import { SalespersonService } from '../../services/salespersons/salespersonService';
 import { MasterDataService } from '../../services/sharepoint/masterDataService';
 import { PermissionService } from '../../services/sharepoint/permissionService';
-import { usePermissions } from '../../hooks/usePermissions';
+import { AppAccessService } from '../../services/sharepoint/appAccessService';
+import { ApprovalWorkflowService } from '../../services/sharepoint/approvalWorkflowService';
+import { CustomerRequestService } from '../../services/sharepoint/customerRequestService';
+import { RequestSubmissionService } from '../../services/sharepoint/requestSubmissionService';
+import { SalesOrderRequestService } from '../../services/sharepoint/salesOrderRequestService';
+import { useAppAccess } from '../../hooks/useAppAccess';
 import { buildHashHref, getHashRoutePath, resolveRoute } from '../../utils/routeUtils';
 import styles from './App.module.scss';
 
@@ -70,7 +75,47 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
       }),
     [pageContext, spHttpClient]
   );
-  const permissions = usePermissions(permissionService);
+  const appAccessService = React.useMemo(
+    () =>
+      new AppAccessService({
+        pageContext,
+        spHttpClient
+      }),
+    [pageContext, spHttpClient]
+  );
+  const approvalWorkflowService = React.useMemo(
+    () =>
+      new ApprovalWorkflowService({
+        pageContext,
+        spHttpClient
+      }),
+    [pageContext, spHttpClient]
+  );
+  const customerRequestService = React.useMemo(
+    () =>
+      new CustomerRequestService({
+        pageContext,
+        spHttpClient
+      }),
+    [pageContext, spHttpClient]
+  );
+  const salesOrderRequestService = React.useMemo(
+    () =>
+      new SalesOrderRequestService({
+        pageContext,
+        spHttpClient
+      }),
+    [pageContext, spHttpClient]
+  );
+  const requestSubmissionService = React.useMemo(
+    () =>
+      new RequestSubmissionService({
+        pageContext,
+        spHttpClient
+      }),
+    [pageContext, spHttpClient]
+  );
+  const access = useAppAccess(appAccessService);
 
   React.useEffect(() => {
     const handleHashChange = (): void => {
@@ -89,16 +134,20 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
   const route = resolveRoute(routePath);
 
   const canAccessRoute = React.useCallback((): boolean => {
+    if (!access.isAuthorized) {
+      return false;
+    }
+
     if (route.key === 'customerCreate') {
-      return permissions.canAccessModule(route.moduleKey) && permissions.canCreateCustomer;
+      return access.canView(route.moduleKey) && access.canCreate(route.moduleKey);
     }
 
     if (route.key === 'salesOrderCreate') {
-      return permissions.canAccessModule(route.moduleKey) && permissions.canCreateSalesOrder;
+      return access.canView(route.moduleKey) && access.canCreate(route.moduleKey);
     }
 
-    return permissions.canAccessModule(route.moduleKey);
-  }, [permissions, route.key, route.moduleKey]);
+    return access.canView(route.moduleKey);
+  }, [access, route.key, route.moduleKey]);
 
   const handleNavigate = React.useCallback((path: string): void => {
     const href = buildHashHref(path);
@@ -115,7 +164,7 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
     if (route.key === 'customers') {
       return (
         <CustomerPage
-          canCreateCustomer={permissions.canCreateCustomer}
+          canCreateCustomer={access.canCreate('customers')}
           customerService={customerService}
           onNavigate={handleNavigate}
         />
@@ -127,6 +176,7 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
         <CustomerCreatePage
           customerService={customerService}
           masterDataService={masterDataService}
+          requestSubmissionService={requestSubmissionService}
           onNavigate={handleNavigate}
         />
       );
@@ -137,6 +187,26 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
         <CustomerDetailPage
           customerId={route.params.id || ''}
           customerService={customerService}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
+
+    if (route.key === 'customerRequests') {
+      return (
+        <CustomerRequestsPage
+          canCreateCustomer={access.canCreate('customers')}
+          customerRequestService={customerRequestService}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
+
+    if (route.key === 'customerRequestDetail') {
+      return (
+        <CustomerRequestDetailPage
+          requestId={route.params.id || ''}
+          requestSubmissionService={requestSubmissionService}
           onNavigate={handleNavigate}
         />
       );
@@ -175,7 +245,7 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
     if (route.key === 'salesOrders') {
       return (
         <SalesOrderPage
-          canCreateSalesOrder={permissions.canCreateSalesOrder}
+          canCreateSalesOrder={access.canCreate('salesOrders')}
           salesOrderService={salesOrderService}
           onNavigate={handleNavigate}
         />
@@ -189,7 +259,7 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
           eventService={eventService}
           itemMasterService={itemMasterService}
           masterDataService={masterDataService}
-          salesOrderService={salesOrderService}
+          requestSubmissionService={requestSubmissionService}
           salespersonService={salespersonService}
           onNavigate={handleNavigate}
         />
@@ -206,12 +276,35 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
       );
     }
 
+    if (route.key === 'salesOrderRequests') {
+      return (
+        <SalesOrderRequestsPage
+          canCreateSalesOrder={access.canCreate('salesOrders')}
+          salesOrderRequestService={salesOrderRequestService}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
+
+    if (route.key === 'salesOrderRequestDetail') {
+      return (
+        <SalesOrderRequestDetailPage
+          requestId={route.params.id || ''}
+          requestSubmissionService={requestSubmissionService}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
+
     if (route.key === 'settings') {
       return (
         <PermissionSettingsPage
+          access={access}
+          appAccessService={appAccessService}
+          approvalWorkflowService={approvalWorkflowService}
           masterDataService={masterDataService}
           permissionService={permissionService}
-          onPermissionsChanged={permissions.refresh}
+          onPermissionsChanged={access.refreshAccess}
         />
       );
     }
@@ -225,17 +318,22 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
         <div className={styles.app}>
           <AppLayout
             activeRouteKey={route.key}
-            canAccessModule={permissions.canAccessModule}
+            canAccessModule={access.canView}
             routeTransitionKey={`${route.key}:${routePath}`}
             userDisplayName={userDisplayName}
             onNavigate={handleNavigate}
           >
-            {isLoading || permissions.loading ? (
+            {isLoading || access.loading ? (
               <AppLoader label="Loading workspace" />
             ) : canAccessRoute() ? (
               renderRoute()
             ) : (
-              <AccessDenied />
+              <AccessDenied
+                message={
+                  access.accessError ||
+                  `The signed-in account ${access.signedInEmail || 'unknown user'} is not allowed to access this area.`
+                }
+              />
             )}
           </AppLayout>
         </div>

@@ -204,7 +204,7 @@ export class SalesOrderService {
     return this.mapSalesOrderApiToUiModel(salesOrder);
   }
 
-  public async createSalesOrder(payload: ISalesOrderCreateFormState): Promise<ISalesOrderDetail> {
+  public async postSalesOrderToBusinessCentral(payload: ISalesOrderCreateFormState): Promise<ISalesOrderDetail> {
     const request = this.mapSalesOrderFormToApiRequest(payload);
     const response = await this.apiClient.post<ISalesOrderCreateRequest, ISalesOrderPostResponseApiModel>(
       '/api/SalesOrders',
@@ -212,6 +212,10 @@ export class SalesOrderService {
     );
 
     return this.mapSalesOrderPostResponseToUiModel(response.data, request);
+  }
+
+  public async createSalesOrder(payload: ISalesOrderCreateFormState): Promise<ISalesOrderDetail> {
+    return this.postSalesOrderToBusinessCentral(payload);
   }
 
   public async getInvoicesForSalesOrder(salesOrderId: string): Promise<readonly ISalesOrderRelatedInvoice[]> {

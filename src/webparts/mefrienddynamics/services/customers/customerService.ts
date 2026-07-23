@@ -99,10 +99,14 @@ export class CustomerService {
     return this.mapCustomerApiToUiModel(customer);
   }
 
-  public async createCustomer(payload: ICustomerCreateFormState): Promise<ICustomerCreateApiResponse> {
+  public async postCustomerToBusinessCentral(payload: ICustomerCreateFormState): Promise<ICustomerCreateApiResponse> {
     const response = await this.apiClient.post<ICustomerCreateRequest, ICustomerCreateApiResponse>('/api/customers', payload);
 
     return response.data || {};
+  }
+
+  public async createCustomer(payload: ICustomerCreateFormState): Promise<ICustomerCreateApiResponse> {
+    return this.postCustomerToBusinessCentral(payload);
   }
 
   public mapCustomerApiToUiModel(api?: ICustomerApiModel): ICustomerDetail {

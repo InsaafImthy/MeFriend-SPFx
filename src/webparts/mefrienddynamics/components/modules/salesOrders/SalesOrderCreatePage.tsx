@@ -12,9 +12,9 @@ import { getUserFriendlyError } from '../../../services/api/apiErrorHandler';
 import type { CustomerService, ICustomerLookupItem } from '../../../services/customers/customerService';
 import type { EventService } from '../../../services/events/eventService';
 import type { IItemMasterLookupItem, ItemMasterService } from '../../../services/itemMasters';
-import type { SalesOrderService } from '../../../services/salesOrders/salesOrderService';
 import type { ISalespersonLookupItem, SalespersonService } from '../../../services/salespersons/salespersonService';
 import type { MasterDataService } from '../../../services/sharepoint/masterDataService';
+import type { RequestSubmissionService } from '../../../services/sharepoint/requestSubmissionService';
 import type { EntityFormErrors, EntityFormValue, EntityFormValues } from '../../../utils/validationUtils';
 import { hasValidationErrors, validateFormValues } from '../../../utils/validationUtils';
 import { Button } from '../../common/buttons/Button';
@@ -30,7 +30,7 @@ export interface ISalesOrderCreatePageProps {
   eventService: EventService;
   itemMasterService: ItemMasterService;
   masterDataService: MasterDataService;
-  salesOrderService: SalesOrderService;
+  requestSubmissionService: RequestSubmissionService;
   salespersonService: SalespersonService;
   onNavigate: (path: string) => void;
 }
@@ -209,12 +209,18 @@ const toMasterCodeOptions = (items: readonly IMasterCodeItem[]): readonly ILooku
     description: item.name
   }));
 
+const getOptionDescription = (options: readonly ILookupOption[], value?: string): string => {
+  const normalizedValue = (value || '').trim().toLowerCase();
+  const option = options.filter(item => String(item.value || item.key).trim().toLowerCase() === normalizedValue)[0];
+  return option ? option.description || option.text || String(option.value || option.key) : '';
+};
+
 export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
   customerService,
   eventService,
   itemMasterService,
   masterDataService,
-  salesOrderService,
+  requestSubmissionService,
   salespersonService,
   onNavigate
 }) => {
@@ -380,27 +386,50 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
 
     try {
       const formState = toSalesOrderFormState(values, lines, invoiceDiscountAmountValue, invoiceDiscountPercentValue);
-      await salesOrderService.createSalesOrder(formState);
-      toast.success('Sales order created successfully.', { title: 'Sales Order' });
+      const result = await requestSubmissionService.submitSalesOrderRequest({
+        form: formState,
+        sellToCustomerName: getOptionDescription(customerOptions, formState.customerCode),
+        billToCustomerName: getOptionDescription(customerOptions, formState.billToCustomerCode || formState.customerCode),
+        salespersonName: getOptionDescription(salespersonOptions, formState.salespersonCode),
+        eventName: getOptionDescription(eventOptions, formState.eventCode),
+        lineSnapshots: formState.lines.map(line => ({
+          item: line,
+          description: getOptionDescription(itemMasterOptions, line.itemCode),
+          unitOfMeasureCode: line.unitOfMeasureCode || ''
+        }))
+      });
+      toast.success('Sales order request submitted for approval.', { title: 'Sales Order' });
 
-      onNavigate(salesOrdersModuleConfig.route);
+      onNavigate(`${salesOrdersModuleConfig.route}/requests/detail/${encodeURIComponent(String(result.request.id))}`);
     } catch (error) {
-      toast.error(getUserFriendlyError(error), { title: 'Unable to create sales order' });
+      toast.error(getUserFriendlyError(error), { title: 'Unable to submit sales order request' });
     } finally {
       setLoading(false);
     }
-  }, [invoiceDiscountAmountValue, invoiceDiscountPercentValue, lines, loading, onNavigate, salesOrderService, toast]);
+  }, [
+    customerOptions,
+    eventOptions,
+    invoiceDiscountAmountValue,
+    invoiceDiscountPercentValue,
+    itemMasterOptions,
+    lines,
+    loading,
+    onNavigate,
+    requestSubmissionService,
+    salespersonOptions,
+    toast
+  ]);
 
   return (
     <PageContainer
       title="Create Sales Order"
-      description="Create a sales order header and line items through the MeFriend API."
+      description="Submit a sales order request for approval."
       actions={<Button label="Back to Sales Orders" variant="secondary" disabled={loading} onClick={handleCancel} />}
     >
       <EntityForm
         fields={fields}
         initialValues={{ billToCustomerCode: '' }}
-        submitLabel="Create Sales Order"
+        submitLabel="Submit for Approval"
         cancelLabel="Cancel"
         loading={loading}
         disabled={loading}
