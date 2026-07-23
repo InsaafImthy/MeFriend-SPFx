@@ -15,9 +15,9 @@
   border-bottom: 1px solid #eceff3;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
   justify-content: flex-end;
-  padding: 10px 12px;
+  padding: 12px 14px;
 }
 
 .scrollArea {
@@ -96,6 +96,12 @@
 
 .alignCenter {
   text-align: center;
+}
+
+.alignCenter .cellContent {
+  align-items: center;
+  display: flex;
+  justify-content: center;
 }
 
 .alignRight {
@@ -541,6 +547,11 @@ a.documentLink:hover {
 }
 
 @media (max-width: 767px) {
+  .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .table th {
     height: 44px;
     padding-left: 12px;

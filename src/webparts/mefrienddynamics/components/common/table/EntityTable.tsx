@@ -476,7 +476,10 @@ export const EntityTable = <TItem,>({
                     aria-label="Select all rows"
                     checked={items.length > 0 && rowKeys.every(rowKey => selectedKeys.has(rowKey))}
                     className={styles.checkbox}
-                    onChange={event => handleSelectAll(event.currentTarget.checked)}
+                    onChange={event => {
+                      const checked = event.currentTarget.checked;
+                      handleSelectAll(checked);
+                    }}
                     type="checkbox"
                   />
                 </th>
@@ -542,7 +545,10 @@ export const EntityTable = <TItem,>({
                         aria-label={`${selectionLabel} ${index + 1}`}
                         checked={selectedKeys.has(rowKey)}
                         className={styles.checkbox}
-                        onChange={event => handleSelectRow(rowKey, event.currentTarget.checked)}
+                        onChange={event => {
+                          const checked = event.currentTarget.checked;
+                          handleSelectRow(rowKey, checked);
+                        }}
                         type="checkbox"
                       />
                     </td>

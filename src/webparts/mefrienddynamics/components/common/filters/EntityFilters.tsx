@@ -69,7 +69,10 @@ export const EntityFilters: React.FC<IEntityFiltersProps> = ({ filters, values, 
           <input
             checked={values[filter.key] === true}
             disabled={loading}
-            onChange={event => onChange(filter.key, event.currentTarget.checked)}
+            onChange={event => {
+              const checked = event.currentTarget.checked;
+              onChange(filter.key, checked);
+            }}
             type="checkbox"
           />
           <span>{filter.label}</span>

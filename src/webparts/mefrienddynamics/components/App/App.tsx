@@ -24,7 +24,6 @@ import { ItemMasterService } from '../../services/itemMasters';
 import { SalesOrderService } from '../../services/salesOrders/salesOrderService';
 import { SalespersonService } from '../../services/salespersons/salespersonService';
 import { MasterDataService } from '../../services/sharepoint/masterDataService';
-import { PermissionService } from '../../services/sharepoint/permissionService';
 import { AppAccessService } from '../../services/sharepoint/appAccessService';
 import { ApprovalProcessingService } from '../../services/sharepoint/approvalProcessingService';
 import { ApprovalTaskService } from '../../services/sharepoint/approvalTaskService';
@@ -66,15 +65,6 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
   const masterDataService = React.useMemo(
     () =>
       new MasterDataService({
-        pageContext,
-        spHttpClient,
-        webAbsoluteUrl: sharePointWebAbsoluteUrl
-      }),
-    [pageContext, sharePointWebAbsoluteUrl, spHttpClient]
-  );
-  const permissionService = React.useMemo(
-    () =>
-      new PermissionService({
         pageContext,
         spHttpClient,
         webAbsoluteUrl: sharePointWebAbsoluteUrl
@@ -416,7 +406,6 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
           appAccessService={appAccessService}
           approvalWorkflowService={approvalWorkflowService}
           masterDataService={masterDataService}
-          permissionService={permissionService}
           onPermissionsChanged={access.refreshAccess}
         />
       );

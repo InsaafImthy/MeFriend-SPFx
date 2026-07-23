@@ -85,7 +85,6 @@ export interface IApprovalWorkflowStep {
   isFinalLevel: boolean;
   sequence: number;
   isActive: boolean;
-  instructions: string;
 }
 
 export interface IWorkflowLevel {
@@ -97,7 +96,6 @@ export interface IWorkflowLevel {
   isFinalLevel: boolean;
   sequence: number;
   isActive: boolean;
-  instructions: string;
   approverIds: readonly number[];
   stepIdsByApproverId?: Readonly<Record<number, number>>;
 }

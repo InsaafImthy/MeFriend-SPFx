@@ -10,7 +10,8 @@ import {
   type MefriendModuleKey
 } from '../../../config/sharePointConfig';
 import type { IUseAppAccessResult } from '../../../hooks/useAppAccess';
-import type { IEditablePermissionSetting, PermissionKey } from '../../../models/common/IPermissionModels';
+import type { ILookupOption } from '../../../models/common/ILookupOption';
+import type { ITableColumn } from '../../../models/common/ITableColumn';
 import type {
   IAppUser,
   IAppUserInput,
@@ -22,24 +23,19 @@ import type { IMasterCodeItem, MasterDataListKey } from '../../../models/setting
 import type { AppAccessService } from '../../../services/sharepoint/appAccessService';
 import type { ApprovalWorkflowService } from '../../../services/sharepoint/approvalWorkflowService';
 import type { MasterDataService } from '../../../services/sharepoint/masterDataService';
-import type { PermissionService } from '../../../services/sharepoint/permissionService';
 import { Button } from '../../common/buttons/Button';
 import { ConfirmationDialog } from '../../common/confirmationDialog/ConfirmationDialog';
+import { Dropdown } from '../../common/dropdowns/Dropdown';
 import { ErrorState } from '../../common/errorState/ErrorState';
 import { EntityModal } from '../../common/forms/EntityModal';
 import { InputField } from '../../common/inputs/InputField';
 import { AppLoader } from '../../common/loaders/AppLoader';
 import { PageContainer } from '../../common/pageContainer/PageContainer';
+import { EntityTable } from '../../common/table/EntityTable';
 import { useToast } from '../../common/toast/useToast';
 import styles from './PermissionSettingsPage.module.scss';
 
-type SettingsSectionKey = 'appUsers' | 'userPermissions' | 'approvalManagement' | 'legacyPermissions' | MasterDataListKey;
-
-interface ILocalPermissionSetting extends IEditablePermissionSetting {
-  roleText: string;
-  saving: boolean;
-  deleting: boolean;
-}
+type SettingsSectionKey = 'appUsers' | 'userPermissions' | 'approvalManagement' | MasterDataListKey;
 
 interface IMasterDataFormState {
   id?: number;
@@ -57,7 +53,7 @@ interface ISectionConfig {
   title: string;
   description: string;
   iconName: string;
-  group: 'Access' | 'Approvals' | 'Masters' | 'Legacy';
+  group: 'Access' | 'Approvals' | 'Masters';
   visible: boolean;
 }
 
@@ -66,7 +62,6 @@ export interface IPermissionSettingsPageProps {
   appAccessService: AppAccessService;
   approvalWorkflowService: ApprovalWorkflowService;
   masterDataService: MasterDataService;
-  permissionService: PermissionService;
   onPermissionsChanged: () => Promise<void>;
 }
 
@@ -105,23 +100,7 @@ const newLevel = (levelNumber: number): IWorkflowLevel => ({
   isFinalLevel: true,
   sequence: levelNumber,
   isActive: true,
-  instructions: '',
   approverIds: []
-});
-
-const toRoleText = (groupNames: readonly string[]): string => groupNames.join('; ');
-
-const toGroupNames = (roleText: string): readonly string[] =>
-  roleText
-    .split(';')
-    .map(groupName => groupName.trim())
-    .filter(groupName => !!groupName);
-
-const toLocalSetting = (setting: IEditablePermissionSetting): ILocalPermissionSetting => ({
-  ...setting,
-  roleText: toRoleText(setting.allowedSharePointGroupNames),
-  saving: false,
-  deleting: false
 });
 
 const isMasterSection = (key: SettingsSectionKey): key is MasterDataListKey =>
@@ -134,12 +113,35 @@ const canApproveModule = (moduleKey: MefriendModuleKey): boolean =>
 
 const canPostModule = (moduleKey: MefriendModuleKey): boolean => moduleKey === 'customers' || moduleKey === 'salesOrders';
 
+const userFilterOptions: readonly ILookupOption<'active' | 'inactive' | 'all'>[] = [
+  { key: 'active', text: 'Active', value: 'active' },
+  { key: 'inactive', text: 'Inactive', value: 'inactive' },
+  { key: 'all', text: 'All', value: 'all' }
+];
+
+const entityTypeOptions: readonly ILookupOption<MefriendApprovalEntityType>[] = mefriendEntityTypes.map(entityType => ({
+  key: entityType,
+  text: entityType,
+  value: entityType
+}));
+
+const finalActionOptions: readonly ILookupOption<'PostToBC' | 'ApproveOnly'>[] = mefriendWorkflowFinalActions.map(action => ({
+  key: action,
+  text: action,
+  value: action
+}));
+
+const approvalModeOptions: readonly ILookupOption<'Any' | 'All'>[] = mefriendApprovalModes.map(mode => ({
+  key: mode,
+  text: mode,
+  value: mode
+}));
+
 export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
   access,
   appAccessService,
   approvalWorkflowService,
   masterDataService,
-  permissionService,
   onPermissionsChanged
 }) => {
   const toast = useToast();
@@ -189,16 +191,8 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
       iconName: 'Globe',
       group: 'Masters',
       visible: canViewSettings
-    },
-    {
-      key: 'legacyPermissions',
-      title: 'Legacy Permission Settings',
-      description: 'Temporary SharePoint-group settings retained for compatibility.',
-      iconName: 'Group',
-      group: 'Legacy',
-      visible: canManageSettings
     }
-  ], [canManageSettings, canViewSettings, canViewUsers, canViewWorkflows]);
+  ], [canViewSettings, canViewUsers, canViewWorkflows]);
   const visibleSections = sections.filter(section => section.visible);
   const [activeSectionKey, setActiveSectionKey] = React.useState<SettingsSectionKey>(visibleSections[0] ? visibleSections[0].key : 'stateCodes');
   const [users, setUsers] = React.useState<readonly IAppUser[]>([]);
@@ -208,7 +202,6 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
   const [selectedWorkflowId, setSelectedWorkflowId] = React.useState<number | undefined>();
   const [workflowForm, setWorkflowForm] = React.useState<IApprovalWorkflow>(newWorkflow('Customer'));
   const [workflowLevels, setWorkflowLevels] = React.useState<readonly IWorkflowLevel[]>([]);
-  const [legacySettings, setLegacySettings] = React.useState<readonly ILocalPermissionSetting[]>([]);
   const [masterData, setMasterData] = React.useState<Readonly<Record<MasterDataListKey, readonly IMasterCodeItem[]>>>({
     stateCodes: [],
     countryCodes: []
@@ -228,32 +221,21 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
   const selectedUser = users.filter(user => user.id === selectedUserId)[0];
   const selectedWorkflow = workflows.filter(workflow => workflow.id === selectedWorkflowId)[0];
 
-  const loadLegacyPermissionSettings = React.useCallback(async (): Promise<readonly ILocalPermissionSetting[]> => {
-    try {
-      const editableSettings = await permissionService.getEditablePermissionSettings();
-      return editableSettings.map(toLocalSetting);
-    } catch {
-      return [];
-    }
-  }, [permissionService]);
-
   const loadSettings = React.useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(undefined);
 
     try {
-      const [loadedUsers, loadedWorkflows, stateCodes, countryCodes, loadedLegacySettings] = await Promise.all([
+      const [loadedUsers, loadedWorkflows, stateCodes, countryCodes] = await Promise.all([
         canViewUsers ? appAccessService.getUsers() : Promise.resolve([]),
         canViewWorkflows ? approvalWorkflowService.getWorkflows() : Promise.resolve([]),
         canViewSettings ? masterDataService.getCodes('stateCodes') : Promise.resolve([]),
-        canViewSettings ? masterDataService.getCodes('countryCodes') : Promise.resolve([]),
-        canManageSettings ? loadLegacyPermissionSettings() : Promise.resolve([])
+        canViewSettings ? masterDataService.getCodes('countryCodes') : Promise.resolve([])
       ]);
 
       setUsers(loadedUsers);
       setWorkflows(loadedWorkflows);
       setMasterData({ stateCodes, countryCodes });
-      setLegacySettings(loadedLegacySettings);
       setSelectedUserId(current => current || (loadedUsers[0] ? loadedUsers[0].id : undefined));
       setSelectedWorkflowId(current => current || (loadedWorkflows[0] ? loadedWorkflows[0].id : undefined));
     } catch (loadError) {
@@ -264,11 +246,9 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
   }, [
     appAccessService,
     approvalWorkflowService,
-    canManageSettings,
     canViewSettings,
     canViewUsers,
     canViewWorkflows,
-    loadLegacyPermissionSettings,
     masterDataService
   ]);
 
@@ -318,6 +298,29 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
     const matchesStatus = userFilter === 'all' || (userFilter === 'active' ? user.isActive : !user.isActive);
     return matchesSearch && matchesStatus;
   });
+
+  const userOptions = React.useMemo<readonly ILookupOption<number>[]>(() => users.map(user => ({
+    key: String(user.id),
+    text: user.title,
+    value: user.id,
+    description: user.email
+  })), [users]);
+
+  const activeApproverOptions = React.useMemo<readonly ILookupOption<number>[]>(() => users
+    .filter(user => user.isActive && user.canAccessApp)
+    .map(user => ({
+      key: String(user.id),
+      text: user.title,
+      value: user.id,
+      description: user.email
+    })), [users]);
+
+  const renderRecordTitle = (title: string, subtitle?: string): React.ReactNode => (
+    <div className={styles.recordTitle}>
+      <strong>{title}</strong>
+      {subtitle ? <span>{subtitle}</span> : null}
+    </div>
+  );
 
   const updatePermission = (moduleKey: MefriendModuleKey, updater: (permission: IAppUserPermission) => IAppUserPermission): void => {
     setUserPermissions(current => current.map(permission => (permission.moduleKey === moduleKey ? updater(permission) : permission)));
@@ -411,7 +414,7 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
 
   const renderSectionNav = (): React.ReactNode => (
     <aside className={styles.sideNav} aria-label="Settings sections">
-      {['Access', 'Approvals', 'Masters', 'Legacy'].map(groupName => {
+      {['Access', 'Approvals', 'Masters'].map(groupName => {
         const groupSections = visibleSections.filter(section => section.group === groupName);
 
         return groupSections.length ? (
@@ -436,113 +439,156 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
   );
 
   const renderUserManagement = (): React.ReactNode => (
-    <div className={styles.tablePanel}>
-      <div className={styles.toolbar}>
-        <div className={styles.searchBox}>
-          <Icon iconName="Search" aria-hidden="true" />
-          <input aria-label="Search app users" onChange={event => setSearchText(event.currentTarget.value)} placeholder="Search users" type="search" value={searchText} />
-        </div>
-        <select aria-label="Filter users by status" className={styles.select} onChange={event => setUserFilter(event.currentTarget.value as 'all' | 'active' | 'inactive')} value={userFilter}>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-          <option value="all">All</option>
-        </select>
-        <Button disabled={!canManageUsers} icon={<Icon iconName="Add" aria-hidden="true" />} label="Add User" onClick={() => { setUserForm(emptyUserForm); setUserDialogOpen(true); }} />
-      </div>
-      <div className={styles.table}>
-        <div className={`${styles.tableRow} ${styles.tableHeader} ${styles.userGrid}`}>
-          <span>User</span>
-          <span>Role</span>
-          <span>Access</span>
-          <span>Actions</span>
-        </div>
-        {filteredUsers.length ? filteredUsers.map(user => (
-          <div className={`${styles.tableRow} ${styles.userGrid}`} key={user.id}>
-            <div className={styles.recordTitle}>
-              <strong>{user.title}</strong>
-              <span>{user.email}</span>
-            </div>
-            <span>{user.role || '-'}</span>
-            <span>{user.canAccessApp && user.isActive ? 'Allowed' : 'Blocked'}</span>
-            <div className={styles.rowActions}>
-              <button aria-label={`Edit ${user.title}`} disabled={!canManageUsers} onClick={() => { setUserForm(user); setUserDialogOpen(true); }} type="button">
-                <Icon iconName="Edit" aria-hidden="true" />
-              </button>
-              <button aria-label={`${user.isActive ? 'Deactivate' : 'Activate'} ${user.title}`} disabled={!canManageUsers} onClick={() => setConfirmUserToggle(user)} type="button">
-                <Icon iconName={user.isActive ? 'Blocked' : 'Completed'} aria-hidden="true" />
-              </button>
-            </div>
+    <EntityTable
+      columns={[
+        {
+          key: 'user',
+          header: 'User',
+          fieldName: 'title',
+          sortable: false,
+          renderType: 'custom',
+          minWidth: 260,
+          customRender: user => renderRecordTitle(user.title, user.email)
+        },
+        { key: 'role', header: 'Role', fieldName: 'role', sortable: false, renderType: 'text', minWidth: 150 },
+        {
+          key: 'access',
+          header: 'Access',
+          fieldName: 'canAccessApp',
+          sortable: false,
+          renderType: 'tag',
+          minWidth: 120,
+          customRender: user => (user.canAccessApp && user.isActive ? 'Allowed' : 'Blocked')
+        }
+      ] as readonly ITableColumn<IAppUser>[]}
+      emptyMessage="No app users match the current filters."
+      emptyTitle="No app users found"
+      getRowKey={user => String(user.id)}
+      items={filteredUsers}
+      actions={(
+        <div className={styles.toolbarControls}>
+          <div className={styles.searchBox}>
+            <Icon iconName="Search" aria-hidden="true" />
+            <input aria-label="Search app users" onChange={event => setSearchText(event.currentTarget.value)} placeholder="Search users" type="search" value={searchText} />
           </div>
-        )) : <div className={styles.emptyRow}>No app users found.</div>}
-      </div>
-    </div>
+          <div className={styles.toolbarDropdown}>
+            <Dropdown
+              label="Status"
+              onChange={value => setUserFilter(typeof value === 'string' ? value as 'all' | 'active' | 'inactive' : 'active')}
+              options={userFilterOptions}
+              value={userFilter}
+            />
+          </div>
+          <Button disabled={!canManageUsers} icon={<Icon iconName="Add" aria-hidden="true" />} label="Add User" onClick={() => { setUserForm(emptyUserForm); setUserDialogOpen(true); }} />
+        </div>
+      )}
+      rowActions={[
+        {
+          key: 'edit',
+          label: 'Edit',
+          icon: 'edit',
+          disabled: !canManageUsers,
+          onClick: user => { setUserForm(user); setUserDialogOpen(true); }
+        }
+      ]}
+      overflowActions={[
+        {
+          key: 'toggleAccess',
+          label: 'Activate/deactivate',
+          disabled: !canManageUsers,
+          onClick: (user: IAppUser) => setConfirmUserToggle(user)
+        }
+      ]}
+    />
   );
+
+  const renderPermissionCheckbox = (permission: IAppUserPermission, flag: keyof Pick<IAppUserPermission, 'isActive' | 'canView' | 'canCreate' | 'canApprove' | 'canPostToBC' | 'canManage'>): React.ReactNode => {
+    const disabled =
+      !canManageUsers ||
+      (flag === 'canCreate' && !permission.canView) ||
+      (flag === 'canApprove' && !canApproveModule(permission.moduleKey)) ||
+      (flag === 'canPostToBC' && !canPostModule(permission.moduleKey));
+
+    return (
+      <label className={styles.checkCell}>
+        <input
+          aria-label={`${mefriendModuleLabels[permission.moduleKey]} ${flag}`}
+          checked={permission[flag]}
+          disabled={disabled}
+          onChange={event => {
+            const checked = event.currentTarget.checked;
+            updatePermission(permission.moduleKey, current => ({
+              ...current,
+              [flag]: checked,
+              canView: flag === 'canManage' && checked ? true : current.canView
+            }));
+          }}
+          type="checkbox"
+        />
+      </label>
+    );
+  };
+
+  const permissionColumns: readonly ITableColumn<IAppUserPermission>[] = [
+    {
+      key: 'module',
+      header: 'Module',
+      fieldName: 'moduleKey',
+      sortable: false,
+      renderType: 'custom',
+      minWidth: 220,
+      customRender: permission => mefriendModuleLabels[permission.moduleKey]
+    },
+    { key: 'active', header: 'Active', fieldName: 'isActive', sortable: false, renderType: 'custom', align: 'center', width: 92, customRender: permission => renderPermissionCheckbox(permission, 'isActive') },
+    { key: 'view', header: 'View', fieldName: 'canView', sortable: false, renderType: 'custom', align: 'center', width: 92, customRender: permission => renderPermissionCheckbox(permission, 'canView') },
+    { key: 'create', header: 'Create', fieldName: 'canCreate', sortable: false, renderType: 'custom', align: 'center', width: 92, customRender: permission => renderPermissionCheckbox(permission, 'canCreate') },
+    { key: 'approve', header: 'Approve', fieldName: 'canApprove', sortable: false, renderType: 'custom', align: 'center', width: 92, customRender: permission => renderPermissionCheckbox(permission, 'canApprove') },
+    { key: 'postBc', header: 'Post BC', fieldName: 'canPostToBC', sortable: false, renderType: 'custom', align: 'center', width: 92, customRender: permission => renderPermissionCheckbox(permission, 'canPostToBC') },
+    { key: 'manage', header: 'Manage', fieldName: 'canManage', sortable: false, renderType: 'custom', align: 'center', width: 92, customRender: permission => renderPermissionCheckbox(permission, 'canManage') }
+  ];
 
   const renderPermissionMatrix = (): React.ReactNode => (
-    <div className={styles.tablePanel}>
-      <div className={styles.toolbar}>
-        <select
-          aria-label="Select app user"
-          className={styles.select}
-          onChange={event => setSelectedUserId(Number(event.currentTarget.value) || undefined)}
-          value={selectedUserId || ''}
-        >
-          {users.map(user => <option key={user.id} value={user.id}>{user.title} ({user.email})</option>)}
-        </select>
-        <Button disabled={!selectedUser || !canManageUsers} label="Save Permissions" loading={saving} onClick={() => saveUserPermissions().catch(() => undefined)} />
-      </div>
-      <div className={styles.matrix}>
-        <div className={`${styles.matrixRow} ${styles.tableHeader}`}>
-          <span>Module</span>
-          <span>Active</span>
-          <span>View</span>
-          <span>Create</span>
-          <span>Approve</span>
-          <span>Post BC</span>
-          <span>Manage</span>
-        </div>
-        {userPermissions.map(permission => (
-          <div className={styles.matrixRow} key={permission.moduleKey}>
-            <strong>{mefriendModuleLabels[permission.moduleKey]}</strong>
-            {(['isActive', 'canView', 'canCreate', 'canApprove', 'canPostToBC', 'canManage'] as const).map(flag => {
-              const disabled =
-                !canManageUsers ||
-                (flag === 'canCreate' && !permission.canView) ||
-                (flag === 'canApprove' && !canApproveModule(permission.moduleKey)) ||
-                (flag === 'canPostToBC' && !canPostModule(permission.moduleKey));
-
-              return (
-                <label className={styles.checkCell} key={flag}>
-                  <input
-                    aria-label={`${mefriendModuleLabels[permission.moduleKey]} ${flag}`}
-                    checked={permission[flag]}
-                    disabled={disabled}
-                    onChange={event => updatePermission(permission.moduleKey, current => ({
-                      ...current,
-                      [flag]: event.currentTarget.checked,
-                      canView: flag === 'canManage' && event.currentTarget.checked ? true : current.canView
-                    }))}
-                    type="checkbox"
-                  />
-                </label>
-              );
-            })}
+    <EntityTable
+      columns={permissionColumns}
+      emptyMessage={selectedUser ? 'No module permissions are configured for this user.' : 'Select an app user to configure module permissions.'}
+      emptyTitle="No permissions found"
+      getRowKey={permission => permission.moduleKey}
+      items={userPermissions}
+      actions={(
+        <div className={styles.toolbarControls}>
+          <div className={styles.userPermissionDropdown}>
+            <Dropdown
+              label="App user"
+              onChange={value => setSelectedUserId(typeof value === 'number' ? value : undefined)}
+              options={userOptions}
+              searchable
+              showSelectedDetail
+              value={selectedUserId}
+            />
           </div>
-        ))}
-      </div>
-    </div>
+          <Button disabled={!selectedUser || !canManageUsers} label="Save Permissions" loading={saving} onClick={() => saveUserPermissions().catch(() => undefined)} />
+        </div>
+      )}
+    />
   );
 
+  /*
+    Keep the Settings workflow builder as a framed editor, but use common controls
+    for every reusable input surface inside it.
+  */
   const renderWorkflowManagement = (): React.ReactNode => {
-    const activeApprovers = users.filter(user => user.isActive && user.canAccessApp);
-
     return (
       <div className={styles.workflowGrid}>
         <div className={styles.tablePanel}>
           <div className={styles.toolbar}>
-            <select aria-label="Filter workflow entity type" className={styles.select} onChange={event => setWorkflowForm(newWorkflow(event.currentTarget.value as MefriendApprovalEntityType))} value={workflowForm.entityType}>
-              {mefriendEntityTypes.map(entityType => <option key={entityType} value={entityType}>{entityType}</option>)}
-            </select>
+            <div className={styles.fullWidthDropdown}>
+              <Dropdown
+                label="Entity type"
+                onChange={value => setWorkflowForm(newWorkflow(typeof value === 'string' ? value as MefriendApprovalEntityType : 'Customer'))}
+                options={entityTypeOptions}
+                value={workflowForm.entityType}
+              />
+            </div>
             <Button disabled={!canManageWorkflows} icon={<Icon iconName="Add" aria-hidden="true" />} label="New Workflow" onClick={() => { setSelectedWorkflowId(undefined); setWorkflowForm(newWorkflow(workflowForm.entityType)); setWorkflowLevels([]); }} />
           </div>
           <div className={styles.table}>
@@ -560,12 +606,28 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
           <div className={styles.formGrid}>
             <InputField disabled={!canManageWorkflows} label="Title" onChange={value => setWorkflowForm(current => ({ ...current, title: value }))} required value={workflowForm.title} />
             <InputField disabled={!canManageWorkflows} label="Workflow Code" onChange={value => setWorkflowForm(current => ({ ...current, workflowCode: value }))} required value={workflowForm.workflowCode} />
-            <label className={styles.fieldLabel}>Entity Type<select disabled={!canManageWorkflows || !!workflowForm.id} onChange={event => setWorkflowForm(current => ({ ...current, entityType: event.currentTarget.value as MefriendApprovalEntityType }))} value={workflowForm.entityType}>{mefriendEntityTypes.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
+            <Dropdown
+              disabled={!canManageWorkflows || !!workflowForm.id}
+              label="Entity Type"
+              onChange={value => setWorkflowForm(current => ({ ...current, entityType: typeof value === 'string' ? value as MefriendApprovalEntityType : current.entityType }))}
+              options={entityTypeOptions}
+              required
+              value={workflowForm.entityType}
+            />
             <InputField disabled={!canManageWorkflows} label="Version" min={1} onChange={value => setWorkflowForm(current => ({ ...current, version: Number(value) || 1 }))} required type="number" value={workflowForm.version} />
-            <label className={styles.fieldLabel}>Final Action<select disabled={!canManageWorkflows} onChange={event => setWorkflowForm(current => ({ ...current, finalAction: event.currentTarget.value as 'PostToBC' | 'ApproveOnly' }))} value={workflowForm.finalAction}>{mefriendWorkflowFinalActions.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
+            <Dropdown
+              disabled={!canManageWorkflows}
+              label="Final Action"
+              onChange={value => setWorkflowForm(current => ({ ...current, finalAction: typeof value === 'string' ? value as 'PostToBC' | 'ApproveOnly' : current.finalAction }))}
+              options={finalActionOptions}
+              value={workflowForm.finalAction}
+            />
             {(['isActive', 'allowRejection', 'allowResubmission'] as const).map(flag => (
               <label className={styles.toggle} key={flag}>
-                <input checked={workflowForm[flag]} disabled={!canManageWorkflows} onChange={event => setWorkflowForm(current => ({ ...current, [flag]: event.currentTarget.checked }))} type="checkbox" />
+                <input checked={workflowForm[flag]} disabled={!canManageWorkflows} onChange={event => {
+                  const checked = event.currentTarget.checked;
+                  setWorkflowForm(current => ({ ...current, [flag]: checked }));
+                }} type="checkbox" />
                 <span>{flag}</span>
               </label>
             ))}
@@ -588,15 +650,37 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
               </div>
               <div className={styles.formGrid}>
                 <InputField disabled={!canManageWorkflows} label="Step Name" onChange={value => setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, stepName: value } : item))} value={level.stepName} />
-                <label className={styles.fieldLabel}>Approval Mode<select disabled={!canManageWorkflows} onChange={event => setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, approvalMode: event.currentTarget.value as 'Any' | 'All' } : item))} value={level.approvalMode}>{mefriendApprovalModes.map(value => <option key={value} value={value}>{value}</option>)}</select></label>
+                <Dropdown
+                  disabled={!canManageWorkflows}
+                  label="Approval Mode"
+                  onChange={value => setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, approvalMode: typeof value === 'string' ? value as 'Any' | 'All' : item.approvalMode } : item))}
+                  options={approvalModeOptions}
+                  value={level.approvalMode}
+                />
                 <InputField disabled={!canManageWorkflows} label="Required Approvals" min={1} onChange={value => setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, requiredApprovals: Number(value) || 1 } : item))} type="number" value={level.requiredApprovals} />
-                <label className={styles.toggle}><input checked={level.isFinalLevel} disabled={!canManageWorkflows} onChange={event => setWorkflowLevels(current => current.map(item => ({ ...item, isFinalLevel: item.localId === level.localId ? event.currentTarget.checked : false })))} type="checkbox" /><span>Final level</span></label>
-                <label className={styles.toggle}><input checked={level.isActive} disabled={!canManageWorkflows} onChange={event => setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, isActive: event.currentTarget.checked } : item))} type="checkbox" /><span>Active</span></label>
+                <label className={styles.toggle}><input checked={level.isFinalLevel} disabled={!canManageWorkflows} onChange={event => {
+                  const checked = event.currentTarget.checked;
+                  setWorkflowLevels(current => current.map(item => ({ ...item, isFinalLevel: item.localId === level.localId ? checked : false })));
+                }} type="checkbox" /><span>Final level</span></label>
+                <label className={styles.toggle}><input checked={level.isActive} disabled={!canManageWorkflows} onChange={event => {
+                  const checked = event.currentTarget.checked;
+                  setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, isActive: checked } : item));
+                }} type="checkbox" /><span>Active</span></label>
               </div>
-              <InputField disabled={!canManageWorkflows} label="Instructions" onChange={value => setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, instructions: value } : item))} type="textarea" value={level.instructions} />
               <div className={styles.approverList}>
                 {level.approverIds.map((approverId, approverIndex) => (
-                  <label className={styles.fieldLabel} key={`${level.localId}-${approverIndex}`}>Approver<select disabled={!canManageWorkflows} onChange={event => setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, approverIds: item.approverIds.map((id, idIndex) => idIndex === approverIndex ? Number(event.currentTarget.value) : id) } : item))} value={approverId || ''}><option value="">Select approver</option>{activeApprovers.map(user => <option key={user.id} value={user.id}>{user.title} ({user.email})</option>)}</select></label>
+                  <div className={styles.approverDropdown} key={`${level.localId}-${approverIndex}`}>
+                    <Dropdown
+                      disabled={!canManageWorkflows}
+                      label="Approver"
+                      onChange={value => setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, approverIds: item.approverIds.map((id, idIndex) => idIndex === approverIndex ? (typeof value === 'number' ? value : id) : id) } : item))}
+                      options={activeApproverOptions}
+                      placeholder="Select approver"
+                      searchable
+                      showSelectedDetail
+                      value={approverId || undefined}
+                    />
+                  </div>
                 ))}
                 <Button disabled={!canManageWorkflows} icon={<Icon iconName="AddFriend" aria-hidden="true" />} label="Add Approver" onClick={() => setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, approverIds: item.approverIds.concat(0) } : item))} variant="secondary" />
               </div>
@@ -610,47 +694,47 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
     );
   };
 
-  const renderMasterTable = (listKey: MasterDataListKey): React.ReactNode => (
-    <div className={styles.tablePanel}>
-      <div className={styles.toolbar}>
-        <div className={styles.searchBox}><Icon iconName="Search" aria-hidden="true" /><input aria-label={`Search ${listKey}`} onChange={event => setSearchText(event.currentTarget.value)} placeholder="Search records" type="search" value={searchText} /></div>
-        <Button disabled={!canManageSettings} icon={<Icon iconName="Add" aria-hidden="true" />} label={`New ${masterDataService.getListLabel(listKey)}`} onClick={() => { setMasterDialogListKey(listKey); setMasterForm(emptyMasterForm); }} />
-      </div>
-      <div className={styles.table}>
-        <div className={`${styles.tableRow} ${styles.tableHeader} ${styles.masterGrid}`}><span>Code</span><span>{getMasterNameLabel(listKey)}</span><span>Actions</span></div>
-        {masterData[listKey].filter(item => !searchText || item.code.toLowerCase().indexOf(searchText.toLowerCase()) !== -1 || item.name.toLowerCase().indexOf(searchText.toLowerCase()) !== -1).map(item => (
-          <div className={`${styles.tableRow} ${styles.masterGrid}`} key={`${item.id || item.code}-${item.code}`}>
-            <strong>{item.code}</strong><span>{item.name}</span>
-            <div className={styles.rowActions}>
-              <button aria-label={`Edit ${item.code}`} disabled={!canManageSettings} onClick={() => { setMasterDialogListKey(listKey); setMasterForm({ id: item.id, code: item.code, name: item.name }); }} type="button"><Icon iconName="Edit" aria-hidden="true" /></button>
-              <button aria-label={`Delete ${item.code}`} disabled={!canManageSettings} onClick={() => setDeleteTarget({ listKey, item })} type="button"><Icon iconName="Delete" aria-hidden="true" /></button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  const renderMasterTable = (listKey: MasterDataListKey): React.ReactNode => {
+    const filteredMasterData = masterData[listKey].filter(item => !searchText || item.code.toLowerCase().indexOf(searchText.toLowerCase()) !== -1 || item.name.toLowerCase().indexOf(searchText.toLowerCase()) !== -1);
 
-  const renderLegacyPermissions = (): React.ReactNode => (
-    <div className={styles.tablePanel}>
-      <div className={styles.table}>
-        <div className={`${styles.tableRow} ${styles.tableHeader}`}><span>Permission</span><span>Allowed Groups</span><span>Status</span><span>Actions</span></div>
-        {legacySettings.map(setting => (
-          <div className={styles.tableRow} key={setting.permissionKey}>
-            <div className={styles.recordTitle}><strong>{setting.title}</strong><small>{setting.permissionKey}</small></div>
-            <InputField disabled={!canManageSettings} label="Allowed roles" onChange={value => setLegacySettings(current => current.map(item => item.permissionKey === setting.permissionKey ? { ...item, roleText: value } : item))} type="textarea" value={setting.roleText} />
-            <label className={styles.toggle}><input checked={setting.enabled} disabled={!canManageSettings} onChange={event => setLegacySettings(current => current.map(item => item.permissionKey === setting.permissionKey ? { ...item, enabled: event.currentTarget.checked } : item))} type="checkbox" /><span>{setting.enabled ? 'Enabled' : 'Disabled'}</span></label>
-            <Button disabled={!canManageSettings} label="Save" loading={setting.saving} onClick={async () => {
-              setLegacySettings(current => current.map(item => item.permissionKey === setting.permissionKey ? { ...item, saving: true } : item));
-              await permissionService.savePermissionSetting({ permissionKey: setting.permissionKey as PermissionKey, enabled: setting.enabled, allowedSharePointGroupNames: toGroupNames(setting.roleText) });
-              setLegacySettings(current => current.map(item => item.permissionKey === setting.permissionKey ? { ...item, saving: false } : item));
-              toast.success('Legacy permission saved.');
-            }} size="small" />
+    return (
+      <EntityTable
+        columns={[
+          { key: 'code', header: 'Code', fieldName: 'code', sortable: false, renderType: 'text', minWidth: 160 },
+          { key: 'name', header: getMasterNameLabel(listKey), fieldName: 'name', sortable: false, renderType: 'text', minWidth: 260 }
+        ] as readonly ITableColumn<IMasterCodeItem>[]}
+        emptyMessage={`No ${masterDataService.getListLabel(listKey).toLowerCase()} records match the current filters.`}
+        emptyTitle={`No ${masterDataService.getListLabel(listKey)} found`}
+        getRowKey={item => `${item.id || item.code}-${item.code}`}
+        items={filteredMasterData}
+        actions={(
+          <div className={styles.toolbarControls}>
+            <div className={styles.searchBox}>
+              <Icon iconName="Search" aria-hidden="true" />
+              <input aria-label={`Search ${listKey}`} onChange={event => setSearchText(event.currentTarget.value)} placeholder="Search records" type="search" value={searchText} />
+            </div>
+            <Button disabled={!canManageSettings} icon={<Icon iconName="Add" aria-hidden="true" />} label={`New ${masterDataService.getListLabel(listKey)}`} onClick={() => { setMasterDialogListKey(listKey); setMasterForm(emptyMasterForm); }} />
           </div>
-        ))}
-      </div>
-    </div>
-  );
+        )}
+        rowActions={[
+          {
+            key: 'edit',
+            label: 'Edit',
+            icon: 'edit',
+            disabled: !canManageSettings,
+            onClick: item => { setMasterDialogListKey(listKey); setMasterForm({ id: item.id, code: item.code, name: item.name }); }
+          },
+          {
+            key: 'remove',
+            label: 'Delete',
+            icon: 'delete',
+            disabled: !canManageSettings,
+            onClick: item => setDeleteTarget({ listKey, item })
+          }
+        ]}
+      />
+    );
+  };
 
   const activeSection = visibleSections.filter(section => section.key === activeSectionKey)[0];
 
@@ -677,7 +761,6 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
         {activeSectionKey === 'userPermissions' ? renderPermissionMatrix() : null}
         {activeSectionKey === 'approvalManagement' ? renderWorkflowManagement() : null}
         {isMasterSection(activeSectionKey) ? renderMasterTable(activeSectionKey) : null}
-        {activeSectionKey === 'legacyPermissions' ? renderLegacyPermissions() : null}
       </div>
     );
   };
@@ -690,8 +773,14 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
           <InputField disabled={saving} label="Display Name" onChange={value => setUserForm(current => ({ ...current, title: value }))} required value={userForm.title} />
           <InputField disabled={saving} label="Email" onChange={value => setUserForm(current => ({ ...current, email: value }))} required type="email" value={userForm.email} />
           <InputField disabled={saving} label="Role" onChange={value => setUserForm(current => ({ ...current, role: value }))} value={userForm.role} />
-          <label className={styles.toggle}><input checked={userForm.canAccessApp} disabled={saving} onChange={event => setUserForm(current => ({ ...current, canAccessApp: event.currentTarget.checked }))} type="checkbox" /><span>Can access app</span></label>
-          <label className={styles.toggle}><input checked={userForm.isActive} disabled={saving} onChange={event => setUserForm(current => ({ ...current, isActive: event.currentTarget.checked }))} type="checkbox" /><span>Active</span></label>
+          <label className={styles.toggle}><input checked={userForm.canAccessApp} disabled={saving} onChange={event => {
+            const checked = event.currentTarget.checked;
+            setUserForm(current => ({ ...current, canAccessApp: checked }));
+          }} type="checkbox" /><span>Can access app</span></label>
+          <label className={styles.toggle}><input checked={userForm.isActive} disabled={saving} onChange={event => {
+            const checked = event.currentTarget.checked;
+            setUserForm(current => ({ ...current, isActive: checked }));
+          }} type="checkbox" /><span>Active</span></label>
         </div>
       </EntityModal>
       <EntityModal isOpen={!!masterDialogListKey} title={masterDialogListKey ? `${masterForm.id ? 'Edit' : 'Add'} ${masterDataService.getListLabel(masterDialogListKey)}` : 'Master Data'} size="small" onDismiss={() => setMasterDialogListKey(undefined)} confirmLabel={masterForm.id ? 'Update' : 'Create'} confirmLoading={saving} confirmDisabled={!canManageSettings} onConfirm={() => saveMaster().catch(() => undefined)} onCancel={() => setMasterDialogListKey(undefined)}>

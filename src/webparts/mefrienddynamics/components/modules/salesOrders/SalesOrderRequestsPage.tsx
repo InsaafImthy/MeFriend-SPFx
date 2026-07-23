@@ -24,9 +24,9 @@ const requestColumns: readonly ITableColumn<ISalesOrderRequest>[] = [
   { key: 'sellToCustomerName', header: 'Customer', fieldName: 'sellToCustomerName', sortable: true, renderType: 'text', minWidth: 210 },
   { key: 'submittedByTitle', header: 'Submitted By', fieldName: 'submittedByTitle', sortable: true, renderType: 'text' },
   { key: 'submittedOn', header: 'Submitted On', fieldName: 'submittedOn', sortable: true, renderType: 'date' },
-  { key: 'approvalStatus', header: 'Approval Status', fieldName: 'approvalStatus', sortable: true, renderType: 'status' },
+  { key: 'approvalStatus', header: 'Approval Status', fieldName: 'approvalStatus', sortable: true, renderType: 'status', minWidth: 176 },
   { key: 'currentLevel', header: 'Level', fieldName: 'currentLevel', sortable: true, renderType: 'text', width: 90 },
-  { key: 'bcPostingStatus', header: 'BC Posting', fieldName: 'bcPostingStatus', sortable: true, renderType: 'status' },
+  { key: 'bcPostingStatus', header: 'BC Posting', fieldName: 'bcPostingStatus', sortable: true, renderType: 'status', minWidth: 156 },
   { key: 'bcSalesOrderNumber', header: 'BC Sales Order No.', fieldName: 'bcSalesOrderNumber', sortable: true, renderType: 'text' },
   { key: 'netAmount', header: 'Net Amount', fieldName: 'netAmount', sortable: true, renderType: 'amount' }
 ];

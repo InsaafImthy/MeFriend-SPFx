@@ -44,7 +44,6 @@ interface IWorkflowStepListItem {
   IsFinalLevel?: boolean;
   Sequence?: number;
   IsActive?: boolean;
-  Instructions?: string;
 }
 
 export interface IApprovalWorkflowServiceOptions {
@@ -80,8 +79,7 @@ const workflowStepSelect = [
   'RequiredApprovals',
   'IsFinalLevel',
   'Sequence',
-  'IsActive',
-  'Instructions'
+  'IsActive'
 ];
 
 export class ApprovalWorkflowService {
@@ -136,7 +134,6 @@ export class ApprovalWorkflowService {
         isFinalLevel: firstStep.isFinalLevel,
         sequence: firstStep.sequence,
         isActive: firstStep.isActive,
-        instructions: firstStep.instructions,
         approverIds: levelSteps.map(step => step.approverId),
         stepIdsByApproverId
       };
@@ -250,8 +247,7 @@ export class ApprovalWorkflowService {
           RequiredApprovals: level.requiredApprovals,
           IsFinalLevel: level.isFinalLevel,
           Sequence: level.sequence,
-          IsActive: level.isActive,
-          Instructions: level.instructions
+          IsActive: level.isActive
         };
 
         if (existingId) {
@@ -302,8 +298,7 @@ export class ApprovalWorkflowService {
       requiredApprovals: item.RequiredApprovals || 1,
       isFinalLevel: item.IsFinalLevel === true,
       sequence: item.Sequence || item.LevelNumber || 1,
-      isActive: item.IsActive !== false,
-      instructions: item.Instructions || ''
+      isActive: item.IsActive !== false
     };
   }
 }

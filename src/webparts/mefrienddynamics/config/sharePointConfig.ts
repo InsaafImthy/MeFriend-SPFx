@@ -58,8 +58,7 @@ export const mefriendFields = {
     requiredApprovals: 'RequiredApprovals',
     isFinalLevel: 'IsFinalLevel',
     sequence: 'Sequence',
-    isActive: 'IsActive',
-    instructions: 'Instructions'
+    isActive: 'IsActive'
   },
   customerRequests: {
     title: 'Title',

@@ -22,13 +22,13 @@ const pageSize = 10;
 const columns: readonly ITableColumn<IApprovalTaskRequestSummary>[] = [
   { key: 'taskNumber', header: 'Task Number', fieldName: 'taskNumber', sortable: true, renderType: 'text', minWidth: 230 },
   { key: 'requestNumber', header: 'Request Number', fieldName: 'requestNumber', sortable: true, renderType: 'text', minWidth: 160 },
-  { key: 'requestType', header: 'Type', fieldName: 'requestType', sortable: true, renderType: 'tag', width: 120 },
+  { key: 'requestType', header: 'Type', fieldName: 'requestType', sortable: true, renderType: 'tag', width: 120, align: 'center' },
   { key: 'levelNumber', header: 'Level', fieldName: 'levelNumber', sortable: true, renderType: 'text', width: 80 },
   { key: 'workflowStepTitle', header: 'Step', fieldName: 'workflowStepTitle', sortable: true, renderType: 'text' },
   { key: 'assignedOn', header: 'Assigned', fieldName: 'assignedOn', sortable: true, renderType: 'date' },
   { key: 'submittedByTitle', header: 'Submitted By', fieldName: 'submittedByTitle', sortable: true, renderType: 'text' },
   { key: 'customerName', header: 'Customer', fieldName: 'customerName', sortable: true, renderType: 'text', minWidth: 210 },
-  { key: 'requestApprovalStatus', header: 'Request Status', fieldName: 'requestApprovalStatus', sortable: true, renderType: 'status' }
+  { key: 'requestApprovalStatus', header: 'Request Status', fieldName: 'requestApprovalStatus', sortable: true, renderType: 'status', minWidth: 176 }
 ];
 
 const filters: readonly IFilterConfig[] = [

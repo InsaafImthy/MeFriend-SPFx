@@ -1,5 +1,5 @@
 .header {
-  align-items: flex-start;
+  align-items: center;
   display: flex;
   gap: 16px;
   justify-content: space-between;
@@ -22,11 +22,18 @@
 }
 
 .actions {
+  align-items: center;
+  display: flex;
   flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  max-width: 100%;
 }
 
 @media (max-width: 720px) {
   .header {
+    align-items: stretch;
     flex-direction: column;
     gap: 12px;
   }
@@ -41,6 +48,10 @@
   }
 
   .actions {
+    display: grid;
+    gap: 8px;
+    grid-template-columns: 1fr;
+    justify-content: stretch;
     width: 100%;
 
     > * {
