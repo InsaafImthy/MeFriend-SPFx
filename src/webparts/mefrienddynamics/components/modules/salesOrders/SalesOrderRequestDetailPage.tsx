@@ -1,13 +1,20 @@
 import * as React from 'react';
 import { salesOrdersModuleConfig } from '../../../config/modules/salesOrdersModuleConfig';
 import type { ITableColumn } from '../../../models/common/ITableColumn';
-import type { IApprovalTask, ISalesOrderRequestDetailResult, ISalesOrderRequestLine } from '../../../models/requests';
+import type { IApprovalTask, IBCIntegrationQueueItem, ISalesOrderRequestDetailResult, ISalesOrderRequestLine } from '../../../models/requests';
 import { getUserFriendlyError } from '../../../services/api/apiErrorHandler';
+import type { BCIntegrationQueueService } from '../../../services/sharepoint/bcIntegrationQueueService';
 import type { RequestSubmissionService } from '../../../services/sharepoint/requestSubmissionService';
+import { Button } from '../../common/buttons/Button';
 import { DetailViewLayout, type IDetailViewSection } from '../../common/detailView';
 import { EntityTable } from '../../common/table/EntityTable';
+import { useToast } from '../../common/toast/useToast';
 
 export interface ISalesOrderRequestDetailPageProps {
+  bcIntegrationQueueService?: BCIntegrationQueueService;
+  canManageSalesOrderRequests?: boolean;
+  canPostToBC?: boolean;
+  currentUserEmail?: string;
   requestId: string;
   requestSubmissionService: RequestSubmissionService;
   onNavigate: (path: string) => void;
@@ -34,7 +41,19 @@ const taskColumns: readonly ITableColumn<IApprovalTask>[] = [
   { key: 'assignedOn', header: 'Assigned On', fieldName: 'assignedOn', sortable: false, renderType: 'date' }
 ];
 
-const buildSections = (detail: ISalesOrderRequestDetailResult): readonly IDetailViewSection[] => [
+const queueColumns: readonly ITableColumn<IBCIntegrationQueueItem>[] = [
+  { key: 'queueNumber', header: 'Queue Number', fieldName: 'queueNumber', sortable: false, renderType: 'text', minWidth: 220 },
+  { key: 'integrationStatus', header: 'Status', fieldName: 'integrationStatus', sortable: false, renderType: 'status' },
+  { key: 'triggeredByTitle', header: 'Triggered By', fieldName: 'triggeredByTitle', sortable: false, renderType: 'text' },
+  { key: 'lastAttemptOn', header: 'Last Attempt', fieldName: 'lastAttemptOn', sortable: false, renderType: 'date' },
+  { key: 'bcDocumentNumber', header: 'BC Document', fieldName: 'bcDocumentNumber', sortable: false, renderType: 'text' },
+  { key: 'errorMessage', header: 'Error', fieldName: 'errorMessage', sortable: false, renderType: 'text', minWidth: 240 }
+];
+
+const buildSections = (
+  detail: ISalesOrderRequestDetailResult,
+  queueHistory: readonly IBCIntegrationQueueItem[]
+): readonly IDetailViewSection[] => [
   {
     title: 'Request Metadata',
     fields: [
@@ -109,42 +128,99 @@ const buildSections = (detail: ISalesOrderRequestDetailResult): readonly IDetail
         emptyMessage="No approval tasks are attached to this request."
       />
     )
+  },
+  {
+    title: 'BC Integration History',
+    customContent: (
+      <EntityTable<IBCIntegrationQueueItem>
+        columns={queueColumns}
+        items={queueHistory}
+        getRowKey={(item, index) => item.queueNumber || String(index)}
+        emptyTitle="No Business Central attempts"
+        emptyMessage="No Business Central posting attempts have been recorded for this request."
+      />
+    )
   }
 ];
 
-export const SalesOrderRequestDetailPage: React.FC<ISalesOrderRequestDetailPageProps> = ({ requestId, requestSubmissionService, onNavigate }) => {
+export const SalesOrderRequestDetailPage: React.FC<ISalesOrderRequestDetailPageProps> = ({
+  bcIntegrationQueueService,
+  canManageSalesOrderRequests = false,
+  canPostToBC = false,
+  currentUserEmail = '',
+  requestId,
+  requestSubmissionService,
+  onNavigate
+}) => {
+  const toast = useToast();
   const [detail, setDetail] = React.useState<ISalesOrderRequestDetailResult | undefined>();
+  const [queueHistory, setQueueHistory] = React.useState<readonly IBCIntegrationQueueItem[]>([]);
   const [loading, setLoading] = React.useState<boolean>(false);
+  const [actionLoading, setActionLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | undefined>();
 
-  React.useEffect(() => {
-    let isMounted = true;
+  const loadDetail = React.useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(undefined);
 
-    const loadDetail = async (): Promise<void> => {
-      try {
-        const result = await requestSubmissionService.getSalesOrderRequestDetail(requestId);
-        if (isMounted) {
-          setDetail(result);
-        }
-      } catch (loadError) {
-        if (isMounted) {
-          setError(getUserFriendlyError(loadError));
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+    try {
+      const result = await requestSubmissionService.getSalesOrderRequestDetail(requestId);
+      setDetail(result);
+
+      if (bcIntegrationQueueService) {
+        setQueueHistory(await bcIntegrationQueueService.getQueueHistory('SalesOrder', result.request.id));
       }
-    };
+    } catch (loadError) {
+      setDetail(undefined);
+      setQueueHistory([]);
+      setError(getUserFriendlyError(loadError));
+    } finally {
+      setLoading(false);
+    }
+  }, [bcIntegrationQueueService, requestId, requestSubmissionService]);
 
+  React.useEffect(() => {
     loadDetail().catch(() => undefined);
+  }, [loadDetail]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, [requestId, requestSubmissionService]);
+  const canPostRequest = detail && bcIntegrationQueueService && canPostToBC && detail.request.approvalStatus === 'Approved' &&
+    (detail.request.bcPostingStatus === 'Ready to Post' || detail.request.bcPostingStatus === 'Failed');
+  const canResubmit = detail && detail.workflow?.allowResubmission && detail.request.approvalStatus === 'Rejected' &&
+    detail.request.bcPostingStatus !== 'Posted' &&
+    (canManageSalesOrderRequests || (detail.request.submittedByEmail || '').toLowerCase() === currentUserEmail.toLowerCase());
+
+  const handlePost = async (): Promise<void> => {
+    if (!detail || !bcIntegrationQueueService || actionLoading) {
+      return;
+    }
+
+    setActionLoading(true);
+
+    try {
+      await bcIntegrationQueueService.postApprovedRequest('SalesOrder', detail.request.id);
+      toast.success('Sales-order request posted to Business Central.', { title: 'Business Central' });
+      await loadDetail();
+    } catch (postError) {
+      toast.error(getUserFriendlyError(postError), { title: 'Business Central posting failed' });
+      await loadDetail();
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const actions = detail ? (
+    <>
+      {canResubmit ? <Button label="Edit and Resubmit" variant="secondary" disabled={actionLoading} onClick={() => onNavigate(`${salesOrdersModuleConfig.route}/requests/resubmit/${encodeURIComponent(String(detail.request.id))}`)} /> : null}
+      {canPostRequest ? (
+        <Button
+          label={detail.request.bcPostingStatus === 'Failed' ? 'Retry Posting to BC' : 'Post to BC'}
+          loading={actionLoading}
+          disabled={actionLoading}
+          onClick={() => handlePost().catch(() => undefined)}
+        />
+      ) : null}
+    </>
+  ) : undefined;
 
   return (
     <DetailViewLayout
@@ -154,7 +230,8 @@ export const SalesOrderRequestDetailPage: React.FC<ISalesOrderRequestDetailPageP
       onBack={() => onNavigate(`${salesOrdersModuleConfig.route}/requests`)}
       loading={loading}
       error={error}
-      sections={detail ? buildSections(detail) : []}
+      actions={actions}
+      sections={detail ? buildSections(detail, queueHistory) : []}
     />
   );
 };

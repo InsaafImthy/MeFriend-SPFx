@@ -6,7 +6,8 @@ export const mefriendListTitles = {
   customerRequests: 'MeFriend Customer Requests',
   salesOrderRequests: 'MeFriend Sales Order Requests',
   salesOrderRequestLines: 'MeFriend Sales Order Request Lines',
-  approvalTasks: 'MeFriend Approval Tasks'
+  approvalTasks: 'MeFriend Approval Tasks',
+  bcIntegrationQueue: 'MeFriend BC Integration Queue'
 } as const;
 
 export const mefriendFields = {
@@ -178,6 +179,27 @@ export const mefriendFields = {
     actionById: 'ActionById',
     comments: 'Comments',
     reassignmentReason: 'ReassignmentReason'
+  },
+  bcIntegrationQueue: {
+    title: 'Title',
+    queueNumber: 'QueueNumber',
+    requestType: 'RequestType',
+    requestNumber: 'RequestNumber',
+    requestItemId: 'RequestItemId',
+    operation: 'Operation',
+    integrationStatus: 'IntegrationStatus',
+    attemptCount: 'AttemptCount',
+    requestPayload: 'RequestPayload',
+    responsePayload: 'ResponsePayload',
+    errorMessage: 'ErrorMessage',
+    bcDocumentNumber: 'BCDocumentNumber',
+    bcSystemId: 'BCSystemId',
+    correlationId: 'CorrelationId',
+    triggeredBy: 'TriggeredBy',
+    triggeredById: 'TriggeredById',
+    triggeredOn: 'TriggeredOn',
+    lastAttemptOn: 'LastAttemptOn',
+    completedOn: 'CompletedOn'
   }
 } as const;
 

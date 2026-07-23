@@ -50,12 +50,27 @@ interface ICustomerRequestListItem {
 export interface ICustomerRequestServiceOptions {
   pageContext?: PageContext;
   spHttpClient?: SPHttpClient;
+  webAbsoluteUrl?: string;
 }
 
 export interface ICreateCustomerRequestInput {
   form: ICustomerCreateFormState;
   workflowId: number;
   submittedById: number;
+}
+
+export interface IUpdateCustomerRequestWorkflowInput {
+  approvalStatus?: ICustomerRequest['approvalStatus'];
+  currentLevel?: number;
+  approvalCycle?: number;
+  lastActionById?: number;
+  lastActionOn?: string;
+  rejectionReason?: string;
+  bcPostingStatus?: ICustomerRequest['bcPostingStatus'];
+  bcCustomerNumber?: string;
+  bcSystemId?: string;
+  bcPostedOn?: string;
+  bcErrorMessage?: string;
 }
 
 const customerRequestSelect = [
@@ -178,6 +193,44 @@ export class CustomerRequestService {
     });
   }
 
+  public async updateWorkflowState(id: number, input: IUpdateCustomerRequestWorkflowInput): Promise<void> {
+    const payload: Record<string, unknown> = {};
+
+    this.assignIfDefined(payload, mefriendFields.customerRequests.approvalStatus, input.approvalStatus);
+    this.assignIfDefined(payload, mefriendFields.customerRequests.currentLevel, input.currentLevel);
+    this.assignIfDefined(payload, mefriendFields.customerRequests.approvalCycle, input.approvalCycle);
+    this.assignIfDefined(payload, mefriendFields.customerRequests.lastActionById, input.lastActionById);
+    this.assignIfDefined(payload, mefriendFields.customerRequests.lastActionOn, input.lastActionOn);
+    this.assignIfDefined(payload, mefriendFields.customerRequests.rejectionReason, input.rejectionReason);
+    this.assignIfDefined(payload, mefriendFields.customerRequests.bcPostingStatus, input.bcPostingStatus);
+    this.assignIfDefined(payload, mefriendFields.customerRequests.bcCustomerNumber, input.bcCustomerNumber);
+    this.assignIfDefined(payload, mefriendFields.customerRequests.bcSystemId, input.bcSystemId);
+    this.assignIfDefined(payload, mefriendFields.customerRequests.bcPostedOn, input.bcPostedOn);
+    this.assignIfDefined(payload, mefriendFields.customerRequests.bcErrorMessage, input.bcErrorMessage);
+
+    await this.restClient.updateItem(mefriendListTitles.customerRequests, id, payload);
+  }
+
+  public async updateRequestSnapshot(id: number, form: ICustomerCreateFormState): Promise<void> {
+    await this.restClient.updateItem(mefriendListTitles.customerRequests, id, {
+      [mefriendFields.customerRequests.customerName]: form.name,
+      [mefriendFields.customerRequests.name2]: form.name2,
+      [mefriendFields.customerRequests.address]: form.address,
+      [mefriendFields.customerRequests.address2]: form.address2,
+      [mefriendFields.customerRequests.stateCode]: form.stateCode,
+      [mefriendFields.customerRequests.countryRegionCode]: form.countryRegionCode,
+      [mefriendFields.customerRequests.city]: form.city,
+      [mefriendFields.customerRequests.postCode]: form.postCode,
+      [mefriendFields.customerRequests.locationCode]: form.locationCode,
+      [mefriendFields.customerRequests.phoneNumber]: form.phoneNumber,
+      [mefriendFields.customerRequests.pan]: form.PAN,
+      [mefriendFields.customerRequests.gstRegistrationNo]: form.gstRegistrationNo,
+      [mefriendFields.customerRequests.genPostingGroup]: form.genPostingGroup,
+      [mefriendFields.customerRequests.customerPostingGroup]: form.customerPostingGroup,
+      [mefriendFields.customerRequests.gstCustomerType]: form.gstCustomerType
+    });
+  }
+
   public async getRequests(
     filters: IRequestListFilter = {},
     pagination?: Partial<IPaginationState>,
@@ -282,6 +335,12 @@ export class CustomerRequestService {
 
   private normalize(value: unknown): string {
     return value === undefined || value === null ? '' : String(value).trim().toLowerCase();
+  }
+
+  private assignIfDefined(payload: Record<string, unknown>, fieldName: string, value: unknown): void {
+    if (value !== undefined) {
+      payload[fieldName] = value;
+    }
   }
 
   private mapRequest(item: ICustomerRequestListItem): ICustomerRequest {

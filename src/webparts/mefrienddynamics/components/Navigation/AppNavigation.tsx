@@ -18,6 +18,7 @@ const moduleIconNames: { readonly [moduleKey: string]: string } = {
   salespersons: 'People',
   invoices: 'Invoice',
   salesOrders: 'ShoppingCart',
+  approvals: 'Completed',
   settings: 'Settings'
 };
 

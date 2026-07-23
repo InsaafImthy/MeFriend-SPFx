@@ -50,6 +50,7 @@ interface IWorkflowStepListItem {
 export interface IApprovalWorkflowServiceOptions {
   pageContext?: PageContext;
   spHttpClient?: SPHttpClient;
+  webAbsoluteUrl?: string;
 }
 
 const workflowSelect = [

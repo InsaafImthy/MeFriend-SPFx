@@ -35,17 +35,20 @@ interface ISharePointPermissionSettingListItem {
 export interface IPermissionServiceOptions {
   pageContext?: PageContext;
   spHttpClient?: SPHttpClient;
+  webAbsoluteUrl?: string;
   config?: IPermissionConfig;
 }
 
 export class PermissionService {
   private readonly pageContext?: PageContext;
   private readonly spHttpClient?: SPHttpClient;
+  private readonly webAbsoluteUrl?: string;
   private readonly config: IPermissionConfig;
 
   public constructor(options: IPermissionServiceOptions) {
     this.pageContext = options.pageContext;
     this.spHttpClient = options.spHttpClient;
+    this.webAbsoluteUrl = options.webAbsoluteUrl;
     this.config = options.config || permissionConfig;
   }
 
@@ -205,7 +208,7 @@ export class PermissionService {
     }
 
     try {
-      const endpoint = `${this.pageContext.web.absoluteUrl}/_api/web/currentuser/groups?$select=Title`;
+      const endpoint = `${this.getWebAbsoluteUrl()}/_api/web/currentuser/groups?$select=Title`;
       const response = await this.spHttpClient.get(endpoint, SPHttpClient.configurations.v1);
 
       if (!response.ok) {
@@ -270,7 +273,15 @@ export class PermissionService {
     }
 
     const escapedListTitle = this.config.settingsListTitle.replace(/'/g, "''");
-    return `${this.pageContext.web.absoluteUrl}/_api/web/lists/getbytitle('${escapedListTitle}')/items`;
+    return `${this.getWebAbsoluteUrl()}/_api/web/lists/getbytitle('${escapedListTitle}')/items`;
+  }
+
+  private getWebAbsoluteUrl(): string {
+    if (!this.pageContext) {
+      return '';
+    }
+
+    return (this.webAbsoluteUrl || this.pageContext.web.absoluteUrl).replace(/\/$/, '');
   }
 
   private splitGroupNames(value: string): readonly string[] {

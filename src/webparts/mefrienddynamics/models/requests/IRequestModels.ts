@@ -18,6 +18,8 @@ export type BCPostingStatus =
   | 'Failed';
 
 export type ApprovalTaskStatus = 'Pending' | 'Approved' | 'Rejected' | 'Cancelled' | 'Skipped';
+export type BCIntegrationOperation = 'CreateCustomer' | 'CreateSalesOrder';
+export type BCIntegrationStatus = 'Ready' | 'Processing' | 'Succeeded' | 'Failed' | 'Cancelled';
 
 export interface IRequestBase {
   id: number;
@@ -131,6 +133,37 @@ export interface IApprovalTask {
   reassignmentReason?: string;
 }
 
+export interface IApprovalTaskRequestSummary extends IApprovalTask {
+  submittedByTitle?: string;
+  submittedByEmail?: string;
+  customerName?: string;
+  requestApprovalStatus?: RequestStatus;
+  requestBCPostingStatus?: BCPostingStatus;
+}
+
+export interface IBCIntegrationQueueItem {
+  id: number;
+  title: string;
+  queueNumber: string;
+  requestType: RequestType;
+  requestNumber: string;
+  requestItemId: number;
+  operation: BCIntegrationOperation;
+  integrationStatus: BCIntegrationStatus;
+  attemptCount: number;
+  requestPayload: string;
+  responsePayload: string;
+  errorMessage: string;
+  bcDocumentNumber: string;
+  bcSystemId: string;
+  correlationId: string;
+  triggeredById?: number;
+  triggeredByTitle?: string;
+  triggeredOn?: string;
+  lastAttemptOn?: string;
+  completedOn?: string;
+}
+
 export interface IRequestSubmissionResult<TRequest extends IRequestBase = IRequestBase> {
   request: TRequest;
   approvalTasks: readonly IApprovalTask[];
@@ -151,6 +184,11 @@ export interface IRequestDetailResult<TRequest extends IRequestBase = IRequestBa
 
 export interface ISalesOrderRequestDetailResult extends IRequestDetailResult<ISalesOrderRequest> {
   lines: readonly ISalesOrderRequestLine[];
+}
+
+export interface IBCIntegrationResult<TRequest extends IRequestBase = IRequestBase> {
+  request: TRequest;
+  queueItem: IBCIntegrationQueueItem;
 }
 
 export interface IResolvedApprovalWorkflow {

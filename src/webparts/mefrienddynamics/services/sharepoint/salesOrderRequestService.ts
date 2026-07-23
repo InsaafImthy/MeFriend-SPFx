@@ -80,6 +80,7 @@ interface ISalesOrderRequestLineListItem {
 export interface ISalesOrderRequestServiceOptions {
   pageContext?: PageContext;
   spHttpClient?: SPHttpClient;
+  webAbsoluteUrl?: string;
 }
 
 export interface ISalesOrderRequestHeaderSnapshot {
@@ -108,6 +109,20 @@ export interface ISalesOrderRequestLineSnapshot {
   description: string;
   productDimensionCode: string;
   unitOfMeasureCode: string;
+}
+
+export interface IUpdateSalesOrderRequestWorkflowInput {
+  approvalStatus?: ISalesOrderRequest['approvalStatus'];
+  currentLevel?: number;
+  approvalCycle?: number;
+  lastActionById?: number;
+  lastActionOn?: string;
+  rejectionReason?: string;
+  bcPostingStatus?: ISalesOrderRequest['bcPostingStatus'];
+  bcSalesOrderNumber?: string;
+  bcSystemId?: string;
+  bcPostedOn?: string;
+  bcErrorMessage?: string;
 }
 
 const salesOrderRequestSelect = [
@@ -296,6 +311,82 @@ export class SalesOrderRequestService {
     });
   }
 
+  public async updateWorkflowState(id: number, input: IUpdateSalesOrderRequestWorkflowInput): Promise<void> {
+    const payload: Record<string, unknown> = {};
+
+    this.assignIfDefined(payload, mefriendFields.salesOrderRequests.approvalStatus, input.approvalStatus);
+    this.assignIfDefined(payload, mefriendFields.salesOrderRequests.currentLevel, input.currentLevel);
+    this.assignIfDefined(payload, mefriendFields.salesOrderRequests.approvalCycle, input.approvalCycle);
+    this.assignIfDefined(payload, mefriendFields.salesOrderRequests.lastActionById, input.lastActionById);
+    this.assignIfDefined(payload, mefriendFields.salesOrderRequests.lastActionOn, input.lastActionOn);
+    this.assignIfDefined(payload, mefriendFields.salesOrderRequests.rejectionReason, input.rejectionReason);
+    this.assignIfDefined(payload, mefriendFields.salesOrderRequests.bcPostingStatus, input.bcPostingStatus);
+    this.assignIfDefined(payload, mefriendFields.salesOrderRequests.bcSalesOrderNumber, input.bcSalesOrderNumber);
+    this.assignIfDefined(payload, mefriendFields.salesOrderRequests.bcSystemId, input.bcSystemId);
+    this.assignIfDefined(payload, mefriendFields.salesOrderRequests.bcPostedOn, input.bcPostedOn);
+    this.assignIfDefined(payload, mefriendFields.salesOrderRequests.bcErrorMessage, input.bcErrorMessage);
+
+    await this.restClient.updateItem(mefriendListTitles.salesOrderRequests, id, payload);
+  }
+
+  public async updateRequestSnapshot(snapshot: ISalesOrderRequestHeaderSnapshot, requestId: number): Promise<void> {
+    const form = snapshot.form;
+    const billToCustomerCode = form.billToCustomerCode || form.customerCode;
+
+    await this.restClient.updateItem(mefriendListTitles.salesOrderRequests, requestId, {
+      [mefriendFields.salesOrderRequests.sellToCustomerCode]: form.customerCode,
+      [mefriendFields.salesOrderRequests.sellToCustomerName]: snapshot.sellToCustomerName,
+      [mefriendFields.salesOrderRequests.billToCustomerCode]: billToCustomerCode,
+      [mefriendFields.salesOrderRequests.billToCustomerName]: snapshot.billToCustomerName,
+      [mefriendFields.salesOrderRequests.salespersonCode]: form.salespersonCode,
+      [mefriendFields.salesOrderRequests.salespersonName]: snapshot.salespersonName,
+      [mefriendFields.salesOrderRequests.eventCode]: form.eventCode || '',
+      [mefriendFields.salesOrderRequests.eventName]: snapshot.eventName,
+      [mefriendFields.salesOrderRequests.countryCode]: form.countryCode || '',
+      [mefriendFields.salesOrderRequests.stateCode]: form.stateCode || '',
+      [mefriendFields.salesOrderRequests.orderDate]: form.orderDate || null,
+      [mefriendFields.salesOrderRequests.postingDate]: form.postingDate || null,
+      [mefriendFields.salesOrderRequests.externalDocumentNumber]: form.externalDocumentNumber || '',
+      [mefriendFields.salesOrderRequests.remarks]: form.remarks || '',
+      [mefriendFields.salesOrderRequests.currencyCode]: form.currencyCode || '',
+      [mefriendFields.salesOrderRequests.invoiceDiscountAmountExclVat]: toNumber(form.invoiceDiscountAmountExclVat),
+      [mefriendFields.salesOrderRequests.invoiceDiscountPercent]: toNumber(form.invoiceDiscountPercent),
+      [mefriendFields.salesOrderRequests.grossAmount]: snapshot.grossAmount,
+      [mefriendFields.salesOrderRequests.totalLineDiscount]: snapshot.totalLineDiscount,
+      [mefriendFields.salesOrderRequests.netAmount]: snapshot.netAmount,
+      [mefriendFields.salesOrderRequests.lineCount]: snapshot.lineCount
+    });
+  }
+
+  public async replaceRequestLines(requestId: number, snapshots: readonly ISalesOrderRequestLineSnapshot[]): Promise<readonly ISalesOrderRequestLine[]> {
+    const existingLines = await this.getRequestLines(requestId);
+
+    for (const line of existingLines) {
+      await this.restClient.updateItem(mefriendListTitles.salesOrderRequestLines, line.id, {
+        [mefriendFields.salesOrderRequestLines.isActive]: false
+      });
+    }
+
+    const createdLines: ISalesOrderRequestLine[] = [];
+
+    try {
+      for (const snapshot of snapshots) {
+        createdLines.push(await this.createRequestLine(snapshot));
+      }
+    } catch (error) {
+      for (const createdLine of createdLines) {
+        try {
+          await this.deleteRequestLine(createdLine.id);
+        } catch (rollbackError) {
+          console.error('Unable to roll back replacement sales-order request line.', rollbackError);
+        }
+      }
+      throw error;
+    }
+
+    return createdLines;
+  }
+
   public async getRequests(
     filters: IRequestListFilter = {},
     pagination?: Partial<IPaginationState>,
@@ -335,7 +426,7 @@ export class SalesOrderRequestService {
   public async getRequestLines(requestId: number): Promise<readonly ISalesOrderRequestLine[]> {
     const items = await this.restClient.readItems<ISalesOrderRequestLineListItem>(mefriendListTitles.salesOrderRequestLines, {
       select: salesOrderRequestLineSelect,
-      filter: `SalesOrderRequestId eq ${requestId}`,
+      filter: `SalesOrderRequestId eq ${requestId} and IsActive eq 1`,
       orderBy: 'LineNumber asc'
     });
 
@@ -412,6 +503,12 @@ export class SalesOrderRequestService {
 
   private normalize(value: unknown): string {
     return value === undefined || value === null ? '' : String(value).trim().toLowerCase();
+  }
+
+  private assignIfDefined(payload: Record<string, unknown>, fieldName: string, value: unknown): void {
+    if (value !== undefined) {
+      payload[fieldName] = value;
+    }
   }
 
   private mapRequest(item: ISalesOrderRequestListItem): ISalesOrderRequest {

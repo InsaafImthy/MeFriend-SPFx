@@ -13,6 +13,7 @@ import type { CustomerService, ICustomerLookupItem } from '../../../services/cus
 import type { EventService } from '../../../services/events/eventService';
 import type { IItemMasterLookupItem, ItemMasterService } from '../../../services/itemMasters';
 import type { ISalespersonLookupItem, SalespersonService } from '../../../services/salespersons/salespersonService';
+import type { ApprovalProcessingService } from '../../../services/sharepoint/approvalProcessingService';
 import type { MasterDataService } from '../../../services/sharepoint/masterDataService';
 import type { RequestSubmissionService } from '../../../services/sharepoint/requestSubmissionService';
 import type { EntityFormErrors, EntityFormValue, EntityFormValues } from '../../../utils/validationUtils';
@@ -26,11 +27,13 @@ import { useToast } from '../../common/toast/useToast';
 import styles from './SalesOrderCreatePage.module.scss';
 
 export interface ISalesOrderCreatePageProps {
+  approvalProcessingService?: ApprovalProcessingService;
   customerService: CustomerService;
   eventService: EventService;
   itemMasterService: ItemMasterService;
   masterDataService: MasterDataService;
   requestSubmissionService: RequestSubmissionService;
+  resubmitRequestId?: string;
   salespersonService: SalespersonService;
   onNavigate: (path: string) => void;
 }
@@ -216,11 +219,13 @@ const getOptionDescription = (options: readonly ILookupOption[], value?: string)
 };
 
 export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
+  approvalProcessingService,
   customerService,
   eventService,
   itemMasterService,
   masterDataService,
   requestSubmissionService,
+  resubmitRequestId,
   salespersonService,
   onNavigate
 }) => {
@@ -235,6 +240,13 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
   const [itemMasterOptions, setItemMasterOptions] = React.useState<readonly ILookupOption[]>([]);
   const [salespersonOptions, setSalespersonOptions] = React.useState<readonly ILookupOption[]>([]);
   const [stateOptions, setStateOptions] = React.useState<readonly ILookupOption[]>([]);
+  const [initialFormValues, setInitialFormValues] = React.useState<EntityFormValues>({ billToCustomerCode: '' });
+  const [snapshotNames, setSnapshotNames] = React.useState({
+    sellToCustomerName: '',
+    billToCustomerName: '',
+    salespersonName: '',
+    eventName: ''
+  });
   const [lines, setLines] = React.useState<readonly ISalesOrderLineFormItem[]>([]);
   const [invoiceDiscountMode, setInvoiceDiscountMode] = React.useState<InvoiceDiscountMode>('amount');
   const [invoiceDiscountAmount, setInvoiceDiscountAmount] = React.useState<number | undefined>();
@@ -288,6 +300,77 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
     };
   }, [customerService, eventService, itemMasterService, masterDataService, salespersonService, toast]);
 
+  React.useEffect(() => {
+    if (!resubmitRequestId) {
+      setInitialFormValues({ billToCustomerCode: '' });
+      setSnapshotNames({
+        sellToCustomerName: '',
+        billToCustomerName: '',
+        salespersonName: '',
+        eventName: ''
+      });
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadRejectedSnapshot = async (): Promise<void> => {
+      setLookupLoading(true);
+
+      try {
+        const detail = await requestSubmissionService.getSalesOrderRequestDetail(resubmitRequestId);
+        const headerValues: EntityFormValues = {
+          customerCode: detail.request.sellToCustomerCode,
+          billToCustomerCode: detail.request.billToCustomerCode,
+          salespersonCode: detail.request.salespersonCode,
+          eventCode: detail.request.eventCode,
+          countryCode: detail.request.countryCode,
+          stateCode: detail.request.stateCode,
+          orderDate: detail.request.orderDate,
+          postingDate: detail.request.postingDate,
+          externalDocumentNumber: detail.request.externalDocumentNumber,
+          remarks: detail.request.remarks
+        };
+        const restoredLines = detail.lines.map(line => ({
+          lineNumber: String(line.lineNumber),
+          itemCode: line.itemCode,
+          description: line.description,
+          quantity: line.quantity,
+          unitPrice: line.rate,
+          lineDiscountPercentage: line.lineDiscountPercentage,
+          lineAmount: line.netLineAmount
+        }));
+
+        if (isMounted) {
+          setInitialFormValues(headerValues);
+          setSnapshotNames({
+            sellToCustomerName: detail.request.sellToCustomerName,
+            billToCustomerName: detail.request.billToCustomerName,
+            salespersonName: detail.request.salespersonName,
+            eventName: detail.request.eventName
+          });
+          setLines(restoredLines);
+          setInvoiceDiscountAmount(detail.request.invoiceDiscountAmountExclVat || undefined);
+          setInvoiceDiscountPercent(detail.request.invoiceDiscountPercent || undefined);
+        }
+      } catch (error) {
+        if (isMounted) {
+          toast.error(getUserFriendlyError(error), { title: 'Unable to load rejected sales order' });
+        }
+      } finally {
+        if (isMounted) {
+          setLookupLoading(false);
+        }
+      }
+    };
+
+    loadRejectedSnapshot().catch(() => undefined);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [requestSubmissionService, resubmitRequestId, toast]);
+
   const fields = React.useMemo<readonly IFormFieldConfig[]>(() => {
     return (salesOrdersModuleConfig.formFields || []).map(field => {
       if (field.key === 'customerCode' || field.key === 'billToCustomerCode') {
@@ -333,8 +416,8 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
       return;
     }
 
-    onNavigate(salesOrdersModuleConfig.route);
-  }, [isDirty, onNavigate]);
+    onNavigate(resubmitRequestId ? `${salesOrdersModuleConfig.route}/requests/detail/${encodeURIComponent(resubmitRequestId)}` : salesOrdersModuleConfig.route);
+  }, [isDirty, onNavigate, resubmitRequestId]);
 
   const resetInvoiceDiscount = React.useCallback((): void => {
     if (!hasInvoiceDiscount) {
@@ -386,18 +469,27 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
 
     try {
       const formState = toSalesOrderFormState(values, lines, invoiceDiscountAmountValue, invoiceDiscountPercentValue);
-      const result = await requestSubmissionService.submitSalesOrderRequest({
+      const submissionInput = {
         form: formState,
-        sellToCustomerName: getOptionDescription(customerOptions, formState.customerCode),
-        billToCustomerName: getOptionDescription(customerOptions, formState.billToCustomerCode || formState.customerCode),
-        salespersonName: getOptionDescription(salespersonOptions, formState.salespersonCode),
-        eventName: getOptionDescription(eventOptions, formState.eventCode),
+        sellToCustomerName: getOptionDescription(customerOptions, formState.customerCode) || snapshotNames.sellToCustomerName,
+        billToCustomerName: getOptionDescription(customerOptions, formState.billToCustomerCode || formState.customerCode) || snapshotNames.billToCustomerName,
+        salespersonName: getOptionDescription(salespersonOptions, formState.salespersonCode) || snapshotNames.salespersonName,
+        eventName: getOptionDescription(eventOptions, formState.eventCode) || snapshotNames.eventName,
         lineSnapshots: formState.lines.map(line => ({
           item: line,
-          description: getOptionDescription(itemMasterOptions, line.itemCode),
+          description: getOptionDescription(itemMasterOptions, line.itemCode) || line.description,
           unitOfMeasureCode: line.unitOfMeasureCode || ''
         }))
-      });
+      };
+
+      if (resubmitRequestId && approvalProcessingService) {
+        await approvalProcessingService.resubmitSalesOrderRequest(Number(resubmitRequestId), submissionInput);
+        toast.success('Sales order request resubmitted for approval.', { title: 'Sales Order' });
+        onNavigate(`${salesOrdersModuleConfig.route}/requests/detail/${encodeURIComponent(resubmitRequestId)}`);
+        return;
+      }
+
+      const result = await requestSubmissionService.submitSalesOrderRequest(submissionInput);
       toast.success('Sales order request submitted for approval.', { title: 'Sales Order' });
 
       onNavigate(`${salesOrdersModuleConfig.route}/requests/detail/${encodeURIComponent(String(result.request.id))}`);
@@ -415,21 +507,24 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
     lines,
     loading,
     onNavigate,
+    approvalProcessingService,
     requestSubmissionService,
+    resubmitRequestId,
     salespersonOptions,
+    snapshotNames,
     toast
   ]);
 
   return (
     <PageContainer
-      title="Create Sales Order"
-      description="Submit a sales order request for approval."
-      actions={<Button label="Back to Sales Orders" variant="secondary" disabled={loading} onClick={handleCancel} />}
+      title={resubmitRequestId ? 'Edit and Resubmit Sales Order' : 'Create Sales Order'}
+      description={resubmitRequestId ? 'Correct the rejected sales-order snapshot and submit it into the next approval cycle.' : 'Submit a sales order request for approval.'}
+      actions={<Button label={resubmitRequestId ? 'Back to Request' : 'Back to Sales Orders'} variant="secondary" disabled={loading} onClick={handleCancel} />}
     >
       <EntityForm
         fields={fields}
-        initialValues={{ billToCustomerCode: '' }}
-        submitLabel="Submit for Approval"
+        initialValues={initialFormValues}
+        submitLabel={resubmitRequestId ? 'Resubmit for Approval' : 'Submit for Approval'}
         cancelLabel="Cancel"
         loading={loading}
         disabled={loading}
@@ -525,11 +620,11 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
       <ConfirmationDialog
         isOpen={showCancelDialog}
         title="Discard sales order?"
-        message="You have unsaved sales order changes. Discard them and return to the sales order list?"
+        message="You have unsaved sales order changes. Discard them and leave this page?"
         confirmLabel="Discard"
         cancelLabel="Keep Editing"
         variant="danger"
-        onConfirm={() => onNavigate(salesOrdersModuleConfig.route)}
+        onConfirm={() => onNavigate(resubmitRequestId ? `${salesOrdersModuleConfig.route}/requests/detail/${encodeURIComponent(resubmitRequestId)}` : salesOrdersModuleConfig.route)}
         onCancel={() => setShowCancelDialog(false)}
       />
     </PageContainer>

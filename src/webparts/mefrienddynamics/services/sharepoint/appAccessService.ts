@@ -49,6 +49,7 @@ interface IAppUserPermissionListItem {
 export interface IAppAccessServiceOptions {
   pageContext?: PageContext;
   spHttpClient?: SPHttpClient;
+  webAbsoluteUrl?: string;
 }
 
 const appUserSelect = [
@@ -87,6 +88,18 @@ const emptyModuleAccess = (moduleKey: MefriendModuleKey): IModuleAccess => ({
   canManage: false,
   isActive: false
 });
+
+const fullModuleAccess = (moduleKey: MefriendModuleKey): IModuleAccess => ({
+  moduleKey,
+  canView: true,
+  canCreate: true,
+  canApprove: true,
+  canPostToBC: true,
+  canManage: true,
+  isActive: true
+});
+
+const isAdministratorRole = (role: string): boolean => role.trim().toLowerCase() === 'administrator';
 
 const normalizePermission = (permission: IAppUserPermission): IModuleAccess => {
   const canView = permission.isActive && permission.canView;
@@ -147,6 +160,15 @@ export class AppAccessService {
         permissions: this.getEmptyAccessMap(),
         isAuthorized: false,
         accessError: `The app-user record for ${signedInEmail} is inactive or blocked.`
+      });
+    }
+
+    if (isAdministratorRole(appUser.role)) {
+      return this.setCache({
+        currentAppUser: appUser,
+        signedInEmail,
+        permissions: this.getFullAccessMap(),
+        isAuthorized: true
       });
     }
 
@@ -271,6 +293,20 @@ export class AppAccessService {
 
   public toPermissionMatrix(appUser: IAppUser, permissions: readonly IAppUserPermission[]): readonly IAppUserPermission[] {
     return mefriendModuleKeys.map(moduleKey => {
+      if (isAdministratorRole(appUser.role)) {
+        return {
+          title: `${appUser.email}-${moduleKey}`,
+          appUserId: appUser.id,
+          moduleKey,
+          canView: true,
+          canCreate: true,
+          canApprove: true,
+          canPostToBC: true,
+          canManage: true,
+          isActive: true
+        };
+      }
+
       const existing = permissions.filter(permission => permission.moduleKey === moduleKey)[0];
       return existing || {
         title: `${appUser.email}-${moduleKey}`,
@@ -314,6 +350,13 @@ export class AppAccessService {
   private getEmptyAccessMap(): Record<string, IModuleAccess> {
     return mefriendModuleKeys.reduce<Record<string, IModuleAccess>>((map, moduleKey) => {
       map[moduleKey] = emptyModuleAccess(moduleKey);
+      return map;
+    }, {});
+  }
+
+  private getFullAccessMap(): Record<string, IModuleAccess> {
+    return mefriendModuleKeys.reduce<Record<string, IModuleAccess>>((map, moduleKey) => {
+      map[moduleKey] = fullModuleAccess(moduleKey);
       return map;
     }, {});
   }

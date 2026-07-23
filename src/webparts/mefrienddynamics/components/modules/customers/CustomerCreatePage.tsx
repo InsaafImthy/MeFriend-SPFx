@@ -7,6 +7,7 @@ import type { ICustomerCreateFormState } from '../../../models/customers';
 import type { IMasterCodeItem } from '../../../models/settings/IMasterDataModels';
 import { getUserFriendlyError } from '../../../services/api/apiErrorHandler';
 import type { CustomerService } from '../../../services/customers/customerService';
+import type { ApprovalProcessingService } from '../../../services/sharepoint/approvalProcessingService';
 import type { MasterDataService } from '../../../services/sharepoint/masterDataService';
 import type { RequestSubmissionService } from '../../../services/sharepoint/requestSubmissionService';
 import type { EntityFormValues } from '../../../utils/validationUtils';
@@ -15,9 +16,11 @@ import { PageContainer } from '../../common/pageContainer/PageContainer';
 import { useToast } from '../../common/toast/useToast';
 
 export interface ICustomerCreatePageProps {
+  approvalProcessingService?: ApprovalProcessingService;
   customerService: CustomerService;
   masterDataService: MasterDataService;
   requestSubmissionService: RequestSubmissionService;
+  resubmitRequestId?: string;
   onNavigate: (path: string) => void;
 }
 
@@ -52,16 +55,20 @@ const toMasterCodeOptions = (items: readonly IMasterCodeItem[]): readonly ILooku
     description: item.name
   }));
 
-export const CustomerCreatePage: React.FC<ICustomerCreatePageProps> = ({ customerService, masterDataService, requestSubmissionService, onNavigate }) => {
+export const CustomerCreatePage: React.FC<ICustomerCreatePageProps> = ({
+  approvalProcessingService,
+  customerService,
+  masterDataService,
+  requestSubmissionService,
+  resubmitRequestId,
+  onNavigate
+}) => {
   const toast = useToast();
   const [loading, setLoading] = React.useState<boolean>(false);
   const [lookupLoading, setLookupLoading] = React.useState<boolean>(true);
   const [countryOptions, setCountryOptions] = React.useState<readonly ILookupOption[]>([]);
   const [stateOptions, setStateOptions] = React.useState<readonly ILookupOption[]>([]);
-  const initialValues = React.useMemo<EntityFormValues>(
-    () => ({ countryRegionCode: appConfig.defaultCountryCode }),
-    []
-  );
+  const [initialValues, setInitialValues] = React.useState<EntityFormValues>({ countryRegionCode: appConfig.defaultCountryCode });
   const [formValues, setFormValues] = React.useState<EntityFormValues>({
     countryRegionCode: appConfig.defaultCountryCode
   });
@@ -102,6 +109,60 @@ export const CustomerCreatePage: React.FC<ICustomerCreatePageProps> = ({ custome
     };
   }, [masterDataService, toast]);
 
+  React.useEffect(() => {
+    if (!resubmitRequestId) {
+      setInitialValues({ countryRegionCode: appConfig.defaultCountryCode });
+      setFormValues({ countryRegionCode: appConfig.defaultCountryCode });
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadRejectedSnapshot = async (): Promise<void> => {
+      setLookupLoading(true);
+
+      try {
+        const detail = await requestSubmissionService.getCustomerRequestDetail(resubmitRequestId);
+        const snapshot: EntityFormValues = {
+          name: detail.request.customerName,
+          name2: detail.request.name2,
+          address: detail.request.address,
+          address2: detail.request.address2,
+          stateCode: detail.request.stateCode,
+          countryRegionCode: detail.request.countryRegionCode || appConfig.defaultCountryCode,
+          city: detail.request.city,
+          postCode: detail.request.postCode,
+          locationCode: detail.request.locationCode,
+          phoneNumber: detail.request.phoneNumber,
+          PAN: detail.request.PAN,
+          gstRegistrationNo: detail.request.gstRegistrationNo,
+          genPostingGroup: detail.request.genPostingGroup,
+          customerPostingGroup: detail.request.customerPostingGroup,
+          gstCustomerType: detail.request.gstCustomerType
+        };
+
+        if (isMounted) {
+          setInitialValues(snapshot);
+          setFormValues(snapshot);
+        }
+      } catch (error) {
+        if (isMounted) {
+          toast.error(getUserFriendlyError(error), { title: 'Unable to load rejected request' });
+        }
+      } finally {
+        if (isMounted) {
+          setLookupLoading(false);
+        }
+      }
+    };
+
+    loadRejectedSnapshot().catch(() => undefined);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [requestSubmissionService, resubmitRequestId, toast]);
+
   const fields = React.useMemo<readonly IFormFieldConfig[]>(
     () =>
       getCustomerFormFields(
@@ -124,6 +185,14 @@ export const CustomerCreatePage: React.FC<ICustomerCreatePageProps> = ({ custome
     try {
       const formState = toCustomerFormState(values);
       const request = customerService.mapCustomerFormToApiRequest(formState);
+
+      if (resubmitRequestId && approvalProcessingService) {
+        await approvalProcessingService.resubmitCustomerRequest(Number(resubmitRequestId), request);
+        toast.success('Customer request resubmitted for approval.', { title: 'Customer Master' });
+        onNavigate(`${customersModuleConfig.route}/requests/detail/${encodeURIComponent(resubmitRequestId)}`);
+        return;
+      }
+
       const result = await requestSubmissionService.submitCustomerRequest(request);
       toast.success('Customer request submitted for approval.', { title: 'Customer Master' });
       onNavigate(`${customersModuleConfig.route}/requests/detail/${encodeURIComponent(String(result.request.id))}`);
@@ -132,14 +201,17 @@ export const CustomerCreatePage: React.FC<ICustomerCreatePageProps> = ({ custome
     } finally {
       setLoading(false);
     }
-  }, [customerService, loading, onNavigate, requestSubmissionService, toast]);
+  }, [approvalProcessingService, customerService, loading, onNavigate, requestSubmissionService, resubmitRequestId, toast]);
 
   return (
-    <PageContainer title="Create Customer" description="Submit a customer request for approval.">
+    <PageContainer
+      title={resubmitRequestId ? 'Edit and Resubmit Customer' : 'Create Customer'}
+      description={resubmitRequestId ? 'Correct the rejected customer snapshot and submit it into the next approval cycle.' : 'Submit a customer request for approval.'}
+    >
       <EntityForm
         fields={fields}
         initialValues={initialValues}
-        submitLabel="Submit for Approval"
+        submitLabel={resubmitRequestId ? 'Resubmit for Approval' : 'Submit for Approval'}
         cancelLabel="Back"
         loading={loading}
         disabled={loading || lookupLoading}
@@ -151,7 +223,7 @@ export const CustomerCreatePage: React.FC<ICustomerCreatePageProps> = ({ custome
         onSubmit={values => {
           handleSubmit(values).catch(() => undefined);
         }}
-        onCancel={() => onNavigate(customersModuleConfig.route)}
+        onCancel={() => onNavigate(resubmitRequestId ? `${customersModuleConfig.route}/requests/detail/${encodeURIComponent(resubmitRequestId)}` : customersModuleConfig.route)}
       />
     </PageContainer>
   );

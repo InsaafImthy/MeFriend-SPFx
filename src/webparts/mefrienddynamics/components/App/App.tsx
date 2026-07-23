@@ -8,6 +8,7 @@ import { AppLoader } from '../common/loaders/AppLoader';
 import { ToastProvider } from '../common/toast/ToastProvider';
 import { AppLayout } from '../Layout/AppLayout';
 import { PlaceholderModulePage } from '../modules/PlaceholderModulePage';
+import { ApprovalDetailPage, MyApprovalsPage } from '../modules/approvals';
 import { CustomerCreatePage, CustomerDetailPage, CustomerPage, CustomerRequestDetailPage, CustomerRequestsPage } from '../modules/customers';
 import { EventDetailPage, EventPage } from '../modules/events';
 import { InvoiceDetailPage, InvoicePage } from '../modules/invoices';
@@ -25,7 +26,10 @@ import { SalespersonService } from '../../services/salespersons/salespersonServi
 import { MasterDataService } from '../../services/sharepoint/masterDataService';
 import { PermissionService } from '../../services/sharepoint/permissionService';
 import { AppAccessService } from '../../services/sharepoint/appAccessService';
+import { ApprovalProcessingService } from '../../services/sharepoint/approvalProcessingService';
+import { ApprovalTaskService } from '../../services/sharepoint/approvalTaskService';
 import { ApprovalWorkflowService } from '../../services/sharepoint/approvalWorkflowService';
+import { BCIntegrationQueueService } from '../../services/sharepoint/bcIntegrationQueueService';
 import { CustomerRequestService } from '../../services/sharepoint/customerRequestService';
 import { RequestSubmissionService } from '../../services/sharepoint/requestSubmissionService';
 import { SalesOrderRequestService } from '../../services/sharepoint/salesOrderRequestService';
@@ -44,6 +48,7 @@ export interface IAppProps {
 export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pageContext, spHttpClient, userDisplayName }) => {
   const [routePath, setRoutePath] = React.useState<string>(getHashRoutePath);
   const [isLoading] = React.useState<boolean>(false);
+  const sharePointWebAbsoluteUrl = appConfig.sharePointSettings.masterDataWebUrl;
   const apiClient = React.useMemo(() => {
     const authClient = new AuthClient({
       aadHttpClientFactory,
@@ -63,57 +68,92 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
       new MasterDataService({
         pageContext,
         spHttpClient,
-        webAbsoluteUrl: appConfig.sharePointSettings.masterDataWebUrl
+        webAbsoluteUrl: sharePointWebAbsoluteUrl
       }),
-    [pageContext, spHttpClient]
+    [pageContext, sharePointWebAbsoluteUrl, spHttpClient]
   );
   const permissionService = React.useMemo(
     () =>
       new PermissionService({
         pageContext,
-        spHttpClient
+        spHttpClient,
+        webAbsoluteUrl: sharePointWebAbsoluteUrl
       }),
-    [pageContext, spHttpClient]
+    [pageContext, sharePointWebAbsoluteUrl, spHttpClient]
   );
   const appAccessService = React.useMemo(
     () =>
       new AppAccessService({
         pageContext,
-        spHttpClient
+        spHttpClient,
+        webAbsoluteUrl: sharePointWebAbsoluteUrl
       }),
-    [pageContext, spHttpClient]
+    [pageContext, sharePointWebAbsoluteUrl, spHttpClient]
+  );
+  const approvalTaskService = React.useMemo(
+    () =>
+      new ApprovalTaskService({
+        pageContext,
+        spHttpClient,
+        webAbsoluteUrl: sharePointWebAbsoluteUrl
+      }),
+    [pageContext, sharePointWebAbsoluteUrl, spHttpClient]
+  );
+  const approvalProcessingService = React.useMemo(
+    () =>
+      new ApprovalProcessingService({
+        pageContext,
+        spHttpClient,
+        webAbsoluteUrl: sharePointWebAbsoluteUrl
+      }),
+    [pageContext, sharePointWebAbsoluteUrl, spHttpClient]
   );
   const approvalWorkflowService = React.useMemo(
     () =>
       new ApprovalWorkflowService({
         pageContext,
-        spHttpClient
+        spHttpClient,
+        webAbsoluteUrl: sharePointWebAbsoluteUrl
       }),
-    [pageContext, spHttpClient]
+    [pageContext, sharePointWebAbsoluteUrl, spHttpClient]
   );
   const customerRequestService = React.useMemo(
     () =>
       new CustomerRequestService({
         pageContext,
-        spHttpClient
+        spHttpClient,
+        webAbsoluteUrl: sharePointWebAbsoluteUrl
       }),
-    [pageContext, spHttpClient]
+    [pageContext, sharePointWebAbsoluteUrl, spHttpClient]
   );
   const salesOrderRequestService = React.useMemo(
     () =>
       new SalesOrderRequestService({
         pageContext,
-        spHttpClient
+        spHttpClient,
+        webAbsoluteUrl: sharePointWebAbsoluteUrl
       }),
-    [pageContext, spHttpClient]
+    [pageContext, sharePointWebAbsoluteUrl, spHttpClient]
   );
   const requestSubmissionService = React.useMemo(
     () =>
       new RequestSubmissionService({
         pageContext,
-        spHttpClient
+        spHttpClient,
+        webAbsoluteUrl: sharePointWebAbsoluteUrl
       }),
-    [pageContext, spHttpClient]
+    [pageContext, sharePointWebAbsoluteUrl, spHttpClient]
+  );
+  const bcIntegrationQueueService = React.useMemo(
+    () =>
+      new BCIntegrationQueueService({
+        pageContext,
+        spHttpClient,
+        webAbsoluteUrl: sharePointWebAbsoluteUrl,
+        customerService,
+        salesOrderService
+      }),
+    [customerService, pageContext, salesOrderService, sharePointWebAbsoluteUrl, spHttpClient]
   );
   const access = useAppAccess(appAccessService);
 
@@ -133,6 +173,14 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
 
   const route = resolveRoute(routePath);
 
+  const canAccessModule = React.useCallback((moduleKey: string): boolean => {
+    if (moduleKey === 'approvals') {
+      return access.canView('approvals') || access.canApprove('approvals') || access.canApprove('customers') || access.canApprove('salesOrders');
+    }
+
+    return access.canView(moduleKey);
+  }, [access]);
+
   const canAccessRoute = React.useCallback((): boolean => {
     if (!access.isAuthorized) {
       return false;
@@ -146,8 +194,8 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
       return access.canView(route.moduleKey) && access.canCreate(route.moduleKey);
     }
 
-    return access.canView(route.moduleKey);
-  }, [access, route.key, route.moduleKey]);
+    return canAccessModule(route.moduleKey);
+  }, [access, canAccessModule, route.key, route.moduleKey]);
 
   const handleNavigate = React.useCallback((path: string): void => {
     const href = buildHashHref(path);
@@ -174,9 +222,23 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
     if (route.key === 'customerCreate') {
       return (
         <CustomerCreatePage
+          approvalProcessingService={approvalProcessingService}
           customerService={customerService}
           masterDataService={masterDataService}
           requestSubmissionService={requestSubmissionService}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
+
+    if (route.key === 'customerRequestResubmit') {
+      return (
+        <CustomerCreatePage
+          approvalProcessingService={approvalProcessingService}
+          customerService={customerService}
+          masterDataService={masterDataService}
+          requestSubmissionService={requestSubmissionService}
+          resubmitRequestId={route.params.id || ''}
           onNavigate={handleNavigate}
         />
       );
@@ -205,6 +267,10 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
     if (route.key === 'customerRequestDetail') {
       return (
         <CustomerRequestDetailPage
+          bcIntegrationQueueService={bcIntegrationQueueService}
+          canManageCustomerRequests={access.canManage('customers')}
+          canPostToBC={access.canPostToBC('customers')}
+          currentUserEmail={access.signedInEmail}
           requestId={route.params.id || ''}
           requestSubmissionService={requestSubmissionService}
           onNavigate={handleNavigate}
@@ -255,11 +321,28 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
     if (route.key === 'salesOrderCreate') {
       return (
         <SalesOrderCreatePage
+          approvalProcessingService={approvalProcessingService}
           customerService={customerService}
           eventService={eventService}
           itemMasterService={itemMasterService}
           masterDataService={masterDataService}
           requestSubmissionService={requestSubmissionService}
+          salespersonService={salespersonService}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
+
+    if (route.key === 'salesOrderRequestResubmit') {
+      return (
+        <SalesOrderCreatePage
+          approvalProcessingService={approvalProcessingService}
+          customerService={customerService}
+          eventService={eventService}
+          itemMasterService={itemMasterService}
+          masterDataService={masterDataService}
+          requestSubmissionService={requestSubmissionService}
+          resubmitRequestId={route.params.id || ''}
           salespersonService={salespersonService}
           onNavigate={handleNavigate}
         />
@@ -289,7 +372,37 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
     if (route.key === 'salesOrderRequestDetail') {
       return (
         <SalesOrderRequestDetailPage
+          bcIntegrationQueueService={bcIntegrationQueueService}
+          canManageSalesOrderRequests={access.canManage('salesOrders')}
+          canPostToBC={access.canPostToBC('salesOrders')}
+          currentUserEmail={access.signedInEmail}
           requestId={route.params.id || ''}
+          requestSubmissionService={requestSubmissionService}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
+
+    if (route.key === 'approvals') {
+      return (
+        <MyApprovalsPage
+          approvalTaskService={approvalTaskService}
+          currentUserEmail={access.signedInEmail}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
+
+    if (route.key === 'approvalDetail') {
+      return (
+        <ApprovalDetailPage
+          taskId={route.params.id || ''}
+          approvalProcessingService={approvalProcessingService}
+          approvalTaskService={approvalTaskService}
+          bcIntegrationQueueService={bcIntegrationQueueService}
+          canApprove={access.canApprove('approvals')}
+          canPostCustomerToBC={access.canPostToBC('customers')}
+          canPostSalesOrderToBC={access.canPostToBC('salesOrders')}
           requestSubmissionService={requestSubmissionService}
           onNavigate={handleNavigate}
         />
@@ -318,7 +431,7 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
         <div className={styles.app}>
           <AppLayout
             activeRouteKey={route.key}
-            canAccessModule={access.canView}
+            canAccessModule={canAccessModule}
             routeTransitionKey={`${route.key}:${routePath}`}
             userDisplayName={userDisplayName}
             onNavigate={handleNavigate}

@@ -24,6 +24,7 @@ import { SharePointRestClient } from './sharePointRestClient';
 export interface IRequestSubmissionServiceOptions {
   pageContext?: PageContext;
   spHttpClient?: SPHttpClient;
+  webAbsoluteUrl?: string;
 }
 
 export interface ISalesOrderSubmissionLineSnapshot {

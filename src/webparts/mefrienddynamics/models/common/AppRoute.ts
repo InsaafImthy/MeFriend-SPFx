@@ -4,6 +4,7 @@ export type AppRouteKey =
   | 'customerDetail'
   | 'customerRequests'
   | 'customerRequestDetail'
+  | 'customerRequestResubmit'
   | 'events'
   | 'eventDetail'
   | 'salespersons'
@@ -15,6 +16,9 @@ export type AppRouteKey =
   | 'salesOrderDetail'
   | 'salesOrderRequests'
   | 'salesOrderRequestDetail'
+  | 'salesOrderRequestResubmit'
+  | 'approvals'
+  | 'approvalDetail'
   | 'settings';
 
 export interface IAppRouteDefinition {

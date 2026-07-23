@@ -6,6 +6,18 @@ import { salesOrdersModuleConfig } from './modules/salesOrdersModuleConfig';
 import { salespersonsModuleConfig } from './modules/salespersonsModuleConfig';
 import type { IModuleConfig } from '../models/common/IModuleConfig';
 
+export const approvalsModuleConfig: IModuleConfig = {
+  key: 'approvals',
+  title: 'My Approvals',
+  route: 'approvals',
+  icon: 'Completed',
+  description: 'Current approval tasks assigned to the signed-in user.',
+  createEnabled: false,
+  detailEnabled: true,
+  order: 40,
+  visible: true
+};
+
 export const settingsModuleConfig: IModuleConfig = {
   key: 'settings',
   title: 'Settings',
@@ -24,6 +36,7 @@ export const moduleDefinitions = [
   salespersonsModuleConfig,
   invoicesModuleConfig,
   salesOrdersModuleConfig,
+  approvalsModuleConfig,
   settingsModuleConfig
 ] as const;
 
@@ -60,6 +73,13 @@ export const routeDefinitions: readonly IAppRouteDefinition[] = [
     key: 'customerRequestDetail',
     path: `${customersModuleConfig.route}/requests/detail/:id`,
     title: 'Customer Request Detail',
+    moduleKey: customersModuleConfig.key,
+    showInNavigation: false
+  },
+  {
+    key: 'customerRequestResubmit',
+    path: `${customersModuleConfig.route}/requests/resubmit/:id`,
+    title: 'Edit and Resubmit Customer Request',
     moduleKey: customersModuleConfig.key,
     showInNavigation: false
   },
@@ -138,6 +158,27 @@ export const routeDefinitions: readonly IAppRouteDefinition[] = [
     path: `${salesOrdersModuleConfig.route}/requests/detail/:id`,
     title: 'Sales Order Request Detail',
     moduleKey: salesOrdersModuleConfig.key,
+    showInNavigation: false
+  },
+  {
+    key: 'salesOrderRequestResubmit',
+    path: `${salesOrdersModuleConfig.route}/requests/resubmit/:id`,
+    title: 'Edit and Resubmit Sales Order Request',
+    moduleKey: salesOrdersModuleConfig.key,
+    showInNavigation: false
+  },
+  {
+    key: 'approvals',
+    path: approvalsModuleConfig.route,
+    title: approvalsModuleConfig.title,
+    moduleKey: approvalsModuleConfig.key,
+    showInNavigation: true
+  },
+  {
+    key: 'approvalDetail',
+    path: `${approvalsModuleConfig.route}/detail/:id`,
+    title: 'Approval Detail',
+    moduleKey: approvalsModuleConfig.key,
     showInNavigation: false
   },
   {
