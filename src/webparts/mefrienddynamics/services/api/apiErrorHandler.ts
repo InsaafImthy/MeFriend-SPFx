@@ -27,6 +27,129 @@ const tryParseJson = (value: string): unknown => {
   }
 };
 
+const getNestedRecord = (value: Record<string, unknown>, key: string): Record<string, unknown> | undefined => {
+  const nestedValue = value[key];
+  return isRecord(nestedValue) ? nestedValue : undefined;
+};
+
+const extractBalancedJsonObject = (value: string, startIndex: number): string | undefined => {
+  let depth = 0;
+  let inString = false;
+  let escaping = false;
+
+  for (let index = startIndex; index < value.length; index++) {
+    const character = value[index];
+
+    if (escaping) {
+      escaping = false;
+      continue;
+    }
+
+    if (character === '\\') {
+      escaping = true;
+      continue;
+    }
+
+    if (character === '"') {
+      inString = !inString;
+      continue;
+    }
+
+    if (inString) {
+      continue;
+    }
+
+    if (character === '{') {
+      depth++;
+    }
+
+    if (character === '}') {
+      depth--;
+      if (depth === 0) {
+        return value.substring(startIndex, index + 1);
+      }
+    }
+  }
+
+  return undefined;
+};
+
+const tryParseEmbeddedJson = (value: string): unknown => {
+  const responseIndex = value.indexOf('Response:');
+  const searchStart = responseIndex === -1 ? 0 : responseIndex + 'Response:'.length;
+  const jsonStart = value.indexOf('{', searchStart);
+
+  if (jsonStart === -1) {
+    return undefined;
+  }
+
+  const jsonText = extractBalancedJsonObject(value, jsonStart);
+  if (!jsonText) {
+    return undefined;
+  }
+
+  const parsedJson = tryParseJson(jsonText);
+  if (parsedJson !== jsonText) {
+    return parsedJson;
+  }
+
+  const unescapedJsonText = jsonText.replace(/\\"/g, '"');
+  const parsedUnescapedJson = tryParseJson(unescapedJsonText);
+  return parsedUnescapedJson !== unescapedJsonText ? parsedUnescapedJson : undefined;
+};
+
+const getResponseErrorMessage = (value: unknown): string | undefined => {
+  if (typeof value === 'string') {
+    const parsedValue = tryParseJson(value);
+    if (parsedValue !== value) {
+      return getResponseErrorMessage(parsedValue);
+    }
+
+    const embeddedJson = tryParseEmbeddedJson(value);
+    return embeddedJson === undefined ? undefined : getResponseErrorMessage(embeddedJson);
+  }
+
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const errorRecord = getNestedRecord(value, 'error');
+  if (errorRecord) {
+    const nestedMessage = asString(errorRecord.message);
+    if (nestedMessage) {
+      return nestedMessage;
+    }
+
+    const nestedErrorMessage = getResponseErrorMessage(errorRecord);
+    if (nestedErrorMessage) {
+      return nestedErrorMessage;
+    }
+  }
+
+  const responseRecord = getNestedRecord(value, 'response') || getNestedRecord(value, 'Response');
+  if (responseRecord) {
+    const responseMessage = getResponseErrorMessage(responseRecord);
+    if (responseMessage) {
+      return responseMessage;
+    }
+  }
+
+  const detailsRecord = getNestedRecord(value, 'details');
+  if (detailsRecord) {
+    const detailsMessage = getResponseErrorMessage(detailsRecord);
+    if (detailsMessage) {
+      return detailsMessage;
+    }
+  }
+
+  const message = asString(value.message);
+  if (message) {
+    return getResponseErrorMessage(tryParseEmbeddedJson(message));
+  }
+
+  return undefined;
+};
+
 export const parseApiError = async (response: ApiHttpResponse): Promise<ApiError> => {
   const responseText = await response.text();
   const parsedBody = tryParseJson(responseText);
@@ -45,7 +168,7 @@ export const parseApiError = async (response: ApiHttpResponse): Promise<ApiError
   }
 
   const apiResponse = parsedBody as Partial<ApiResponse<unknown>>;
-  const message = asString(parsedBody.message) || baseError.message;
+  const message = getResponseErrorMessage(parsedBody) || asString(parsedBody.message) || baseError.message;
   const errors = asStringArray(parsedBody.errors);
   const correlationId = asString(parsedBody.correlationId);
 
@@ -60,7 +183,7 @@ export const parseApiError = async (response: ApiHttpResponse): Promise<ApiError
 
 export const normalizeError = (error: unknown): ApiError => {
   if (isRecord(error)) {
-    const message = asString(error.message);
+    const message = getResponseErrorMessage(error.details) || getResponseErrorMessage(error) || asString(error.message);
 
     return {
       status: typeof error.status === 'number' ? error.status : undefined,
@@ -87,9 +210,14 @@ export const normalizeError = (error: unknown): ApiError => {
 export const getUserFriendlyError = (error: unknown): string => {
   const normalizedError = normalizeError(error);
   const message = normalizedError.message.toLowerCase();
+  const responseErrorMessage = getResponseErrorMessage(normalizedError.details) || getResponseErrorMessage(normalizedError.message);
 
   if (normalizedError.errors && normalizedError.errors.length > 0) {
     return normalizedError.errors.join(' ');
+  }
+
+  if (responseErrorMessage) {
+    return responseErrorMessage;
   }
 
   if (normalizedError.status === 401 || normalizedError.status === 403) {

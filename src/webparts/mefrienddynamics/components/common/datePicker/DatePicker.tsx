@@ -1,6 +1,7 @@
 import * as React from 'react';
 import * as ReactDom from 'react-dom';
 import { Icon } from '@fluentui/react';
+import { normalizeBusinessDate } from '../../../utils/formatUtils';
 import styles from './DatePicker.module.scss';
 
 const panelAnimationDurationMs = 150;
@@ -61,11 +62,13 @@ const pad = (value: number): string => (value < 10 ? `0${value}` : String(value)
 const toIsoDate = (date: Date): string => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 
 const parseDateValue = (value?: string): Date | undefined => {
-  if (!value) {
+  const normalizedValue = normalizeBusinessDate(value);
+
+  if (!normalizedValue) {
     return undefined;
   }
 
-  const dateParts = value.substring(0, 10).split('-');
+  const dateParts = normalizedValue.split('-');
 
   if (dateParts.length !== 3) {
     return undefined;
@@ -174,7 +177,10 @@ export const DatePicker: React.FC<IDatePickerProps> = ({
   const fieldRef = React.useRef<HTMLDivElement | null>(null);
   const triggerRef = React.useRef<HTMLButtonElement | null>(null);
   const panelRef = React.useRef<HTMLDivElement | null>(null);
-  const selectedDate = React.useMemo(() => parseDateValue(value), [value]);
+  const normalizedValue = React.useMemo(() => normalizeBusinessDate(value) || '', [value]);
+  const normalizedMinDate = React.useMemo(() => normalizeBusinessDate(minDate), [minDate]);
+  const normalizedMaxDate = React.useMemo(() => normalizeBusinessDate(maxDate), [maxDate]);
+  const selectedDate = React.useMemo(() => parseDateValue(normalizedValue), [normalizedValue]);
   const [viewDate, setViewDate] = React.useState<Date>(selectedDate || new Date());
   const [isOpen, setIsOpen] = React.useState<boolean>(false);
   const [isPanelVisible, setIsPanelVisible] = React.useState<boolean>(false);
@@ -311,7 +317,7 @@ export const DatePicker: React.FC<IDatePickerProps> = ({
   };
 
   const selectDate = (nextValue: string): void => {
-    if (isDateDisabled(nextValue, minDate, maxDate)) {
+    if (isDateDisabled(nextValue, normalizedMinDate, normalizedMaxDate)) {
       return;
     }
 
@@ -357,13 +363,13 @@ export const DatePicker: React.FC<IDatePickerProps> = ({
       className={errorMessage ? `${styles.control} ${styles.hasError}` : styles.control}
       disabled={disabled}
       id={fieldId}
-      max={maxDate}
-      min={minDate}
+      max={normalizedMaxDate}
+      min={normalizedMinDate}
       onChange={event => onChange && onChange(event.currentTarget.value)}
       readOnly={readOnly}
       required={required}
       type="date"
-      value={value}
+      value={normalizedValue}
     />
   );
 
@@ -461,8 +467,8 @@ export const DatePicker: React.FC<IDatePickerProps> = ({
             </span>
           ))}
           {calendarDays.map(day => {
-            const isSelected = value === day.isoValue;
-            const disabledDay = isDateDisabled(day.isoValue, minDate, maxDate);
+            const isSelected = normalizedValue === day.isoValue;
+            const disabledDay = isDateDisabled(day.isoValue, normalizedMinDate, normalizedMaxDate);
             const dayClassName = [
               styles.dayButton,
               day.isCurrentMonth ? '' : styles.outsideMonth,
@@ -546,7 +552,7 @@ export const DatePicker: React.FC<IDatePickerProps> = ({
             ref={triggerRef}
             type="button"
           >
-            <span className={value ? styles.triggerValue : styles.triggerPlaceholder}>{value ? formatDisplayValue(value) : 'dd/mm/yyyy'}</span>
+            <span className={normalizedValue ? styles.triggerValue : styles.triggerPlaceholder}>{normalizedValue ? formatDisplayValue(normalizedValue) : 'dd/mm/yyyy'}</span>
             <Icon iconName="Calendar" aria-hidden="true" />
           </button>
           {isPanelVisible ? ReactDom.createPortal(renderPickerPanel(), document.body) : null}

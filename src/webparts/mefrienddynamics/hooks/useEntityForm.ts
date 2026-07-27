@@ -8,6 +8,7 @@ import {
   validateFieldValue,
   validateFormValues
 } from '../utils/validationUtils';
+import { normalizeBusinessDate } from '../utils/formatUtils';
 
 export type EntityFormTouched = Record<string, boolean>;
 
@@ -36,12 +37,18 @@ const getDefaultValues = (fields: readonly IFormFieldConfig[], initialValues?: E
 
   fields.forEach(field => {
     if (initialValues && initialValues[field.key] !== undefined) {
-      defaults[field.key] = initialValues[field.key];
+      const initialValue = initialValues[field.key];
+      defaults[field.key] = field.type === 'date' && typeof initialValue === 'string'
+        ? normalizeBusinessDate(initialValue) || ''
+        : initialValue;
       return;
     }
 
     if (field.defaultValue !== undefined) {
-      defaults[field.key] = field.defaultValue as EntityFormValue;
+      const defaultValue = field.defaultValue as EntityFormValue;
+      defaults[field.key] = field.type === 'date' && typeof defaultValue === 'string'
+        ? normalizeBusinessDate(defaultValue) || ''
+        : defaultValue;
       return;
     }
 
@@ -74,16 +81,19 @@ export const useEntityForm = ({ fields, initialValues, onSubmit }: IUseEntityFor
 
   const setValue = React.useCallback((key: string, value: EntityFormValue): void => {
     setValuesState(currentValues => {
+      const field = fields.filter(item => item.key === key)[0];
+      const normalizedValue = field?.type === 'date' && typeof value === 'string'
+        ? normalizeBusinessDate(value) || ''
+        : value;
       const nextValues = {
         ...currentValues,
-        [key]: value
+        [key]: normalizedValue
       };
-      const field = fields.filter(item => item.key === key)[0];
 
       if (field) {
         setErrors(currentErrors => ({
           ...currentErrors,
-          [key]: validateFieldValue(field, value, nextValues)
+          [key]: validateFieldValue(field, normalizedValue, nextValues)
         }));
       }
 
@@ -96,18 +106,29 @@ export const useEntityForm = ({ fields, initialValues, onSubmit }: IUseEntityFor
   }, [fields]);
 
   const setValues = React.useCallback((nextValues: EntityFormValues): void => {
+    const normalizedValues = Object.keys(nextValues).reduce<EntityFormValues>((values, key) => {
+      const field = fields.filter(item => item.key === key)[0];
+      const value = nextValues[key];
+
+      values[key] = field?.type === 'date' && typeof value === 'string'
+        ? normalizeBusinessDate(value) || ''
+        : value;
+
+      return values;
+    }, {});
+
     setValuesState(currentValues => ({
       ...currentValues,
-      ...nextValues
+      ...normalizedValues
     }));
     setTouched(currentTouched => {
       const nextTouched = { ...currentTouched };
-      Object.keys(nextValues).forEach(key => {
+      Object.keys(normalizedValues).forEach(key => {
         nextTouched[key] = true;
       });
       return nextTouched;
     });
-  }, []);
+  }, [fields]);
 
   const validateField = React.useCallback((key: string): string | undefined => {
     const field = fields.filter(item => item.key === key)[0];

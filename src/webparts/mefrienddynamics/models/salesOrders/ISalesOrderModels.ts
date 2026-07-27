@@ -23,6 +23,7 @@ export interface ISalesOrderLineItem {
   quantityToShip?: number;
   quantityToInvoice?: number;
   unitOfMeasureCode?: string;
+  remarks?: string;
   shipmentDate?: string;
   plannedShipmentDate?: string;
   plannedDeliveryDate?: string;

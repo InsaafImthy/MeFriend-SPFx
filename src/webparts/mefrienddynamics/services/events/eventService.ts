@@ -3,6 +3,7 @@ import type { IEventDetail, IEventFilters, IEventListItem } from '../../models/e
 import type { IPagedResult } from '../../models/common/IPagedResult';
 import type { IPaginationState } from '../../models/common/IPaginationState';
 import type { ISortState } from '../../models/common/ISortState';
+import { normalizeBusinessDate } from '../../utils/formatUtils';
 
 interface IEventApiModel {
   id?: string;
@@ -74,8 +75,8 @@ export class EventService {
       id: api?.id || api?.eventCode || '',
       eventCode: api?.eventCode || '',
       eventName: api?.eventName || '',
-      startDate: api?.startDate,
-      endDate: api?.endDate,
+      startDate: normalizeBusinessDate(api?.startDate),
+      endDate: normalizeBusinessDate(api?.endDate),
       status: api?.status || '',
       description: api?.description || '',
       venue: api?.venue || ''

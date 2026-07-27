@@ -16,6 +16,7 @@ import type { ISalespersonLookupItem, SalespersonService } from '../../../servic
 import type { ApprovalProcessingService } from '../../../services/sharepoint/approvalProcessingService';
 import type { MasterDataService } from '../../../services/sharepoint/masterDataService';
 import type { RequestSubmissionService } from '../../../services/sharepoint/requestSubmissionService';
+import { normalizeBusinessDate } from '../../../utils/formatUtils';
 import type { EntityFormErrors, EntityFormValue, EntityFormValues } from '../../../utils/validationUtils';
 import { hasValidationErrors, validateFormValues } from '../../../utils/validationUtils';
 import { Button } from '../../common/buttons/Button';
@@ -47,6 +48,7 @@ interface ISalesOrderLineFormItem extends LineItemRecord {
   lineDiscountPercentage?: number;
   lineAmount?: number;
   taxAmount?: number;
+  remarks?: string;
 }
 
 const eventLookupPageSize = 100;
@@ -107,7 +109,8 @@ const createDefaultLine = (lineNumber: number): ISalesOrderLineFormItem => ({
   unitPrice: undefined,
   lineDiscountPercentage: undefined,
   lineAmount: undefined,
-  taxAmount: undefined
+  taxAmount: undefined,
+  remarks: ''
 });
 
 const calculateLine = (item: ISalesOrderLineFormItem): ISalesOrderLineFormItem => {
@@ -149,7 +152,8 @@ const toSalesOrderLineItem = (line: ISalesOrderLineFormItem, index: number): ISa
   unitPrice: getNumberValue(line.unitPrice),
   lineDiscountPercentage: getNumberValue(line.lineDiscountPercentage),
   lineAmount: getNumberValue(line.lineAmount),
-  taxAmount: line.taxAmount
+  taxAmount: line.taxAmount,
+  remarks: typeof line.remarks === 'string' ? line.remarks.trim() : ''
 });
 
 const toSalesOrderFormState = (
@@ -164,8 +168,8 @@ const toSalesOrderFormState = (
   eventCode: getStringValue(values, 'eventCode'),
   countryCode: getStringValue(values, 'countryCode'),
   stateCode: getStringValue(values, 'stateCode'),
-  orderDate: getStringValue(values, 'orderDate'),
-  postingDate: getStringValue(values, 'postingDate'),
+  orderDate: normalizeBusinessDate(getStringValue(values, 'orderDate')),
+  postingDate: normalizeBusinessDate(getStringValue(values, 'postingDate')),
   externalDocumentNumber: getStringValue(values, 'externalDocumentNumber'),
   remarks: getStringValue(values, 'remarks'),
   invoiceDiscountAmountExclVat,
@@ -237,6 +241,7 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
   const [showLineValidation, setShowLineValidation] = React.useState<boolean>(false);
   const [customerOptions, setCustomerOptions] = React.useState<readonly ILookupOption[]>([]);
   const [eventOptions, setEventOptions] = React.useState<readonly ILookupOption[]>([]);
+  const [itemMasters, setItemMasters] = React.useState<readonly IItemMasterLookupItem[]>([]);
   const [itemMasterOptions, setItemMasterOptions] = React.useState<readonly ILookupOption[]>([]);
   const [salespersonOptions, setSalespersonOptions] = React.useState<readonly ILookupOption[]>([]);
   const [stateOptions, setStateOptions] = React.useState<readonly ILookupOption[]>([]);
@@ -279,6 +284,7 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
 
         setCustomerOptions(toCustomerOptions(customers));
         setEventOptions(toEventOptions(events.items));
+        setItemMasters(itemMasters);
         setItemMasterOptions(toItemMasterOptions(itemMasters));
         setSalespersonOptions(toSalespersonOptions(salespersons));
         setStateOptions(toMasterCodeOptions(states));
@@ -338,7 +344,8 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
           quantity: line.quantity,
           unitPrice: line.rate,
           lineDiscountPercentage: line.lineDiscountPercentage,
-          lineAmount: line.netLineAmount
+          lineAmount: line.netLineAmount,
+          remarks: line.remarks
         }));
 
         if (isMounted) {
@@ -395,6 +402,30 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
 
   const lineDirty = lines.length > 0 || hasInvoiceDiscount;
   const isDirty = headerDirty || lineDirty;
+  const itemMasterPriceByNumber = React.useMemo(() => {
+    return itemMasters.reduce<Record<string, number>>((pricesByNumber, item) => {
+      const normalizedNumber = item.number.trim().toLowerCase();
+      if (normalizedNumber && typeof item.unitPrice === 'number' && Number.isFinite(item.unitPrice)) {
+        pricesByNumber[normalizedNumber] = item.unitPrice;
+      }
+      return pricesByNumber;
+    }, {});
+  }, [itemMasters]);
+
+  const calculateSalesOrderLine = React.useCallback((item: ISalesOrderLineFormItem, changedKey: string): ISalesOrderLineFormItem => {
+    if (changedKey === 'itemCode') {
+      const itemPrice = itemMasterPriceByNumber[item.itemCode.trim().toLowerCase()];
+      if (typeof itemPrice === 'number') {
+        return calculateLine({
+          ...item,
+          unitPrice: itemPrice
+        });
+      }
+    }
+
+    return calculateLine(item);
+  }, [itemMasterPriceByNumber]);
+
   const lineItemFields = React.useMemo<readonly IFormFieldConfig[]>(() => {
     return (salesOrderLineItemFields as readonly IFormFieldConfig[]).map(field => {
       if (field.key === 'itemCode') {
@@ -550,7 +581,7 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
           requireAtLeastOneLine={true}
           showValidationErrors={showLineValidation}
           createDefaultItem={() => createDefaultLine(lines.length + 1)}
-          calculateItem={calculateLine}
+          calculateItem={calculateSalesOrderLine}
           validateLine={validateLine}
           onChange={nextLines => {
             resetInvoiceDiscount();

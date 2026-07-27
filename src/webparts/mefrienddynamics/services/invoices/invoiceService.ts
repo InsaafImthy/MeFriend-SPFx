@@ -11,6 +11,7 @@ import type { IPagedResult } from '../../models/common/IPagedResult';
 import type { IPaginationState } from '../../models/common/IPaginationState';
 import type { ISortState } from '../../models/common/ISortState';
 import { calculateOutstandingAmount, calculatePaymentStatus } from '../../utils/financialUtils';
+import { normalizeBusinessDate } from '../../utils/formatUtils';
 
 interface IInvoiceApiModel {
   '@odata.etag'?: string;
@@ -200,9 +201,9 @@ export class InvoiceService {
       clientGSTState: api?.clientGSTState || api?.clientGstState || api?.clientState || '',
       salesPerson: api?.salesPerson || api?.salesperson || api?.salesPersonName || '',
       salesOrderNumber: api?.bookingOrderNumber || api?.bookingOrderNo || api?.salesOrderNumber || api?.salesOrderNo || api?.salesOrderReference || '',
-      salesOrderDate: api?.bookingOrderDate || api?.salesOrderDate,
-      invoiceDate: api?.invoiceDate || api?.postingDate,
-      dueDate: api?.dueDate,
+      salesOrderDate: normalizeBusinessDate(api?.bookingOrderDate || api?.salesOrderDate),
+      invoiceDate: normalizeBusinessDate(api?.invoiceDate || api?.postingDate),
+      dueDate: normalizeBusinessDate(api?.dueDate),
       totalAmount,
       netAmount,
       tradeDiscount,
@@ -215,7 +216,7 @@ export class InvoiceService {
       amountInWords: api?.amountInWords || api?.amountInWordsText || '',
       irn: api?.irn || api?.IRN || '',
       acknowledgementNumber: api?.acknowledgementNumber || api?.ackNo || api?.AckNo || '',
-      acknowledgementDate: api?.acknowledgementDate || api?.ackDate || api?.AckDate,
+      acknowledgementDate: normalizeBusinessDate(api?.acknowledgementDate || api?.ackDate || api?.AckDate),
       qrCodeData: api?.qrCodeData || api?.qrCode || api?.qrCodeUrl || api?.signedQRCode || '',
       paidAmount,
       outstandingAmount,

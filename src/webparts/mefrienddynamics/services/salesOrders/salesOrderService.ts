@@ -17,6 +17,7 @@ import {
   calculatePaymentStatus,
   summarizeRelatedInvoices
 } from '../../utils/financialUtils';
+import { normalizeBusinessDate } from '../../utils/formatUtils';
 
 interface ISalesOrderApiModel {
   '@odata.etag'?: string;
@@ -245,7 +246,7 @@ export class SalesOrderService {
       id: api?.id || api?.Id || salesOrderNumber,
       salesOrderNumber,
       documentType: api?.documentType || api?.DocumentType || '',
-      documentDate: api?.documentDate || undefined,
+      documentDate: normalizeBusinessDate(api?.documentDate),
       postingDescription: api?.postingDescription || '',
       customerCode,
       customerName,
@@ -256,10 +257,10 @@ export class SalesOrderService {
       salespersonName: api?.salespersonName || '',
       eventCode: api?.eventCode || '',
       eventName: api?.eventName || '',
-      postingDate: api?.postingDate || undefined,
-      orderDate: api?.orderDate || api?.documentDate || undefined,
-      dueDate: api?.dueDate || undefined,
-      shipmentDate: api?.shipmentDate || undefined,
+      postingDate: normalizeBusinessDate(api?.postingDate),
+      orderDate: normalizeBusinessDate(api?.orderDate || api?.documentDate),
+      dueDate: normalizeBusinessDate(api?.dueDate),
+      shipmentDate: normalizeBusinessDate(api?.shipmentDate),
       requestedDeliveryDate: this.toBusinessDate(api?.requestedDeliveryDate),
       promisedDeliveryDate: this.toBusinessDate(api?.promisedDeliveryDate),
       externalDocumentNumber: api?.externalDocumentNumber || api?.externalDocumentNo || '',
@@ -327,11 +328,11 @@ export class SalesOrderService {
     const productDimensionValue = form.eventCode?.trim();
 
     return {
-      postingDate: form.postingDate,
+      postingDate: normalizeBusinessDate(form.postingDate),
       sellToCustomerNo: customerNo,
       billToCustomerNo: form.billToCustomerCode?.trim() || customerNo,
       roNo: form.externalDocumentNumber?.trim() || undefined,
-      rodate: form.orderDate,
+      rodate: normalizeBusinessDate(form.orderDate),
       salesperson: form.salespersonCode.trim() || undefined,
       locationcode: form.stateCode?.trim() || undefined,
       invoiceDiscountAmountExclVat: this.toPositiveOptionalNumber(form.invoiceDiscountAmountExclVat),
@@ -385,7 +386,7 @@ export class SalesOrderService {
       return {
         id: invoice.id || invoiceNumber,
         invoiceNumber,
-        invoiceDate: invoice.invoiceDate || invoice.postingDate,
+        invoiceDate: normalizeBusinessDate(invoice.invoiceDate || invoice.postingDate),
         totalAmount,
         paidAmount,
         outstandingAmount,
@@ -467,9 +468,9 @@ export class SalesOrderService {
       quantityToShip: this.toOptionalNumber(api.qtyToShip),
       quantityToInvoice: this.toOptionalNumber(api.qtyToInvoice),
       unitOfMeasureCode: api.unitOfMeasureCode || '',
-      shipmentDate: api.shipmentDate || undefined,
-      plannedShipmentDate: api.plannedShipmentDate || undefined,
-      plannedDeliveryDate: api.plannedDeliveryDate || undefined,
+      shipmentDate: normalizeBusinessDate(api.shipmentDate),
+      plannedShipmentDate: normalizeBusinessDate(api.plannedShipmentDate),
+      plannedDeliveryDate: normalizeBusinessDate(api.plannedDeliveryDate),
       requestedDeliveryDate: this.toBusinessDate(api.requestedDeliveryDate),
       promisedDeliveryDate: this.toBusinessDate(api.promisedDeliveryDate),
       taxAmount: typeof api.taxAmount === 'number' ? api.taxAmount : this.toOptionalNumber(api.tax),
@@ -537,8 +538,8 @@ export class SalesOrderService {
       salespersonName: '',
       eventCode: productDimension?.dimensionValueCode || '',
       eventName: '',
-      postingDate: request.postingDate,
-      orderDate: request.rodate,
+      postingDate: normalizeBusinessDate(request.postingDate),
+      orderDate: normalizeBusinessDate(request.rodate),
       dueDate: undefined,
       shipmentDate: undefined,
       requestedDeliveryDate: undefined,
@@ -858,6 +859,6 @@ export class SalesOrderService {
   }
 
   private toBusinessDate(value: string | undefined): string | undefined {
-    return value && value !== '0001-01-01' ? value : undefined;
+    return normalizeBusinessDate(value);
   }
 }

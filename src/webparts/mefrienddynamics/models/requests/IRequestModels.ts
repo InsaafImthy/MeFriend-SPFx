@@ -104,6 +104,7 @@ export interface ISalesOrderRequestLine {
   netLineAmount: number;
   productDimensionCode: string;
   unitOfMeasureCode: string;
+  remarks: string;
   isActive: boolean;
 }
 

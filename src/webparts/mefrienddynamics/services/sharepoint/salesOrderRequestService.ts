@@ -11,6 +11,7 @@ import type {
   ISalesOrderRequestLine,
   RequestStatus
 } from '../../models/requests';
+import { normalizeBusinessDate } from '../../utils/formatUtils';
 import { SharePointRestClient } from './sharePointRestClient';
 
 interface ISalesOrderRequestListItem {
@@ -74,6 +75,7 @@ interface ISalesOrderRequestLineListItem {
   NetLineAmount?: number;
   ProductDimensionCode?: string;
   UnitOfMeasureCode?: string;
+  Remarks?: string;
   IsActive?: boolean;
 }
 
@@ -188,6 +190,7 @@ const salesOrderRequestLineSelect = [
   'NetLineAmount',
   'ProductDimensionCode',
   'UnitOfMeasureCode',
+  'Remarks',
   'IsActive'
 ];
 
@@ -235,8 +238,8 @@ export class SalesOrderRequestService {
       [mefriendFields.salesOrderRequests.eventName]: input.snapshot.eventName,
       [mefriendFields.salesOrderRequests.countryCode]: form.countryCode || '',
       [mefriendFields.salesOrderRequests.stateCode]: form.stateCode || '',
-      [mefriendFields.salesOrderRequests.orderDate]: form.orderDate || null,
-      [mefriendFields.salesOrderRequests.postingDate]: form.postingDate || null,
+      [mefriendFields.salesOrderRequests.orderDate]: normalizeBusinessDate(form.orderDate) || null,
+      [mefriendFields.salesOrderRequests.postingDate]: normalizeBusinessDate(form.postingDate) || null,
       [mefriendFields.salesOrderRequests.externalDocumentNumber]: form.externalDocumentNumber || '',
       [mefriendFields.salesOrderRequests.remarks]: form.remarks || '',
       [mefriendFields.salesOrderRequests.currencyCode]: form.currencyCode || '',
@@ -288,6 +291,7 @@ export class SalesOrderRequestService {
       [mefriendFields.salesOrderRequestLines.netLineAmount]: netLineAmount,
       [mefriendFields.salesOrderRequestLines.productDimensionCode]: snapshot.productDimensionCode,
       [mefriendFields.salesOrderRequestLines.unitOfMeasureCode]: snapshot.unitOfMeasureCode,
+      [mefriendFields.salesOrderRequestLines.remarks]: snapshot.item.remarks || '',
       [mefriendFields.salesOrderRequestLines.isActive]: true
     };
 
@@ -344,8 +348,8 @@ export class SalesOrderRequestService {
       [mefriendFields.salesOrderRequests.eventName]: snapshot.eventName,
       [mefriendFields.salesOrderRequests.countryCode]: form.countryCode || '',
       [mefriendFields.salesOrderRequests.stateCode]: form.stateCode || '',
-      [mefriendFields.salesOrderRequests.orderDate]: form.orderDate || null,
-      [mefriendFields.salesOrderRequests.postingDate]: form.postingDate || null,
+      [mefriendFields.salesOrderRequests.orderDate]: normalizeBusinessDate(form.orderDate) || null,
+      [mefriendFields.salesOrderRequests.postingDate]: normalizeBusinessDate(form.postingDate) || null,
       [mefriendFields.salesOrderRequests.externalDocumentNumber]: form.externalDocumentNumber || '',
       [mefriendFields.salesOrderRequests.remarks]: form.remarks || '',
       [mefriendFields.salesOrderRequests.currencyCode]: form.currencyCode || '',
@@ -545,8 +549,8 @@ export class SalesOrderRequestService {
       eventName: item.EventName || '',
       countryCode: item.CountryCode || '',
       stateCode: item.StateCode || '',
-      orderDate: item.OrderDate,
-      postingDate: item.PostingDate,
+      orderDate: normalizeBusinessDate(item.OrderDate),
+      postingDate: normalizeBusinessDate(item.PostingDate),
       externalDocumentNumber: item.ExternalDocumentNumber || '',
       remarks: item.Remarks || '',
       currencyCode: item.CurrencyCode || '',
@@ -575,6 +579,7 @@ export class SalesOrderRequestService {
       netLineAmount: toNumber(item.NetLineAmount),
       productDimensionCode: item.ProductDimensionCode || '',
       unitOfMeasureCode: item.UnitOfMeasureCode || '',
+      remarks: item.Remarks || '',
       isActive: item.IsActive !== false
     };
   }

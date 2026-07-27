@@ -11,6 +11,7 @@ import type {
   RequestType
 } from '../../models/requests';
 import type { ISalesOrderCreateFormState, ISalesOrderLineItem } from '../../models/salesOrders';
+import { normalizeBusinessDate } from '../../utils/formatUtils';
 import { CustomerService } from '../customers/customerService';
 import { getUserFriendlyError } from '../api/apiErrorHandler';
 import { SalesOrderService } from '../salesOrders/salesOrderService';
@@ -191,7 +192,7 @@ export class BCIntegrationQueueService {
       const message = getUserFriendlyError(error);
       await this.markQueueFailed(queueItem.id, error, message);
       await this.setRequestFailed(request, message);
-      throw new Error(`Business Central posting failed. ${message}`);
+      throw new Error(message);
     }
   }
 
@@ -359,8 +360,8 @@ export class BCIntegrationQueueService {
       eventCode: request.eventCode,
       countryCode: request.countryCode,
       stateCode: request.stateCode,
-      orderDate: request.orderDate,
-      postingDate: request.postingDate,
+      orderDate: normalizeBusinessDate(request.orderDate),
+      postingDate: normalizeBusinessDate(request.postingDate),
       externalDocumentNumber: request.externalDocumentNumber,
       remarks: request.remarks,
       currencyCode: request.currencyCode,

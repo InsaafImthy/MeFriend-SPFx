@@ -24,7 +24,8 @@ const lineColumns: readonly ITableColumn<ISalesOrderRequestLine>[] = [
   { key: 'rate', header: 'Rate', fieldName: 'rate', sortable: false, renderType: 'amount' },
   { key: 'lineDiscountPercentage', header: 'Discount %', fieldName: 'lineDiscountPercentage', sortable: false, renderType: 'text' },
   { key: 'lineAmount', header: 'Line Amount', fieldName: 'lineAmount', sortable: false, renderType: 'amount' },
-  { key: 'netLineAmount', header: 'Net Amount', fieldName: 'netLineAmount', sortable: false, renderType: 'amount' }
+  { key: 'netLineAmount', header: 'Net Amount', fieldName: 'netLineAmount', sortable: false, renderType: 'amount' },
+  { key: 'remarks', header: 'Remarks', fieldName: 'remarks', sortable: false, renderType: 'text', minWidth: 220 }
 ];
 
 const taskColumns: readonly ITableColumn<IApprovalTask>[] = [

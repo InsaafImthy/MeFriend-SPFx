@@ -80,5 +80,12 @@ export const salesOrderLineItemFields = [
       { type: 'min', value: 0, message: 'Line discount cannot be negative.' },
       { type: 'max', value: 100, message: 'Line discount cannot exceed 100%.' }
     ]
+  },
+  {
+    key: 'remarks',
+    label: 'Remarks',
+    type: 'textarea',
+    required: false,
+    validationRules: [{ type: 'maxLength', value: 2000, message: 'Remarks cannot exceed 2,000 characters.' }]
   }
 ] as const;

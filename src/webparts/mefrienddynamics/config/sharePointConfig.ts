@@ -153,6 +153,7 @@ export const mefriendFields = {
     netLineAmount: 'NetLineAmount',
     productDimensionCode: 'ProductDimensionCode',
     unitOfMeasureCode: 'UnitOfMeasureCode',
+    remarks: 'Remarks',
     isActive: 'IsActive'
   },
   approvalTasks: {
