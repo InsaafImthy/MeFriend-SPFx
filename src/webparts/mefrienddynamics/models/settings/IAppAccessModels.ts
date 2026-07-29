@@ -26,6 +26,9 @@ export interface IAppUserInput {
   role: string;
   canAccessApp: boolean;
   isActive: boolean;
+  userId?: number;
+  userTitle?: string;
+  userEmail?: string;
 }
 
 export interface IAppUserPermission {

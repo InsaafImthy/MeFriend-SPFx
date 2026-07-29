@@ -27,6 +27,31 @@ interface IEnsureUserResponse {
   Email?: string;
 }
 
+interface IChoiceFieldResponse {
+  Choices?: readonly string[];
+}
+
+interface IPeoplePickerResponse {
+  value?: string | IPeoplePickerEntity[];
+}
+
+interface IPeoplePickerEntity {
+  Key?: string;
+  DisplayText?: string;
+  Description?: string;
+  EntityData?: {
+    Email?: string;
+    SPUserID?: string;
+  };
+}
+
+export interface ISharePointPeoplePickerUser {
+  key: string;
+  displayName: string;
+  email: string;
+  userId?: number;
+}
+
 export class SharePointRestError extends Error {
   public readonly status?: number;
   public readonly operation: string;
@@ -104,6 +129,61 @@ export class SharePointRestClient {
       title: payload.Title || email,
       email: (payload.Email || email).toLowerCase()
     };
+  }
+
+  public async getChoiceFieldValues(listTitle: string, fieldInternalName: string): Promise<readonly string[]> {
+    const endpoint = `${this.getWebAbsoluteUrl()}/_api/web/lists/getbytitle('${escapeODataString(listTitle)}')/fields/getbyinternalnameortitle('${escapeODataString(fieldInternalName)}')?$select=Choices`;
+    const response = await this.get(endpoint, 'read choice field', listTitle);
+    const payload = (await response.json()) as IChoiceFieldResponse;
+    return (payload.Choices || []).filter(choice => !!choice);
+  }
+
+  public async searchPeople(query: string, maxResults: number = 20): Promise<readonly ISharePointPeoplePickerUser[]> {
+    const trimmedQuery = query.trim();
+
+    if (!trimmedQuery) {
+      return [];
+    }
+
+    const response = await this.post(
+      `${this.getWebAbsoluteUrl()}/_api/SP.UI.ApplicationPages.ClientPeoplePickerWebServiceInterface.clientPeoplePickerSearchUser`,
+      {
+        queryParams: {
+          AllowEmailAddresses: true,
+          AllowMultipleEntities: false,
+          AllUrlZones: false,
+          MaximumEntitySuggestions: maxResults,
+          PrincipalSource: 15,
+          PrincipalType: 1,
+          QueryString: trimmedQuery
+        }
+      },
+      'search people'
+    );
+    const payload = (await response.json()) as IPeoplePickerResponse;
+    let rawEntities: IPeoplePickerEntity[] = [];
+
+    if (typeof payload.value === 'string' && payload.value) {
+      rawEntities = JSON.parse(payload.value) as IPeoplePickerEntity[];
+    } else if (Array.isArray(payload.value)) {
+      rawEntities = payload.value;
+    }
+
+    return rawEntities
+      .map(entity => {
+        const email = (entity.EntityData && entity.EntityData.Email ? entity.EntityData.Email : entity.Description || '').trim().toLowerCase();
+        const displayName = entity.DisplayText || email;
+        const userIdText = entity.EntityData ? entity.EntityData.SPUserID : undefined;
+        const userId = userIdText ? Number(userIdText) : undefined;
+
+        return {
+          key: entity.Key || email,
+          displayName,
+          email,
+          userId: userId && !isNaN(userId) ? userId : undefined
+        };
+      })
+      .filter(user => !!user.email && !!user.displayName);
   }
 
   public escapeODataString(value: string): string {

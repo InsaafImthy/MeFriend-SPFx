@@ -1,12 +1,12 @@
 export const appConfig = {
-  appName: 'MeFriend',
+  appName: 'Madhyamam MeFriend',
   defaultCurrencyCode: 'INR',
   defaultCountryCode: 'IN',
   defaultRoutePath: 'customers',
   environmentLabel: 'Local',
-  backendApiBaseUrl: 'https://localhost:5044',
+  backendApiBaseUrl: 'https://bc.mefriend.com',
   backendApi: {
-    baseUrl: 'https://localhost:5044',
+    baseUrl: 'https://bc.mefriend.com',
     anonymous: true,
     useAadHttpClient: false,
     aadResourceUrl: ''
@@ -20,6 +20,6 @@ export const appConfig = {
   sharePointSettings: {
     settingsListName: 'MeFriend App Settings',
     auditLogListName: 'MeFriend Audit Logs',
-    masterDataWebUrl: 'https://aufaitcloud.sharepoint.com/sites/MeFriend'
+    masterDataWebUrl: 'https://madhyamamgroup.sharepoint.com/sites/Me-Friend'
   }
 };

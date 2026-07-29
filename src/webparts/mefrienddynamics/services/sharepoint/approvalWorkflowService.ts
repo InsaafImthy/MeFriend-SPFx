@@ -151,12 +151,10 @@ export class ApprovalWorkflowService {
       throw new Error('Workflow code must be unique.');
     }
 
-    if (workflow.isActive) {
-      const activeSameEntity = existing.filter(item => item.entityType === workflow.entityType && item.isActive && item.id !== workflow.id)[0];
+    const duplicateEntity = existing.filter(item => item.entityType === workflow.entityType && item.id !== workflow.id)[0];
 
-      if (activeSameEntity) {
-        throw new Error(`Deactivate ${activeSameEntity.title} before activating another ${workflow.entityType} workflow.`);
-      }
+    if (duplicateEntity) {
+      throw new Error(`${workflow.entityType} already has a workflow. Edit ${duplicateEntity.title} instead of creating another flow for the same entity.`);
     }
 
     const payload = {

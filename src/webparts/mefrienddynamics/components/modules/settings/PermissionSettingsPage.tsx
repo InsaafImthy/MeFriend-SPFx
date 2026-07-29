@@ -48,6 +48,13 @@ interface IMasterDataDeleteTarget {
   item: IMasterCodeItem;
 }
 
+interface IUserPickerOption {
+  key: string;
+  displayName: string;
+  email: string;
+  userId?: number;
+}
+
 interface ISectionConfig {
   key: SettingsSectionKey;
   title: string;
@@ -196,12 +203,15 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
   const visibleSections = sections.filter(section => section.visible);
   const [activeSectionKey, setActiveSectionKey] = React.useState<SettingsSectionKey>(visibleSections[0] ? visibleSections[0].key : 'stateCodes');
   const [users, setUsers] = React.useState<readonly IAppUser[]>([]);
+  const [roleOptions, setRoleOptions] = React.useState<readonly ILookupOption<string>[]>([]);
   const [selectedUserId, setSelectedUserId] = React.useState<number | undefined>();
   const [userPermissions, setUserPermissions] = React.useState<readonly IAppUserPermission[]>([]);
   const [workflows, setWorkflows] = React.useState<readonly IApprovalWorkflow[]>([]);
   const [selectedWorkflowId, setSelectedWorkflowId] = React.useState<number | undefined>();
   const [workflowForm, setWorkflowForm] = React.useState<IApprovalWorkflow>(newWorkflow('Customer'));
+  const [workflowEntityFilter, setWorkflowEntityFilter] = React.useState<MefriendApprovalEntityType>('Customer');
   const [workflowLevels, setWorkflowLevels] = React.useState<readonly IWorkflowLevel[]>([]);
+  const [workflowDialogOpen, setWorkflowDialogOpen] = React.useState<boolean>(false);
   const [masterData, setMasterData] = React.useState<Readonly<Record<MasterDataListKey, readonly IMasterCodeItem[]>>>({
     stateCodes: [],
     countryCodes: []
@@ -213,31 +223,49 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
   const [userFilter, setUserFilter] = React.useState<'all' | 'active' | 'inactive'>('active');
   const [userDialogOpen, setUserDialogOpen] = React.useState<boolean>(false);
   const [userForm, setUserForm] = React.useState<IAppUserInput>(emptyUserForm);
+  const [userPickerQuery, setUserPickerQuery] = React.useState<string>('');
+  const [userPickerOpen, setUserPickerOpen] = React.useState<boolean>(false);
+  const [userPickerOptions, setUserPickerOptions] = React.useState<readonly IUserPickerOption[]>([]);
+  const [userPickerLoading, setUserPickerLoading] = React.useState<boolean>(false);
   const [masterDialogListKey, setMasterDialogListKey] = React.useState<MasterDataListKey | undefined>();
   const [masterForm, setMasterForm] = React.useState<IMasterDataFormState>(emptyMasterForm);
   const [deleteTarget, setDeleteTarget] = React.useState<IMasterDataDeleteTarget | undefined>();
   const [confirmUserToggle, setConfirmUserToggle] = React.useState<IAppUser | undefined>();
+  const userPickerInputId = React.useMemo(() => `user-picker-${Math.random().toString(36).substr(2, 9)}`, []);
+  const hasHandledInitialSectionRef = React.useRef<boolean>(false);
 
   const selectedUser = users.filter(user => user.id === selectedUserId)[0];
   const selectedWorkflow = workflows.filter(workflow => workflow.id === selectedWorkflowId)[0];
+  const canSaveUser = canManageUsers &&
+    !saving &&
+    !!userForm.title.trim() &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(userForm.email));
 
   const loadSettings = React.useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(undefined);
 
     try {
-      const [loadedUsers, loadedWorkflows, stateCodes, countryCodes] = await Promise.all([
+      const [loadedUsers, loadedWorkflows, stateCodes, countryCodes, loadedRoleOptions] = await Promise.all([
         canViewUsers ? appAccessService.getUsers() : Promise.resolve([]),
         canViewWorkflows ? approvalWorkflowService.getWorkflows() : Promise.resolve([]),
         canViewSettings ? masterDataService.getCodes('stateCodes') : Promise.resolve([]),
-        canViewSettings ? masterDataService.getCodes('countryCodes') : Promise.resolve([])
+        canViewSettings ? masterDataService.getCodes('countryCodes') : Promise.resolve([]),
+        canViewUsers ? appAccessService.getRoleOptions() : Promise.resolve([])
       ]);
 
       setUsers(loadedUsers);
       setWorkflows(loadedWorkflows);
+      setRoleOptions(loadedRoleOptions);
       setMasterData({ stateCodes, countryCodes });
       setSelectedUserId(current => current || (loadedUsers[0] ? loadedUsers[0].id : undefined));
-      setSelectedWorkflowId(current => current || (loadedWorkflows[0] ? loadedWorkflows[0].id : undefined));
+      setSelectedWorkflowId(current => {
+        if (current && loadedWorkflows.some(workflow => workflow.id === current)) {
+          return current;
+        }
+
+        return loadedWorkflows[0] ? loadedWorkflows[0].id : undefined;
+      });
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Unable to load settings.');
     } finally {
@@ -276,21 +304,77 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
 
   React.useEffect(() => {
     if (!selectedWorkflow || !selectedWorkflow.id) {
-      setWorkflowForm(newWorkflow('Customer'));
+      setWorkflowForm(newWorkflow(workflowEntityFilter));
       setWorkflowLevels([]);
       return;
     }
 
     setWorkflowForm(selectedWorkflow);
+    setWorkflowEntityFilter(selectedWorkflow.entityType);
     approvalWorkflowService
       .getWorkflowSteps(selectedWorkflow.id)
       .then(steps => setWorkflowLevels(approvalWorkflowService.toLevels(steps)))
       .catch(errorValue => toast.error(errorValue instanceof Error ? errorValue.message : 'Unable to load workflow steps.'));
-  }, [approvalWorkflowService, selectedWorkflow, toast]);
+  }, [approvalWorkflowService, selectedWorkflow, toast, workflowEntityFilter]);
 
   React.useEffect(() => {
     setSearchText('');
-  }, [activeSectionKey]);
+
+    if (!hasHandledInitialSectionRef.current) {
+      hasHandledInitialSectionRef.current = true;
+      return;
+    }
+
+    loadSettings().catch(() => undefined);
+  }, [activeSectionKey, loadSettings]);
+
+  React.useEffect(() => {
+    if (!userDialogOpen) {
+      setUserPickerQuery('');
+      setUserPickerOpen(false);
+      setUserPickerOptions([]);
+      return;
+    }
+
+    setUserPickerQuery(userForm.title || userForm.email);
+  }, [userDialogOpen, userForm.email, userForm.title]);
+
+  React.useEffect(() => {
+    if (!userDialogOpen || userPickerQuery.trim().length < 2) {
+      setUserPickerLoading(false);
+      setUserPickerOptions([]);
+      return undefined;
+    }
+
+    let isActive = true;
+    const timer = window.setTimeout(() => {
+      setUserPickerLoading(true);
+      const runSearch = async (): Promise<void> => {
+        try {
+          const foundUsers = await appAccessService.searchUsers(userPickerQuery);
+          if (isActive) {
+            setUserPickerOptions(foundUsers);
+          }
+        } catch (errorValue) {
+          if (isActive) {
+            setUserPickerOptions([]);
+            toast.error(errorValue instanceof Error ? errorValue.message : 'Unable to search SharePoint users.');
+          }
+        } finally {
+          if (isActive) {
+            setUserPickerLoading(false);
+          }
+        }
+      };
+
+      runSearch().catch(() => undefined);
+    }, 250);
+
+    return () => {
+      isActive = false;
+      window.clearTimeout(timer);
+    };
+  }, [appAccessService, toast, userDialogOpen, userPickerQuery]);
 
   const filteredUsers = users.filter(user => {
     const normalizedSearch = searchText.trim().toLowerCase();
@@ -315,6 +399,24 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
       description: user.email
     })), [users]);
 
+  const userRoleOptions = React.useMemo<readonly ILookupOption<string>[]>(() => {
+    if (!userForm.role || roleOptions.some(option => option.value === userForm.role)) {
+      return roleOptions;
+    }
+
+    return roleOptions.concat({
+      key: userForm.role,
+      text: userForm.role,
+      value: userForm.role
+    });
+  }, [roleOptions, userForm.role]);
+
+  const workflowsForSelectedEntity = React.useMemo<readonly IApprovalWorkflow[]>(
+    () => workflows.filter(workflow => workflow.entityType === workflowEntityFilter),
+    [workflowEntityFilter, workflows]
+  );
+  const workflowForSelectedEntity = workflowsForSelectedEntity[0];
+
   const renderRecordTitle = (title: string, subtitle?: string): React.ReactNode => (
     <div className={styles.recordTitle}>
       <strong>{title}</strong>
@@ -324,6 +426,56 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
 
   const updatePermission = (moduleKey: MefriendModuleKey, updater: (permission: IAppUserPermission) => IAppUserPermission): void => {
     setUserPermissions(current => current.map(permission => (permission.moduleKey === moduleKey ? updater(permission) : permission)));
+  };
+
+  const openUserDialog = (user?: IAppUser): void => {
+    const nextForm = user || emptyUserForm;
+    setUserForm(nextForm);
+    setUserPickerQuery(nextForm.title || nextForm.email);
+    setUserPickerOptions([]);
+    setUserPickerOpen(false);
+    setUserDialogOpen(true);
+  };
+
+  const selectUserPickerOption = (option: IUserPickerOption): void => {
+    setUserForm(current => ({
+      ...current,
+      title: option.displayName,
+      email: normalizeEmail(option.email),
+      userId: option.userId,
+      userTitle: option.displayName,
+      userEmail: normalizeEmail(option.email)
+    }));
+    setUserPickerQuery(option.displayName);
+    setUserPickerOpen(false);
+  };
+
+  const selectWorkflowEntity = (entityType: MefriendApprovalEntityType): void => {
+    setWorkflowEntityFilter(entityType);
+    const existingWorkflow = workflows.filter(workflow => workflow.entityType === entityType)[0];
+
+    if (existingWorkflow && existingWorkflow.id) {
+      setSelectedWorkflowId(existingWorkflow.id);
+      return;
+    }
+
+    setSelectedWorkflowId(undefined);
+    setWorkflowForm(newWorkflow(entityType));
+    setWorkflowLevels([]);
+  };
+
+  const openWorkflowDialog = (workflow?: IApprovalWorkflow): void => {
+    if (workflow && workflow.id) {
+      setWorkflowEntityFilter(workflow.entityType);
+      setSelectedWorkflowId(workflow.id);
+      setWorkflowForm(workflow);
+    } else {
+      setSelectedWorkflowId(undefined);
+      setWorkflowForm(newWorkflow(workflowEntityFilter));
+      setWorkflowLevels([]);
+    }
+
+    setWorkflowDialogOpen(true);
   };
 
   const saveUser = async (): Promise<void> => {
@@ -370,11 +522,20 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
       return;
     }
 
+    const duplicateEntityWorkflow = workflows.filter(workflow => workflow.entityType === workflowForm.entityType && workflow.id !== workflowForm.id)[0];
+
+    if (duplicateEntityWorkflow) {
+      toast.error(`${workflowForm.entityType} already has a workflow. Edit ${duplicateEntityWorkflow.title} instead of creating another flow.`);
+      return;
+    }
+
     setSaving(true);
 
     try {
       const saved = await approvalWorkflowService.saveWorkflow(workflowForm, workflowLevels);
       toast.success('Workflow saved.');
+      setWorkflowEntityFilter(saved.entityType);
+      setWorkflowDialogOpen(false);
       await loadSettings();
       setSelectedWorkflowId(saved.id);
     } catch (saveError) {
@@ -479,7 +640,7 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
               value={userFilter}
             />
           </div>
-          <Button disabled={!canManageUsers} icon={<Icon iconName="Add" aria-hidden="true" />} label="Add User" onClick={() => { setUserForm(emptyUserForm); setUserDialogOpen(true); }} />
+          <Button disabled={!canManageUsers} icon={<Icon iconName="Add" aria-hidden="true" />} label="Add User" onClick={() => openUserDialog()} />
         </div>
       )}
       rowActions={[
@@ -488,7 +649,7 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
           label: 'Edit',
           icon: 'edit',
           disabled: !canManageUsers,
-          onClick: user => { setUserForm(user); setUserDialogOpen(true); }
+          onClick: user => openUserDialog(user)
         }
       ]}
       overflowActions={[
@@ -572,127 +733,171 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
     />
   );
 
-  /*
-    Keep the Settings workflow builder as a framed editor, but use common controls
-    for every reusable input surface inside it.
-  */
-  const renderWorkflowManagement = (): React.ReactNode => {
-    return (
-      <div className={styles.workflowGrid}>
-        <div className={styles.tablePanel}>
-          <div className={styles.toolbar}>
-            <div className={styles.fullWidthDropdown}>
-              <Dropdown
-                label="Entity type"
-                onChange={value => setWorkflowForm(newWorkflow(typeof value === 'string' ? value as MefriendApprovalEntityType : 'Customer'))}
-                options={entityTypeOptions}
-                value={workflowForm.entityType}
-              />
+  const renderWorkflowEditor = (): React.ReactNode => (
+    <div className={styles.workflowEditor}>
+      <div className={styles.formGrid}>
+        <InputField disabled={!canManageWorkflows} label="Title" onChange={value => setWorkflowForm(current => ({ ...current, title: value }))} required value={workflowForm.title} />
+        <InputField disabled={!canManageWorkflows} label="Workflow Code" onChange={value => setWorkflowForm(current => ({ ...current, workflowCode: value }))} required value={workflowForm.workflowCode} />
+        <Dropdown
+          disabled={!canManageWorkflows || !!workflowForm.id}
+          label="Entity Type"
+          onChange={value => selectWorkflowEntity(typeof value === 'string' ? value as MefriendApprovalEntityType : workflowForm.entityType)}
+          options={entityTypeOptions}
+          required
+          value={workflowForm.entityType}
+        />
+        <InputField disabled={!canManageWorkflows} label="Version" min={1} onChange={value => setWorkflowForm(current => ({ ...current, version: Number(value) || 1 }))} required type="number" value={workflowForm.version} />
+        <Dropdown
+          disabled={!canManageWorkflows}
+          label="Final Action"
+          onChange={value => setWorkflowForm(current => ({ ...current, finalAction: typeof value === 'string' ? value as 'PostToBC' | 'ApproveOnly' : current.finalAction }))}
+          options={finalActionOptions}
+          value={workflowForm.finalAction}
+        />
+        {(['isActive', 'allowRejection', 'allowResubmission'] as const).map(flag => (
+          <label className={styles.toggle} key={flag}>
+            <input checked={workflowForm[flag]} disabled={!canManageWorkflows} onChange={event => {
+              const checked = event.currentTarget.checked;
+              setWorkflowForm(current => ({ ...current, [flag]: checked }));
+            }} type="checkbox" />
+            <span>{flag}</span>
+          </label>
+        ))}
+      </div>
+      <div className={styles.levelToolbar}>
+        <strong>Approval Levels</strong>
+        <Button disabled={!canManageWorkflows} icon={<Icon iconName="Add" aria-hidden="true" />} label="Add Level" onClick={() => {
+          const next = workflowLevels.length + 1;
+          setWorkflowLevels(current => current.map(level => ({ ...level, isFinalLevel: false })).concat(newLevel(next)));
+        }} variant="secondary" />
+      </div>
+      {workflowLevels.map((level, index) => (
+        <div className={level.isFinalLevel ? `${styles.levelCard} ${styles.finalLevel}` : styles.levelCard} key={level.localId}>
+          <div className={styles.levelHeader}>
+            <strong>Level {level.levelNumber}</strong>
+            <div className={styles.rowActions}>
+              <button aria-label="Move level up" disabled={!canManageWorkflows || index === 0} onClick={() => setWorkflowLevels(current => current.map((item, itemIndex, all) => itemIndex === index - 1 ? { ...level, levelNumber: itemIndex + 1, sequence: itemIndex + 1 } : itemIndex === index ? { ...all[index - 1], levelNumber: itemIndex + 1, sequence: itemIndex + 1 } : item))} type="button"><Icon iconName="Up" aria-hidden="true" /></button>
+              <button aria-label="Remove level" disabled={!canManageWorkflows} onClick={() => setWorkflowLevels(current => current.filter(item => item.localId !== level.localId).map((item, itemIndex, all) => ({ ...item, levelNumber: itemIndex + 1, sequence: itemIndex + 1, isFinalLevel: itemIndex === all.length - 1 ? item.isFinalLevel || level.isFinalLevel : item.isFinalLevel })))} type="button"><Icon iconName="Delete" aria-hidden="true" /></button>
             </div>
-            <Button disabled={!canManageWorkflows} icon={<Icon iconName="Add" aria-hidden="true" />} label="New Workflow" onClick={() => { setSelectedWorkflowId(undefined); setWorkflowForm(newWorkflow(workflowForm.entityType)); setWorkflowLevels([]); }} />
           </div>
-          <div className={styles.table}>
-            {workflows.map(workflow => (
-              <button className={selectedWorkflowId === workflow.id ? `${styles.workflowListItem} ${styles.workflowListItemActive}` : styles.workflowListItem} key={workflow.id || workflow.workflowCode} onClick={() => setSelectedWorkflowId(workflow.id)} type="button">
-                <strong>{workflow.title}</strong>
-                <span>{workflow.workflowCode} · {workflow.entityType} · v{workflow.version}</span>
-                <small>{workflow.isActive ? 'Active' : 'Inactive'}</small>
-              </button>
-            ))}
-            {!workflows.length ? <div className={styles.emptyRow}>No workflows configured.</div> : null}
-          </div>
-        </div>
-        <div className={styles.tablePanel}>
           <div className={styles.formGrid}>
-            <InputField disabled={!canManageWorkflows} label="Title" onChange={value => setWorkflowForm(current => ({ ...current, title: value }))} required value={workflowForm.title} />
-            <InputField disabled={!canManageWorkflows} label="Workflow Code" onChange={value => setWorkflowForm(current => ({ ...current, workflowCode: value }))} required value={workflowForm.workflowCode} />
-            <Dropdown
-              disabled={!canManageWorkflows || !!workflowForm.id}
-              label="Entity Type"
-              onChange={value => setWorkflowForm(current => ({ ...current, entityType: typeof value === 'string' ? value as MefriendApprovalEntityType : current.entityType }))}
-              options={entityTypeOptions}
-              required
-              value={workflowForm.entityType}
-            />
-            <InputField disabled={!canManageWorkflows} label="Version" min={1} onChange={value => setWorkflowForm(current => ({ ...current, version: Number(value) || 1 }))} required type="number" value={workflowForm.version} />
+            <InputField disabled={!canManageWorkflows} label="Step Name" onChange={value => setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, stepName: value } : item))} value={level.stepName} />
             <Dropdown
               disabled={!canManageWorkflows}
-              label="Final Action"
-              onChange={value => setWorkflowForm(current => ({ ...current, finalAction: typeof value === 'string' ? value as 'PostToBC' | 'ApproveOnly' : current.finalAction }))}
-              options={finalActionOptions}
-              value={workflowForm.finalAction}
+              label="Approval Mode"
+              onChange={value => setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, approvalMode: typeof value === 'string' ? value as 'Any' | 'All' : item.approvalMode } : item))}
+              options={approvalModeOptions}
+              value={level.approvalMode}
             />
-            {(['isActive', 'allowRejection', 'allowResubmission'] as const).map(flag => (
-              <label className={styles.toggle} key={flag}>
-                <input checked={workflowForm[flag]} disabled={!canManageWorkflows} onChange={event => {
-                  const checked = event.currentTarget.checked;
-                  setWorkflowForm(current => ({ ...current, [flag]: checked }));
-                }} type="checkbox" />
-                <span>{flag}</span>
-              </label>
-            ))}
+            <InputField disabled={!canManageWorkflows} label="Required Approvals" min={1} onChange={value => setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, requiredApprovals: Number(value) || 1 } : item))} type="number" value={level.requiredApprovals} />
+            <label className={styles.toggle}><input checked={level.isFinalLevel} disabled={!canManageWorkflows} onChange={event => {
+              const checked = event.currentTarget.checked;
+              setWorkflowLevels(current => current.map(item => ({ ...item, isFinalLevel: item.localId === level.localId ? checked : false })));
+            }} type="checkbox" /><span>Final level</span></label>
+            <label className={styles.toggle}><input checked={level.isActive} disabled={!canManageWorkflows} onChange={event => {
+              const checked = event.currentTarget.checked;
+              setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, isActive: checked } : item));
+            }} type="checkbox" /><span>Active</span></label>
           </div>
-          <div className={styles.levelToolbar}>
-            <strong>Approval Levels</strong>
-            <Button disabled={!canManageWorkflows} icon={<Icon iconName="Add" aria-hidden="true" />} label="Add Level" onClick={() => {
-              const next = workflowLevels.length + 1;
-              setWorkflowLevels(current => current.map(level => ({ ...level, isFinalLevel: false })).concat(newLevel(next)));
-            }} variant="secondary" />
-          </div>
-          {workflowLevels.map((level, index) => (
-            <div className={level.isFinalLevel ? `${styles.levelCard} ${styles.finalLevel}` : styles.levelCard} key={level.localId}>
-              <div className={styles.levelHeader}>
-                <strong>Level {level.levelNumber}</strong>
-                <div className={styles.rowActions}>
-                  <button aria-label="Move level up" disabled={!canManageWorkflows || index === 0} onClick={() => setWorkflowLevels(current => current.map((item, itemIndex, all) => itemIndex === index - 1 ? { ...level, levelNumber: itemIndex + 1, sequence: itemIndex + 1 } : itemIndex === index ? { ...all[index - 1], levelNumber: itemIndex + 1, sequence: itemIndex + 1 } : item))} type="button"><Icon iconName="Up" aria-hidden="true" /></button>
-                  <button aria-label="Remove level" disabled={!canManageWorkflows} onClick={() => setWorkflowLevels(current => current.filter(item => item.localId !== level.localId).map((item, itemIndex, all) => ({ ...item, levelNumber: itemIndex + 1, sequence: itemIndex + 1, isFinalLevel: itemIndex === all.length - 1 ? item.isFinalLevel || level.isFinalLevel : item.isFinalLevel })))} type="button"><Icon iconName="Delete" aria-hidden="true" /></button>
-                </div>
-              </div>
-              <div className={styles.formGrid}>
-                <InputField disabled={!canManageWorkflows} label="Step Name" onChange={value => setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, stepName: value } : item))} value={level.stepName} />
+          <div className={styles.approverList}>
+            {level.approverIds.map((approverId, approverIndex) => (
+              <div className={styles.approverDropdown} key={`${level.localId}-${approverIndex}`}>
                 <Dropdown
                   disabled={!canManageWorkflows}
-                  label="Approval Mode"
-                  onChange={value => setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, approvalMode: typeof value === 'string' ? value as 'Any' | 'All' : item.approvalMode } : item))}
-                  options={approvalModeOptions}
-                  value={level.approvalMode}
+                  label="Approver"
+                  onChange={value => setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, approverIds: item.approverIds.map((id, idIndex) => idIndex === approverIndex ? (typeof value === 'number' ? value : id) : id) } : item))}
+                  options={activeApproverOptions}
+                  placeholder="Select approver"
+                  searchable
+                  showSelectedDetail
+                  value={approverId || undefined}
                 />
-                <InputField disabled={!canManageWorkflows} label="Required Approvals" min={1} onChange={value => setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, requiredApprovals: Number(value) || 1 } : item))} type="number" value={level.requiredApprovals} />
-                <label className={styles.toggle}><input checked={level.isFinalLevel} disabled={!canManageWorkflows} onChange={event => {
-                  const checked = event.currentTarget.checked;
-                  setWorkflowLevels(current => current.map(item => ({ ...item, isFinalLevel: item.localId === level.localId ? checked : false })));
-                }} type="checkbox" /><span>Final level</span></label>
-                <label className={styles.toggle}><input checked={level.isActive} disabled={!canManageWorkflows} onChange={event => {
-                  const checked = event.currentTarget.checked;
-                  setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, isActive: checked } : item));
-                }} type="checkbox" /><span>Active</span></label>
               </div>
-              <div className={styles.approverList}>
-                {level.approverIds.map((approverId, approverIndex) => (
-                  <div className={styles.approverDropdown} key={`${level.localId}-${approverIndex}`}>
-                    <Dropdown
-                      disabled={!canManageWorkflows}
-                      label="Approver"
-                      onChange={value => setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, approverIds: item.approverIds.map((id, idIndex) => idIndex === approverIndex ? (typeof value === 'number' ? value : id) : id) } : item))}
-                      options={activeApproverOptions}
-                      placeholder="Select approver"
-                      searchable
-                      showSelectedDetail
-                      value={approverId || undefined}
-                    />
-                  </div>
-                ))}
-                <Button disabled={!canManageWorkflows} icon={<Icon iconName="AddFriend" aria-hidden="true" />} label="Add Approver" onClick={() => setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, approverIds: item.approverIds.concat(0) } : item))} variant="secondary" />
-              </div>
-            </div>
-          ))}
-          <div className={styles.formActions}>
-            <Button disabled={!canManageWorkflows} label="Save Workflow" loading={saving} onClick={() => saveWorkflow().catch(() => undefined)} />
+            ))}
+            <Button disabled={!canManageWorkflows} icon={<Icon iconName="AddFriend" aria-hidden="true" />} label="Add Approver" onClick={() => setWorkflowLevels(current => current.map(item => item.localId === level.localId ? { ...item, approverIds: item.approverIds.concat(0) } : item))} variant="secondary" />
           </div>
         </div>
-      </div>
-    );
-  };
+      ))}
+    </div>
+  );
+
+  const renderWorkflowManagement = (): React.ReactNode => (
+    <EntityTable
+      columns={[
+        {
+          key: 'workflow',
+          header: 'Workflow',
+          fieldName: 'title',
+          sortable: false,
+          renderType: 'custom',
+          minWidth: 260,
+          customRender: workflow => renderRecordTitle(workflow.title, workflow.workflowCode)
+        },
+        { key: 'entityType', header: 'Entity Type', fieldName: 'entityType', sortable: false, renderType: 'text', minWidth: 150 },
+        { key: 'version', header: 'Version', fieldName: 'version', sortable: false, renderType: 'text', minWidth: 110 },
+        { key: 'finalAction', header: 'Final Action', fieldName: 'finalAction', sortable: false, renderType: 'text', minWidth: 150 },
+        {
+          key: 'status',
+          header: 'Status',
+          fieldName: 'isActive',
+          sortable: false,
+          renderType: 'text',
+          minWidth: 120,
+          customRender: workflow => (workflow.isActive ? 'Active' : 'Inactive')
+        }
+      ] as readonly ITableColumn<IApprovalWorkflow>[]}
+      emptyMessage={`No workflow configured for ${workflowEntityFilter}.`}
+      emptyTitle="No workflow found"
+      getRowKey={workflow => String(workflow.id || workflow.workflowCode)}
+      items={workflowsForSelectedEntity}
+      rowActionLabel="Open"
+      onRowClick={workflow => openWorkflowDialog(workflow)}
+      actions={(
+        <div className={styles.toolbarControls}>
+          <div className={styles.workflowEntityDropdown}>
+            <Dropdown
+              label="Entity type"
+              onChange={value => selectWorkflowEntity(typeof value === 'string' ? value as MefriendApprovalEntityType : 'Customer')}
+              options={entityTypeOptions}
+              value={workflowEntityFilter}
+            />
+          </div>
+          <Button
+            disabled={!canManageWorkflows || !!workflowForSelectedEntity}
+            icon={<Icon iconName="Add" aria-hidden="true" />}
+            label="New Workflow"
+            onClick={() => openWorkflowDialog()}
+          />
+        </div>
+      )}
+      rowActions={[
+        {
+          key: 'edit',
+          label: 'Edit',
+          icon: 'edit',
+          disabled: !canManageWorkflows,
+          onClick: workflow => openWorkflowDialog(workflow)
+        }
+      ]}
+    />
+  );
+
+  const renderWorkflowDialog = (): React.ReactNode => (
+    <EntityModal
+      isOpen={workflowDialogOpen}
+      title={workflowForm.id ? 'Edit Workflow' : 'New Workflow'}
+      subtitle="Configure the single approval flow for this entity."
+      size="large"
+      onDismiss={() => setWorkflowDialogOpen(false)}
+      confirmLabel="Save Workflow"
+      confirmLoading={saving}
+      confirmDisabled={!canManageWorkflows}
+      onConfirm={() => saveWorkflow().catch(() => undefined)}
+      onCancel={() => setWorkflowDialogOpen(false)}
+    >
+      {renderWorkflowEditor()}
+    </EntityModal>
+  );
 
   const renderMasterTable = (listKey: MasterDataListKey): React.ReactNode => {
     const filteredMasterData = masterData[listKey].filter(item => !searchText || item.code.toLowerCase().indexOf(searchText.toLowerCase()) !== -1 || item.name.toLowerCase().indexOf(searchText.toLowerCase()) !== -1);
@@ -768,11 +973,72 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
   return (
     <PageContainer title="Settings" description="Configure application access, workflow approvals, and sales order master data.">
       <div className={styles.settingsShell}>{renderSectionNav()}{renderContent()}</div>
-      <EntityModal isOpen={userDialogOpen} title={userForm.id ? 'Edit App User' : 'Add App User'} size="small" onDismiss={() => setUserDialogOpen(false)} confirmLabel={userForm.id ? 'Update' : 'Create'} confirmLoading={saving} confirmDisabled={!canManageUsers} onConfirm={() => saveUser().catch(() => undefined)} onCancel={() => setUserDialogOpen(false)}>
+      {renderWorkflowDialog()}
+      <EntityModal isOpen={userDialogOpen} title={userForm.id ? 'Edit App User' : 'Add App User'} size="small" onDismiss={() => setUserDialogOpen(false)} confirmLabel={userForm.id ? 'Update' : 'Create'} confirmLoading={saving} confirmDisabled={!canSaveUser} onConfirm={() => saveUser().catch(() => undefined)} onCancel={() => setUserDialogOpen(false)}>
         <div className={styles.masterForm}>
-          <InputField disabled={saving} label="Display Name" onChange={value => setUserForm(current => ({ ...current, title: value }))} required value={userForm.title} />
-          <InputField disabled={saving} label="Email" onChange={value => setUserForm(current => ({ ...current, email: value }))} required type="email" value={userForm.email} />
-          <InputField disabled={saving} label="Role" onChange={value => setUserForm(current => ({ ...current, role: value }))} value={userForm.role} />
+          <div className={styles.peoplePickerField}>
+            <label className={styles.peoplePickerLabel} htmlFor={userPickerInputId}>Display Name <span aria-hidden="true">*</span></label>
+            <div className={styles.peoplePicker}>
+              <input
+                aria-autocomplete="list"
+                aria-expanded={userPickerOpen}
+                autoComplete="off"
+                disabled={saving}
+                id={userPickerInputId}
+                onBlur={() => window.setTimeout(() => setUserPickerOpen(false), 120)}
+                onChange={event => {
+                  const query = event.currentTarget.value;
+                  setUserPickerQuery(query);
+                  setUserPickerOpen(true);
+                  setUserForm(current => ({
+                    ...current,
+                    title: query,
+                    email: query === current.title ? current.email : '',
+                    userId: query === current.title ? current.userId : undefined,
+                    userTitle: query === current.title ? current.userTitle : undefined,
+                    userEmail: query === current.title ? current.userEmail : undefined
+                  }));
+                }}
+                onFocus={() => setUserPickerOpen(true)}
+                placeholder="Search SharePoint users"
+                type="search"
+                value={userPickerQuery}
+              />
+              {userPickerOpen ? (
+                <div className={styles.peoplePickerResults} role="listbox">
+                  {userPickerQuery.trim().length < 2 ? (
+                    <span className={styles.peoplePickerMessage}>Type at least 2 characters to search users.</span>
+                  ) : userPickerLoading ? (
+                    <span className={styles.peoplePickerMessage}>Loading users...</span>
+                  ) : userPickerOptions.length ? userPickerOptions.map(option => (
+                    <button
+                      key={option.key}
+                      onMouseDown={event => {
+                        event.preventDefault();
+                        selectUserPickerOption(option);
+                      }}
+                      role="option"
+                      type="button"
+                    >
+                      <strong>{option.displayName}</strong>
+                      <span>{option.email}</span>
+                    </button>
+                  )) : (
+                    <span className={styles.peoplePickerMessage}>No matching users found.</span>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </div>
+          <InputField disabled={saving} label="Email" readOnly required type="email" value={userForm.email} />
+          <Dropdown
+            disabled={saving}
+            label="Role"
+            onChange={value => setUserForm(current => ({ ...current, role: typeof value === 'string' ? value : '' }))}
+            options={userRoleOptions}
+            placeholder="Select role"
+            value={userForm.role || undefined}
+          />
           <label className={styles.toggle}><input checked={userForm.canAccessApp} disabled={saving} onChange={event => {
             const checked = event.currentTarget.checked;
             setUserForm(current => ({ ...current, canAccessApp: checked }));

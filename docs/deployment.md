@@ -29,7 +29,7 @@ Use double underscores for nested settings in Azure App Service:
 | `AzureAd__TenantId` | Tenant ID for API authentication |
 | `AzureAd__ClientId` | API app registration client ID |
 | `AzureAd__Audience` | API audience/application ID URI if different from client ID |
-| `Security__AllowedCorsOrigins__0` | SharePoint origin, for example `https://contoso.sharepoint.com` |
+| `Security__AllowedCorsOrigins__0` | SharePoint origin, for Madhyamam use `https://madhyamamgroup.sharepoint.com` |
 
 For additional SharePoint origins, add `Security__AllowedCorsOrigins__1`, `Security__AllowedCorsOrigins__2`, and so on.
 
@@ -69,7 +69,7 @@ Grant admin consent only after the permissions have been reviewed.
 Only SharePoint origins should be configured:
 
 ```text
-Security__AllowedCorsOrigins__0=https://contoso.sharepoint.com
+Security__AllowedCorsOrigins__0=https://madhyamamgroup.sharepoint.com
 ```
 
 Do not configure wildcard origins. Do not use `AllowAnyOrigin` in production.

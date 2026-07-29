@@ -15,11 +15,11 @@
   "preconfiguredEntries": [{
     "groupId": "5c03119e-3074-46fd-976b-c60198311f70", 
     "group": { "default": "Advanced" },
-    "title": { "default": "mefrienddynamics" },
-    "description": { "default": "mefrienddynamics description" },
+    "title": { "default": "Madhyamam MeFriend" },
+    "description": { "default": "Madhyamam MeFriend Business Central extension" },
     "officeFabricIconFontName": "Page",
     "properties": {
-      "description": "mefrienddynamics"
+      "description": "Madhyamam MeFriend"
     }
   }]
 }
