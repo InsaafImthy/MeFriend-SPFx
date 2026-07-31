@@ -3,14 +3,11 @@ import type { IEventDetail, IEventFilters, IEventListItem } from '../../models/e
 import type { IPagedResult } from '../../models/common/IPagedResult';
 import type { IPaginationState } from '../../models/common/IPaginationState';
 import type { ISortState } from '../../models/common/ISortState';
-import { normalizeBusinessDate } from '../../utils/formatUtils';
 
 interface IEventApiModel {
   id?: string;
   eventCode?: string;
   eventName?: string;
-  startDate?: string;
-  endDate?: string;
   status?: string;
   description?: string;
   venue?: string;
@@ -75,8 +72,6 @@ export class EventService {
       id: api?.id || api?.eventCode || '',
       eventCode: api?.eventCode || '',
       eventName: api?.eventName || '',
-      startDate: normalizeBusinessDate(api?.startDate),
-      endDate: normalizeBusinessDate(api?.endDate),
       status: api?.status || '',
       description: api?.description || '',
       venue: api?.venue || ''
@@ -169,14 +164,6 @@ export class EventService {
         return false;
       }
 
-      if (filters.startDateFrom && (!item.startDate || item.startDate < filters.startDateFrom)) {
-        return false;
-      }
-
-      if (filters.startDateTo && (!item.startDate || item.startDate > filters.startDateTo)) {
-        return false;
-      }
-
       return true;
     });
   }
@@ -201,10 +188,6 @@ export class EventService {
         return item.eventCode;
       case 'eventName':
         return item.eventName;
-      case 'startDate':
-        return item.startDate;
-      case 'endDate':
-        return item.endDate;
       case 'status':
         return item.status;
       default:

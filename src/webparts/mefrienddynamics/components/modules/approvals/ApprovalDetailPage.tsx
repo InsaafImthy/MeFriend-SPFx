@@ -8,6 +8,8 @@ import type {
   ISalesOrderRequestDetailResult
 } from '../../../models/requests';
 import { getUserFriendlyError } from '../../../services/api/apiErrorHandler';
+import type { ItemMasterService } from '../../../services/itemMasters';
+import type { SalespersonService } from '../../../services/salespersons/salespersonService';
 import type { ApprovalProcessingService } from '../../../services/sharepoint/approvalProcessingService';
 import type { ApprovalTaskService } from '../../../services/sharepoint/approvalTaskService';
 import type { BCIntegrationQueueService } from '../../../services/sharepoint/bcIntegrationQueueService';
@@ -26,13 +28,19 @@ export interface IApprovalDetailPageProps {
   canApprove: boolean;
   canPostCustomerToBC: boolean;
   canPostSalesOrderToBC: boolean;
+  itemMasterService: ItemMasterService;
   requestSubmissionService: RequestSubmissionService;
+  salespersonService: SalespersonService;
   onNavigate: (path: string) => void;
 }
 
 type LoadedDetail =
   | { task: IApprovalTask; finalLevel: boolean; queueHistory: readonly IBCIntegrationQueueItem[]; customerDetail: IRequestDetailResult<ICustomerRequest>; salesOrderDetail?: never }
   | { task: IApprovalTask; finalLevel: boolean; queueHistory: readonly IBCIntegrationQueueItem[]; salesOrderDetail: ISalesOrderRequestDetailResult; customerDetail?: never };
+
+type DisplayMap = Readonly<Record<string, string>>;
+
+const normalizeLookupKey = (value?: string): string => (value || '').trim().toLowerCase();
 
 export const ApprovalDetailPage: React.FC<IApprovalDetailPageProps> = ({
   taskId,
@@ -42,13 +50,17 @@ export const ApprovalDetailPage: React.FC<IApprovalDetailPageProps> = ({
   canApprove,
   canPostCustomerToBC,
   canPostSalesOrderToBC,
+  itemMasterService,
   requestSubmissionService,
+  salespersonService,
   onNavigate
 }) => {
   const toast = useToast();
   const [detail, setDetail] = React.useState<LoadedDetail | undefined>();
   const [comments, setComments] = React.useState<string>('');
+  const [itemDescriptionByCode, setItemDescriptionByCode] = React.useState<DisplayMap>({});
   const [rejectionReason, setRejectionReason] = React.useState<string>('');
+  const [salespersonNameByCode, setSalespersonNameByCode] = React.useState<DisplayMap>({});
   const [showReject, setShowReject] = React.useState<boolean>(false);
   const [loading, setLoading] = React.useState<boolean>(false);
   const [actionLoading, setActionLoading] = React.useState<boolean>(false);
@@ -77,19 +89,36 @@ export const ApprovalDetailPage: React.FC<IApprovalDetailPageProps> = ({
 
       if (task.requestType === 'Customer') {
         const customerDetail = await requestSubmissionService.getCustomerRequestDetail(String(task.requestItemId));
+        setItemDescriptionByCode({});
+        setSalespersonNameByCode({});
         setDetail({ task, finalLevel, queueHistory, customerDetail });
         return;
       }
 
-      const salesOrderDetail = await requestSubmissionService.getSalesOrderRequestDetail(String(task.requestItemId));
+      const [salesOrderDetail, itemMasters, salespersons] = await Promise.all([
+        requestSubmissionService.getSalesOrderRequestDetail(String(task.requestItemId)),
+        itemMasterService.getItemMasterLookup().catch(() => []),
+        salespersonService.getSalespersonLookup().catch(() => [])
+      ]);
+
+      setItemDescriptionByCode(itemMasters.reduce<Record<string, string>>((itemsByCode, item) => {
+        itemsByCode[normalizeLookupKey(item.number)] = item.description;
+        return itemsByCode;
+      }, {}));
+      setSalespersonNameByCode(salespersons.reduce<Record<string, string>>((salespersonsByCode, salesperson) => {
+        salespersonsByCode[normalizeLookupKey(salesperson.code)] = salesperson.name;
+        return salespersonsByCode;
+      }, {}));
       setDetail({ task, finalLevel, queueHistory, salesOrderDetail });
     } catch (loadError) {
       setDetail(undefined);
+      setItemDescriptionByCode({});
+      setSalespersonNameByCode({});
       setError(getUserFriendlyError(loadError));
     } finally {
       setLoading(false);
     }
-  }, [approvalProcessingService, approvalTaskService, bcIntegrationQueueService, numericTaskId, requestSubmissionService]);
+  }, [approvalProcessingService, approvalTaskService, bcIntegrationQueueService, itemMasterService, numericTaskId, requestSubmissionService, salespersonService]);
 
   React.useEffect(() => {
     loadDetail().catch(() => undefined);
@@ -210,7 +239,9 @@ export const ApprovalDetailPage: React.FC<IApprovalDetailPageProps> = ({
       })
       : buildSalesOrderRequestDetailSections(detail.salesOrderDetail, {
         currentStepTitle: detail.task.workflowStepTitle,
-        queueHistory: detail.queueHistory
+        itemDescriptionByCode,
+        queueHistory: detail.queueHistory,
+        salespersonNameByCode
       })
     : [];
   const rejectSection: IDetailViewSection | undefined = showReject && canAct ? {

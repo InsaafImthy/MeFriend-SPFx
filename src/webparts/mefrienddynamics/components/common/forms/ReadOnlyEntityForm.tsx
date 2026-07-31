@@ -1,6 +1,7 @@
 import * as React from 'react';
 import type { IFormFieldConfig } from '../../../models/common/IFormFieldConfig';
 import type { EntityFormValues } from '../../../utils/validationUtils';
+import { formatAmount, formatDate } from '../../../utils/formatUtils';
 import { FormFooter } from './FormFooter';
 import { FormSection } from './FormSection';
 import formStyles from './Forms.module.scss';
@@ -26,6 +27,15 @@ const getDisplayValue = (field: IFormFieldConfig, values: EntityFormValues): str
   if ((field.type === 'dropdown' || field.type === 'lookup') && field.options) {
     const matchingOption = field.options.find(option => String(option.value) === String(rawValue));
     return matchingOption?.text || String(rawValue);
+  }
+
+  if (field.type === 'date') {
+    return formatDate(typeof rawValue === 'string' ? rawValue : undefined);
+  }
+
+  if (field.type === 'amount') {
+    const numericValue = typeof rawValue === 'number' ? rawValue : Number(rawValue);
+    return formatAmount(Number.isFinite(numericValue) ? numericValue : undefined);
   }
 
   return String(rawValue);

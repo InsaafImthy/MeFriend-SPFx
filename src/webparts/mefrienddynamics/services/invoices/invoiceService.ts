@@ -199,7 +199,7 @@ export class InvoiceService {
       clientAddress: api?.clientAddress || '',
       clientGSTNo: api?.clientGSTNo || api?.clientGstin || api?.clientGSTIN || '',
       clientGSTState: api?.clientGSTState || api?.clientGstState || api?.clientState || '',
-      salesPerson: api?.salesPerson || api?.salesperson || api?.salesPersonName || '',
+      salesPerson: api?.salesPersonName || api?.salesPerson || api?.salesperson || '',
       salesOrderNumber: api?.bookingOrderNumber || api?.bookingOrderNo || api?.salesOrderNumber || api?.salesOrderNo || api?.salesOrderReference || '',
       salesOrderDate: normalizeBusinessDate(api?.bookingOrderDate || api?.salesOrderDate),
       invoiceDate: normalizeBusinessDate(api?.invoiceDate || api?.postingDate),

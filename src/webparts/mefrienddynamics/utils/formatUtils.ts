@@ -61,7 +61,7 @@ export const normalizeBusinessDate = (value?: string | Date): string | undefined
     : `${parsedDate.getFullYear()}-${padDatePart(parsedDate.getMonth() + 1)}-${padDatePart(parsedDate.getDate())}`;
 };
 
-export const formatDate = (value?: string, fallback: string = '-'): string => {
+export const formatDate = (value?: string | Date, fallback: string = '-'): string => {
   const normalizedDate = normalizeBusinessDate(value);
 
   if (!normalizedDate) {
@@ -69,13 +69,11 @@ export const formatDate = (value?: string, fallback: string = '-'): string => {
   }
 
   const dateParts = normalizedDate.split('-');
-  const date = new Date(Number(dateParts[0]), Number(dateParts[1]) - 1, Number(dateParts[2]));
+  const year = Number(dateParts[0]);
+  const month = Number(dateParts[1]);
+  const day = Number(dateParts[2]);
 
-  return new Intl.DateTimeFormat('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric'
-  }).format(date);
+  return `${padDatePart(day)}/${padDatePart(month)}/${year}`;
 };
 
 export const formatAmount = (value?: number, fallback: string = '-'): string => {

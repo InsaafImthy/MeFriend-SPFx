@@ -727,7 +727,7 @@ ${waitForInvoiceAssetsScript()}
         </tr>
         <tr class="sectionHead">
           <td>Bill To</td>
-          <td>Advertiser</td>
+          <td>Ship To</td>
         </tr>
         <tr class="party">
           <td>

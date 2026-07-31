@@ -5,6 +5,8 @@ import type { ITableColumn } from '../../../models/common/ITableColumn';
 import type { IInvoiceDetail, IInvoiceLineItem, IInvoicePaymentRecord } from '../../../models/invoices';
 import { getUserFriendlyError, normalizeError } from '../../../services/api/apiErrorHandler';
 import type { InvoiceService } from '../../../services/invoices/invoiceService';
+import type { IItemMasterLookupItem, ItemMasterService } from '../../../services/itemMasters';
+import type { ISalespersonLookupItem, SalespersonService } from '../../../services/salespersons/salespersonService';
 import type { EntityFormValues } from '../../../utils/validationUtils';
 import { EntityDetailPage, EntityDetailSection } from '../../common/detailPage/EntityDetailPage';
 import { FinancialSummaryCards } from '../../common/financialSummary/FinancialSummaryCards';
@@ -13,17 +15,61 @@ import { RelatedRecordsSection } from '../../common/relatedRecords/RelatedRecord
 
 export interface IInvoiceDetailPageProps {
   invoiceId: string;
+  itemMasterService: ItemMasterService;
   invoiceService: InvoiceService;
+  salespersonService: SalespersonService;
   onNavigate: (path: string) => void;
 }
+
+const normalizeLookupKey = (value?: string): string => (value || '').trim().toLowerCase();
+
+const findSalespersonName = (
+  salespersons: readonly ISalespersonLookupItem[],
+  salespersonValue?: string
+): string | undefined => {
+  const normalizedValue = normalizeLookupKey(salespersonValue);
+
+  if (!normalizedValue) {
+    return undefined;
+  }
+
+  const matchingSalesperson = salespersons.find(item => normalizeLookupKey(item.code) === normalizedValue);
+
+  return matchingSalesperson?.name || undefined;
+};
+
+const findItemDescription = (
+  itemMasters: readonly IItemMasterLookupItem[],
+  itemCode?: string
+): string | undefined => {
+  const normalizedCode = normalizeLookupKey(itemCode);
+
+  if (!normalizedCode) {
+    return undefined;
+  }
+
+  const matchingItem = itemMasters.find(item => normalizeLookupKey(item.number) === normalizedCode);
+
+  return matchingItem?.description || undefined;
+};
+
+const enrichInvoiceItemDescriptions = (
+  invoice: IInvoiceDetail,
+  itemMasters: readonly IItemMasterLookupItem[]
+): IInvoiceDetail => ({
+  ...invoice,
+  lines: invoice.lines.map(line => ({
+    ...line,
+    description: line.description || findItemDescription(itemMasters, line.itemCode) || line.itemCode || ''
+  }))
+});
 
 const lineColumns: readonly ITableColumn<IInvoiceLineItem>[] = [
   { key: 'lineNumber', header: 'Line', fieldName: 'lineNumber', sortable: false, renderType: 'text' },
   { key: 'lineType', header: 'Type', fieldName: 'lineType', sortable: false, renderType: 'text' },
-  { key: 'itemCode', header: 'Item', fieldName: 'itemCode', sortable: false, renderType: 'text' },
+  { key: 'description', header: 'Item', fieldName: 'description', sortable: false, renderType: 'custom', minWidth: 240, customRender: item => item.description || item.itemCode || '-' },
   { key: 'hsnCode', header: 'HSN Code', fieldName: 'hsnCode', sortable: false, renderType: 'text' },
   { key: 'gstRate', header: 'GST Rate', fieldName: 'gstRate', sortable: false, renderType: 'text' },
-  { key: 'description', header: 'Description', fieldName: 'description', sortable: false, renderType: 'text', minWidth: 220 },
   { key: 'quantity', header: 'Quantity', fieldName: 'quantity', sortable: false, renderType: 'text' },
   { key: 'unitPrice', header: 'Unit Price', fieldName: 'unitPrice', sortable: false, renderType: 'amount' },
   { key: 'lineDiscountPercentage', header: 'Line Discount %', fieldName: 'lineDiscountPercentage', sortable: false, renderType: 'text' },
@@ -72,8 +118,9 @@ const getDetailErrorMessage = (error: unknown): string => {
   return getUserFriendlyError(normalizedError);
 };
 
-export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ invoiceId, invoiceService, onNavigate }) => {
+export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ invoiceId, itemMasterService, invoiceService, salespersonService, onNavigate }) => {
   const [invoice, setInvoice] = React.useState<IInvoiceDetail | undefined>();
+  const [salespersonDisplayName, setSalespersonDisplayName] = React.useState<string>('');
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | undefined>();
   const handleBack = React.useCallback((): void => {
@@ -86,9 +133,17 @@ export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ invoiceId
       setError(undefined);
 
       try {
-        setInvoice(await invoiceService.getInvoiceById(invoiceId));
+        const detail = await invoiceService.getInvoiceById(invoiceId);
+        const [salespersons, itemMasters] = await Promise.all([
+          salespersonService.getSalespersonLookup().catch(() => []),
+          itemMasterService.getItemMasterLookup().catch(() => [])
+        ]);
+
+        setInvoice(enrichInvoiceItemDescriptions(detail, itemMasters));
+        setSalespersonDisplayName(findSalespersonName(salespersons, detail.salesPerson) || detail.salesPerson || '');
       } catch (loadError) {
         setInvoice(undefined);
+        setSalespersonDisplayName('');
         setError(getDetailErrorMessage(loadError));
       } finally {
         setLoading(false);
@@ -96,7 +151,7 @@ export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ invoiceId
     };
 
     loadInvoice().catch(() => undefined);
-  }, [invoiceId, invoiceService]);
+  }, [invoiceId, itemMasterService, invoiceService, salespersonService]);
 
   const invoiceHeaderValues = React.useMemo<EntityFormValues>(
     () => ({
@@ -119,9 +174,9 @@ export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ invoiceId
       clientName: invoice?.clientName || '',
       clientAddress: invoice?.clientAddress || '',
       clientGSTNo: invoice?.clientGSTNo || '',
-      salesPerson: invoice?.salesPerson || ''
+      salesPerson: salespersonDisplayName || invoice?.salesPerson || ''
     }),
-    [invoice]
+    [invoice, salespersonDisplayName]
   );
 
   const invoiceReferenceValues = React.useMemo<EntityFormValues>(

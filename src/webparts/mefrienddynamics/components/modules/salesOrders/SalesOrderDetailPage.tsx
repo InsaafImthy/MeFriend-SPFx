@@ -9,7 +9,9 @@ import type {
   ISalesOrderRelatedInvoice
 } from '../../../models/salesOrders';
 import { getUserFriendlyError, normalizeError } from '../../../services/api/apiErrorHandler';
+import type { ItemMasterService } from '../../../services/itemMasters';
 import type { SalesOrderService } from '../../../services/salesOrders/salesOrderService';
+import type { ISalespersonLookupItem, SalespersonService } from '../../../services/salespersons/salespersonService';
 import type { EntityFormValues } from '../../../utils/validationUtils';
 import { EntityDetailPage, EntityDetailSection } from '../../common/detailPage/EntityDetailPage';
 import { FinancialSummaryCards } from '../../common/financialSummary/FinancialSummaryCards';
@@ -17,16 +19,42 @@ import { ReadOnlyEntityForm } from '../../common/forms/ReadOnlyEntityForm';
 import { RelatedRecordsSection } from '../../common/relatedRecords/RelatedRecordsSection';
 
 export interface ISalesOrderDetailPageProps {
+  itemMasterService: ItemMasterService;
   salesOrderId: string;
   salesOrderService: SalesOrderService;
+  salespersonService: SalespersonService;
   onNavigate: (path: string) => void;
 }
 
-const lineColumns: readonly ITableColumn<ISalesOrderLineItem>[] = [
+type DescriptionByCode = Readonly<Record<string, string>>;
+
+const normalizeLookupKey = (value?: string): string => (value || '').trim().toLowerCase();
+
+const findSalespersonName = (
+  salespersons: readonly ISalespersonLookupItem[],
+  salespersonCode?: string,
+  fallbackName?: string
+): string => {
+  const normalizedCode = normalizeLookupKey(salespersonCode);
+
+  if (!normalizedCode) {
+    return fallbackName || '';
+  }
+
+  const matchingSalesperson = salespersons.find(item => normalizeLookupKey(item.code) === normalizedCode);
+
+  return matchingSalesperson?.name || fallbackName || salespersonCode || '';
+};
+
+const getItemDescription = (
+  item: Pick<ISalesOrderLineItem, 'description' | 'itemCode'>,
+  itemDescriptionByCode: DescriptionByCode
+): string => item.description || itemDescriptionByCode[normalizeLookupKey(item.itemCode)] || item.itemCode || '';
+
+const buildLineColumns = (itemDescriptionByCode: DescriptionByCode): readonly ITableColumn<ISalesOrderLineItem>[] => [
   { key: 'lineNumber', header: 'Line No.', fieldName: 'lineNumber', sortable: false, renderType: 'text' },
   { key: 'lineType', header: 'Type', fieldName: 'lineType', sortable: false, renderType: 'text' },
-  { key: 'itemCode', header: 'Item/Service Code', fieldName: 'itemCode', sortable: false, renderType: 'text' },
-  { key: 'description', header: 'Description', fieldName: 'description', sortable: false, renderType: 'text', minWidth: 220 },
+  { key: 'description', header: 'Item', fieldName: 'description', sortable: false, renderType: 'custom', minWidth: 240, customRender: item => getItemDescription(item, itemDescriptionByCode) },
   { key: 'quantity', header: 'Quantity', fieldName: 'quantity', sortable: false, renderType: 'text' },
   { key: 'unitOfMeasureCode', header: 'UOM', fieldName: 'unitOfMeasureCode', sortable: false, renderType: 'text' },
   { key: 'unitPrice', header: 'Unit Price/Rate', fieldName: 'unitPrice', sortable: false, renderType: 'amount' },
@@ -80,10 +108,8 @@ const salesOrderDetailFields: readonly IFormFieldConfig[] = [
   { key: 'quantityShipped', label: 'Quantity Shipped', type: 'number', required: false, section: 'Fulfillment' },
   { key: 'quantityToInvoice', label: 'Quantity to Invoice', type: 'number', required: false, section: 'Fulfillment' },
   { key: 'quantityInvoiced', label: 'Quantity Invoiced', type: 'number', required: false, section: 'Fulfillment' },
-  { key: 'shippingAdvice', label: 'Shipping Advice', type: 'text', required: false, section: 'Fulfillment' },
   { key: 'completelyShipped', label: 'Completely Shipped', type: 'text', required: false, section: 'Fulfillment' },
-  { key: 'salespersonCode', label: 'Salesperson Code', type: 'text', required: false, section: 'References' },
-  { key: 'salespersonName', label: 'Salesperson Name', type: 'text', required: false, section: 'References' },
+  { key: 'salespersonName', label: 'Salesperson', type: 'text', required: false, section: 'References' },
   { key: 'eventCode', label: 'Event Code', type: 'text', required: false, section: 'References' },
   { key: 'eventName', label: 'Event Name', type: 'text', required: false, section: 'References' },
   { key: 'externalDocumentNumber', label: 'External Document No.', type: 'text', required: false, section: 'References' },
@@ -155,12 +181,16 @@ const getRelatedInvoicesErrorMessage = (error: unknown): string => {
 };
 
 export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
+  itemMasterService,
   salesOrderId,
   salesOrderService,
+  salespersonService,
   onNavigate
 }) => {
   const [salesOrder, setSalesOrder] = React.useState<ISalesOrderDetail | undefined>();
   const [relatedInvoices, setRelatedInvoices] = React.useState<readonly ISalesOrderRelatedInvoice[]>([]);
+  const [itemDescriptionByCode, setItemDescriptionByCode] = React.useState<DescriptionByCode>({});
+  const [salespersonDisplayName, setSalespersonDisplayName] = React.useState<string>('');
   const [loading, setLoading] = React.useState<boolean>(false);
   const [relatedInvoicesLoading, setRelatedInvoicesLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | undefined>();
@@ -176,11 +206,23 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
 
       try {
         const detail = await salesOrderService.getSalesOrderById(salesOrderId);
+        const [salespersons, itemMasters] = await Promise.all([
+          salespersonService.getSalespersonLookup().catch(() => []),
+          itemMasterService.getItemMasterLookup().catch(() => [])
+        ]);
+
         setSalesOrder(detail);
         setRelatedInvoices(detail.relatedInvoices || []);
+        setSalespersonDisplayName(findSalespersonName(salespersons, detail.salespersonCode, detail.salespersonName));
+        setItemDescriptionByCode(itemMasters.reduce<Record<string, string>>((itemsByCode, item) => {
+          itemsByCode[normalizeLookupKey(item.number)] = item.description;
+          return itemsByCode;
+        }, {}));
       } catch (loadError) {
         setSalesOrder(undefined);
         setRelatedInvoices([]);
+        setSalespersonDisplayName('');
+        setItemDescriptionByCode({});
         setError(getDetailErrorMessage(loadError));
       } finally {
         setLoading(false);
@@ -188,7 +230,7 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
     };
 
     loadSalesOrder().catch(() => undefined);
-  }, [salesOrderId, salesOrderService]);
+  }, [itemMasterService, salesOrderId, salesOrderService, salespersonService]);
 
   React.useEffect(() => {
     if (!salesOrder || !salesOrderId) {
@@ -247,10 +289,8 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
       quantityShipped: salesOrder?.quantityShipped !== undefined ? salesOrder.quantityShipped : undefined,
       quantityToInvoice: salesOrder?.quantityToInvoice !== undefined ? salesOrder.quantityToInvoice : undefined,
       quantityInvoiced: salesOrder?.quantityInvoiced !== undefined ? salesOrder.quantityInvoiced : undefined,
-      shippingAdvice: salesOrder?.shippingAdvice || '',
       completelyShipped: yesNo(salesOrder?.completelyShipped),
-      salespersonCode: salesOrder?.salespersonCode || '',
-      salespersonName: salesOrder?.salespersonName || '',
+      salespersonName: salespersonDisplayName || salesOrder?.salespersonName || salesOrder?.salespersonCode || '',
       eventCode: salesOrder?.eventCode || '',
       eventName: salesOrder?.eventName || '',
       externalDocumentNumber: salesOrder?.externalDocumentNumber || '',
@@ -291,8 +331,9 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
       billToContactNo: salesOrder?.billToContactNo || '',
       billToContact: salesOrder?.billToContact || ''
     }),
-    [salesOrder]
+    [salesOrder, salespersonDisplayName]
   );
+  const resolvedLineColumns = React.useMemo(() => buildLineColumns(itemDescriptionByCode), [itemDescriptionByCode]);
 
   return (
     <EntityDetailPage
@@ -362,7 +403,7 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
         <RelatedRecordsSection<ISalesOrderLineItem>
           title="Sales Order Line Items"
           items={salesOrder?.lines || []}
-          columns={lineColumns}
+          columns={resolvedLineColumns}
           emptyTitle="No line items found"
           emptyMessage="No line items are available for this sales order."
           getRowKey={(item, index) => item.lineNumber || item.itemCode || String(index)}

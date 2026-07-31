@@ -86,16 +86,20 @@ export const Dropdown = <TValue extends string | number = string>({
     const triggerRect = triggerRef.current.getBoundingClientRect();
     const menuGap = 7;
     const emptyMenuHeight = 96;
-    const optionListHeight = filteredOptions.length ? 18 + filteredOptions.length * 39 : emptyMenuHeight;
+    const optionRowHeight = showOptionDetails ? 66 : 39;
+    const optionListHeight = filteredOptions.length ? 18 + filteredOptions.length * optionRowHeight : emptyMenuHeight;
     const preferredMenuHeight = searchable
-      ? Math.min(300, 54 + (filteredOptions.length ? filteredOptions.length * 39 : emptyMenuHeight))
+      ? Math.min(340, 54 + (filteredOptions.length ? filteredOptions.length * optionRowHeight : emptyMenuHeight))
       : Math.min(300, optionListHeight);
     const availableBelow = window.innerHeight - triggerRect.bottom - viewportPadding - menuGap;
     const availableAbove = triggerRect.top - viewportPadding - menuGap;
     const shouldOpenAbove = availableBelow < 180 && availableAbove > availableBelow;
     const availableHeight = Math.max(emptyMenuHeight, shouldOpenAbove ? availableAbove : availableBelow);
     const resolvedHeight = Math.min(preferredMenuHeight, availableHeight);
-    const maxLeft = window.innerWidth - viewportPadding - triggerRect.width;
+    const availableWidth = window.innerWidth - viewportPadding * 2;
+    const preferredWidth = searchable ? Math.max(triggerRect.width, 420) : triggerRect.width;
+    const resolvedWidth = Math.min(availableWidth, preferredWidth);
+    const maxLeft = window.innerWidth - viewportPadding - resolvedWidth;
     const resolvedLeft = Math.max(viewportPadding, Math.min(triggerRect.left, maxLeft));
 
     setMenuStyle({
@@ -103,9 +107,9 @@ export const Dropdown = <TValue extends string | number = string>({
       maxHeight: resolvedHeight,
       minWidth: triggerRect.width,
       top: shouldOpenAbove ? triggerRect.top - resolvedHeight - menuGap : triggerRect.bottom + menuGap,
-      width: triggerRect.width
+      width: resolvedWidth
     });
-  }, [filteredOptions.length, searchable]);
+  }, [filteredOptions.length, searchable, showOptionDetails]);
 
   const openMenu = React.useCallback((): void => {
     if (closeTimerRef.current) {
@@ -245,7 +249,7 @@ export const Dropdown = <TValue extends string | number = string>({
     }
 
     if (showOptionDetails) {
-      return option.description || option.detailText;
+      return option.detailText;
     }
 
     return undefined;
@@ -256,7 +260,7 @@ export const Dropdown = <TValue extends string | number = string>({
     }
 
     if (showSelectedDetail) {
-      return option.description || option.detailText;
+      return option.detailText;
     }
 
     return undefined;

@@ -2,6 +2,8 @@ import * as React from 'react';
 import { salesOrdersModuleConfig } from '../../../config/modules/salesOrdersModuleConfig';
 import type { IBCIntegrationQueueItem, ISalesOrderRequestDetailResult } from '../../../models/requests';
 import { getUserFriendlyError } from '../../../services/api/apiErrorHandler';
+import type { ItemMasterService } from '../../../services/itemMasters';
+import type { SalespersonService } from '../../../services/salespersons/salespersonService';
 import type { BCIntegrationQueueService } from '../../../services/sharepoint/bcIntegrationQueueService';
 import type { RequestSubmissionService } from '../../../services/sharepoint/requestSubmissionService';
 import { Button } from '../../common/buttons/Button';
@@ -14,23 +16,33 @@ export interface ISalesOrderRequestDetailPageProps {
   canManageSalesOrderRequests?: boolean;
   canPostToBC?: boolean;
   currentUserEmail?: string;
+  itemMasterService: ItemMasterService;
   requestId: string;
   requestSubmissionService: RequestSubmissionService;
+  salespersonService: SalespersonService;
   onNavigate: (path: string) => void;
 }
+
+type DisplayMap = Readonly<Record<string, string>>;
+
+const normalizeLookupKey = (value?: string): string => (value || '').trim().toLowerCase();
 
 export const SalesOrderRequestDetailPage: React.FC<ISalesOrderRequestDetailPageProps> = ({
   bcIntegrationQueueService,
   canManageSalesOrderRequests = false,
   canPostToBC = false,
   currentUserEmail = '',
+  itemMasterService,
   requestId,
   requestSubmissionService,
+  salespersonService,
   onNavigate
 }) => {
   const toast = useToast();
   const [detail, setDetail] = React.useState<ISalesOrderRequestDetailResult | undefined>();
   const [queueHistory, setQueueHistory] = React.useState<readonly IBCIntegrationQueueItem[]>([]);
+  const [itemDescriptionByCode, setItemDescriptionByCode] = React.useState<DisplayMap>({});
+  const [salespersonNameByCode, setSalespersonNameByCode] = React.useState<DisplayMap>({});
   const [loading, setLoading] = React.useState<boolean>(false);
   const [actionLoading, setActionLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | undefined>();
@@ -41,7 +53,20 @@ export const SalesOrderRequestDetailPage: React.FC<ISalesOrderRequestDetailPageP
 
     try {
       const result = await requestSubmissionService.getSalesOrderRequestDetail(requestId);
+      const [itemMasters, salespersons] = await Promise.all([
+        itemMasterService.getItemMasterLookup().catch(() => []),
+        salespersonService.getSalespersonLookup().catch(() => [])
+      ]);
+
       setDetail(result);
+      setItemDescriptionByCode(itemMasters.reduce<Record<string, string>>((itemsByCode, item) => {
+        itemsByCode[normalizeLookupKey(item.number)] = item.description;
+        return itemsByCode;
+      }, {}));
+      setSalespersonNameByCode(salespersons.reduce<Record<string, string>>((salespersonsByCode, salesperson) => {
+        salespersonsByCode[normalizeLookupKey(salesperson.code)] = salesperson.name;
+        return salespersonsByCode;
+      }, {}));
 
       if (bcIntegrationQueueService) {
         setQueueHistory(await bcIntegrationQueueService.getQueueHistory('SalesOrder', result.request.id));
@@ -49,11 +74,13 @@ export const SalesOrderRequestDetailPage: React.FC<ISalesOrderRequestDetailPageP
     } catch (loadError) {
       setDetail(undefined);
       setQueueHistory([]);
+      setItemDescriptionByCode({});
+      setSalespersonNameByCode({});
       setError(getUserFriendlyError(loadError));
     } finally {
       setLoading(false);
     }
-  }, [bcIntegrationQueueService, requestId, requestSubmissionService]);
+  }, [bcIntegrationQueueService, itemMasterService, requestId, requestSubmissionService, salespersonService]);
 
   React.useEffect(() => {
     loadDetail().catch(() => undefined);
@@ -108,7 +135,7 @@ export const SalesOrderRequestDetailPage: React.FC<ISalesOrderRequestDetailPageP
       loading={loading}
       error={error}
       footerActions={footerActions}
-      sections={detail ? buildSalesOrderRequestDetailSections(detail, { queueHistory }) : []}
+      sections={detail ? buildSalesOrderRequestDetailSections(detail, { itemDescriptionByCode, queueHistory, salespersonNameByCode }) : []}
     />
   );
 };

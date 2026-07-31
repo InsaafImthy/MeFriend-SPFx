@@ -141,6 +141,8 @@ export const LineItemsEditor = <TItem extends LineItemRecord>({
           onChange={nextValue => updateLine(rowIndex, field.key, typeof nextValue === 'string' || typeof nextValue === 'number' ? nextValue : undefined)}
           placeholder={field.placeholder || 'Select'}
           searchable={field.searchable || field.type === 'lookup'}
+          showOptionDetails={field.type === 'lookup'}
+          showSelectedDetail={field.type === 'lookup'}
         />
       );
     }

@@ -87,8 +87,7 @@ export const SalespersonDetailPage: React.FC<ISalespersonDetailPageProps> = ({
         {
           title: 'Salesperson Information',
           fields: [
-            { key: 'salespersonCode', label: 'Salesperson Code', value: salesperson?.salespersonCode },
-            { key: 'salespersonName', label: 'Salesperson Name', value: salesperson?.salespersonName },
+            { key: 'salespersonName', label: 'Salesperson', value: salesperson?.salespersonName || salesperson?.salespersonCode },
             { key: 'email', label: 'Email', value: salesperson?.email },
             { key: 'phoneNumber', label: 'Phone Number', value: salesperson?.phoneNumber },
             { key: 'branch', label: 'Branch', value: salesperson?.branch },

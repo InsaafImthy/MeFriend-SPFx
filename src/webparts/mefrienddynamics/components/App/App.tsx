@@ -291,11 +291,11 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
     }
 
     if (route.key === 'invoices') {
-      return <InvoicePage invoiceService={invoiceService} onNavigate={handleNavigate} />;
+      return <InvoicePage itemMasterService={itemMasterService} invoiceService={invoiceService} salespersonService={salespersonService} onNavigate={handleNavigate} />;
     }
 
     if (route.key === 'invoiceDetail') {
-      return <InvoiceDetailPage invoiceId={route.params.id || ''} invoiceService={invoiceService} onNavigate={handleNavigate} />;
+      return <InvoiceDetailPage invoiceId={route.params.id || ''} itemMasterService={itemMasterService} invoiceService={invoiceService} salespersonService={salespersonService} onNavigate={handleNavigate} />;
     }
 
     if (route.key === 'salesOrders') {
@@ -342,8 +342,10 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
     if (route.key === 'salesOrderDetail') {
       return (
         <SalesOrderDetailPage
+          itemMasterService={itemMasterService}
           salesOrderId={route.params.id || ''}
           salesOrderService={salesOrderService}
+          salespersonService={salespersonService}
           onNavigate={handleNavigate}
         />
       );
@@ -366,8 +368,10 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
           canManageSalesOrderRequests={access.canManage('salesOrders')}
           canPostToBC={access.canPostToBC('salesOrders')}
           currentUserEmail={access.signedInEmail}
+          itemMasterService={itemMasterService}
           requestId={route.params.id || ''}
           requestSubmissionService={requestSubmissionService}
+          salespersonService={salespersonService}
           onNavigate={handleNavigate}
         />
       );
@@ -393,7 +397,9 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
           canApprove={access.canApprove('approvals')}
           canPostCustomerToBC={access.canPostToBC('customers')}
           canPostSalesOrderToBC={access.canPostToBC('salesOrders')}
+          itemMasterService={itemMasterService}
           requestSubmissionService={requestSubmissionService}
+          salespersonService={salespersonService}
           onNavigate={handleNavigate}
         />
       );

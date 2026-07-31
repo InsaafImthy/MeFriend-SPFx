@@ -56,7 +56,7 @@ export const salesOrdersModuleConfig: IModuleConfig<ISalesOrderListItem> = {
 };
 
 export const salesOrderLineItemFields = [
-  { key: 'itemCode', label: 'Item No.', type: 'lookup', required: true, searchable: true },
+  { key: 'itemCode', label: 'Item', type: 'lookup', required: true, searchable: true },
   {
     key: 'quantity',
     label: 'Quantity',

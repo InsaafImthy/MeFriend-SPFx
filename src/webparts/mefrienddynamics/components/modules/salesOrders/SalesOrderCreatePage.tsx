@@ -195,17 +195,19 @@ const toEventOptions = (items: readonly IEventListItem[]): readonly ILookupOptio
 const toSalespersonOptions = (items: readonly ISalespersonLookupItem[]): readonly ILookupOption[] =>
   items.map(item => ({
     key: item.code,
-    text: item.name ? `${item.code} - ${item.name}` : item.code,
+    text: item.name || item.code,
     value: item.code,
-    description: item.name
+    description: item.name,
+    detailText: item.code
   }));
 
 const toItemMasterOptions = (items: readonly IItemMasterLookupItem[]): readonly ILookupOption[] =>
   items.map(item => ({
     key: item.number,
-    text: item.description ? `${item.number} - ${item.description}` : item.number,
+    text: item.description || item.number,
     value: item.number,
-    description: item.description
+    description: item.description,
+    detailText: item.number
   }));
 
 const toMasterCodeOptions = (items: readonly IMasterCodeItem[]): readonly ILookupOption[] =>

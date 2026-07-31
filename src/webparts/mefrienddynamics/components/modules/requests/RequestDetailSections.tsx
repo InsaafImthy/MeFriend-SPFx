@@ -13,13 +13,46 @@ import { EntityTable } from '../../common/table/EntityTable';
 
 export interface IRequestDetailSectionOptions {
   currentStepTitle?: string;
+  itemDescriptionByCode?: Readonly<Record<string, string>>;
   queueHistory?: readonly IBCIntegrationQueueItem[];
+  salespersonNameByCode?: Readonly<Record<string, string>>;
 }
 
-const lineColumns: readonly ITableColumn<ISalesOrderRequestLine>[] = [
+const normalizeLookupKey = (value?: string): string => (value || '').trim().toLowerCase();
+
+const getMappedDisplayValue = (
+  value?: string,
+  displayByCode: Readonly<Record<string, string>> = {},
+  fallback?: string
+): string => {
+  const normalizedValue = normalizeLookupKey(value);
+
+  if (!normalizedValue) {
+    return fallback || '';
+  }
+
+  return displayByCode[normalizedValue] || fallback || value || '';
+};
+
+const getSalespersonDisplayName = (
+  detail: ISalesOrderRequestDetailResult,
+  salespersonNameByCode: Readonly<Record<string, string>> = {}
+): string => getMappedDisplayValue(
+  detail.request.salespersonCode,
+  salespersonNameByCode,
+  detail.request.salespersonName || detail.request.salespersonCode
+);
+
+const getLineItemDescription = (
+  line: ISalesOrderRequestLine,
+  itemDescriptionByCode: Readonly<Record<string, string>> = {}
+): string => getMappedDisplayValue(line.itemCode, itemDescriptionByCode, line.description || line.itemCode);
+
+const buildLineColumns = (
+  itemDescriptionByCode: Readonly<Record<string, string>> = {}
+): readonly ITableColumn<ISalesOrderRequestLine>[] => [
   { key: 'lineNumber', header: 'Line', fieldName: 'lineNumber', sortable: false, renderType: 'text', width: 80 },
-  { key: 'itemCode', header: 'Item', fieldName: 'itemCode', sortable: false, renderType: 'text' },
-  { key: 'description', header: 'Description', fieldName: 'description', sortable: false, renderType: 'text', minWidth: 230 },
+  { key: 'description', header: 'Item', fieldName: 'description', sortable: false, renderType: 'custom', minWidth: 240, customRender: line => getLineItemDescription(line, itemDescriptionByCode) },
   { key: 'quantity', header: 'Quantity', fieldName: 'quantity', sortable: false, renderType: 'text' },
   { key: 'rate', header: 'Rate', fieldName: 'rate', sortable: false, renderType: 'amount' },
   { key: 'lineDiscountPercentage', header: 'Discount %', fieldName: 'lineDiscountPercentage', sortable: false, renderType: 'text' },
@@ -143,8 +176,11 @@ export const buildCustomerRequestDetailSections = (
 export const buildSalesOrderRequestDetailSections = (
   detail: ISalesOrderRequestDetailResult,
   options: IRequestDetailSectionOptions = {}
-): readonly IDetailViewSection[] => [
-  {
+): readonly IDetailViewSection[] => {
+  const lineColumns = buildLineColumns(options.itemDescriptionByCode);
+
+  return [
+    {
     title: 'Request Metadata',
     fields: [
       { key: 'requestNumber', label: 'Request Number', value: detail.request.requestNumber },
@@ -173,8 +209,7 @@ export const buildSalesOrderRequestDetailSections = (
       { key: 'sellToCustomerName', label: 'Sell-to Customer Name', value: detail.request.sellToCustomerName },
       { key: 'billToCustomerCode', label: 'Bill-to Customer Code', value: detail.request.billToCustomerCode },
       { key: 'billToCustomerName', label: 'Bill-to Customer Name', value: detail.request.billToCustomerName },
-      { key: 'salespersonCode', label: 'Salesperson Code', value: detail.request.salespersonCode },
-      { key: 'salespersonName', label: 'Salesperson Name', value: detail.request.salespersonName },
+      { key: 'salespersonName', label: 'Salesperson', value: getSalespersonDisplayName(detail, options.salespersonNameByCode) },
       { key: 'eventCode', label: 'Event / Product Dimension', value: detail.request.eventCode },
       { key: 'eventName', label: 'Event Name', value: detail.request.eventName },
       { key: 'stateCode', label: 'Location Code', value: detail.request.stateCode },
@@ -209,4 +244,5 @@ export const buildSalesOrderRequestDetailSections = (
   },
   approvalHistorySection(detail.approvalTasks),
   queueHistorySection(options.queueHistory || [])
-];
+  ];
+};
