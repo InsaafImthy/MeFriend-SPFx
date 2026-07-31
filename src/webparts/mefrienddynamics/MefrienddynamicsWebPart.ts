@@ -16,7 +16,7 @@ import './styles/commonTypography.css';
 import './styles/commonScrollbars.css';
 import './styles/sharepointCanvasOverrides.css';
 
-const josefinSansStylesheetUrl: string = 'https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@300;400;500;600;700&display=swap';
+const poppinsStylesheetUrl: string = 'https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap';
 
 export interface IMefrienddynamicsWebPartProps {
   description: string;
@@ -50,7 +50,7 @@ export default class MefrienddynamicsWebPart extends BaseClientSideWebPart<IMefr
     SPComponentLoader.loadCss(
       `${this.context.pageContext.web.absoluteUrl}/SiteAssets/css/developer.css`
     );
-    SPComponentLoader.loadCss(josefinSansStylesheetUrl);
+    SPComponentLoader.loadCss(poppinsStylesheetUrl);
 
     return this._getEnvironmentMessage().then(message => {
       this._environmentMessage = message;
