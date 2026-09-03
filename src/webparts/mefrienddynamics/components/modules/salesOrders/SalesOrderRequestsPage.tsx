@@ -13,6 +13,9 @@ import type { EntityFilterValues, FilterValue } from '../../common/filters/Entit
 
 export interface ISalesOrderRequestsPageProps {
   canCreateSalesOrder: boolean;
+  canManageSalesOrderRequests: boolean;
+  currentUserEmail: string;
+  currentUserId?: number;
   salesOrderRequestService: SalesOrderRequestService;
   onNavigate: (path: string) => void;
 }
@@ -60,7 +63,14 @@ const toRequestFilters = (values: EntityFilterValues): IRequestListFilter => ({
   bcPostingStatus: typeof values.bcPostingStatus === 'string' ? values.bcPostingStatus as IRequestListFilter['bcPostingStatus'] : undefined
 });
 
-export const SalesOrderRequestsPage: React.FC<ISalesOrderRequestsPageProps> = ({ canCreateSalesOrder, salesOrderRequestService, onNavigate }) => {
+export const SalesOrderRequestsPage: React.FC<ISalesOrderRequestsPageProps> = ({
+  canCreateSalesOrder,
+  canManageSalesOrderRequests,
+  currentUserEmail,
+  currentUserId,
+  salesOrderRequestService,
+  onNavigate
+}) => {
   const [items, setItems] = React.useState<readonly ISalesOrderRequest[]>([]);
   const [filterValues, setFilterValues] = React.useState<EntityFilterValues>({});
   const [appliedFilterValues, setAppliedFilterValues] = React.useState<EntityFilterValues>({});
@@ -74,7 +84,14 @@ export const SalesOrderRequestsPage: React.FC<ISalesOrderRequestsPageProps> = ({
     setError(undefined);
 
     try {
-      const result = await salesOrderRequestService.getRequests(toRequestFilters(appliedFilterValues), pagination, sorting);
+      const result = canManageSalesOrderRequests
+        ? await salesOrderRequestService.getRequests(toRequestFilters(appliedFilterValues), pagination, sorting)
+        : await salesOrderRequestService.getRequestsForSubmitter(
+          { submittedById: currentUserId, submittedByEmail: currentUserEmail },
+          toRequestFilters(appliedFilterValues),
+          pagination,
+          sorting
+        );
       setItems(result.items);
       setPagination(current => ({
         ...current,
@@ -88,7 +105,7 @@ export const SalesOrderRequestsPage: React.FC<ISalesOrderRequestsPageProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [appliedFilterValues, pagination.pageNumber, pagination.pageSize, salesOrderRequestService, sorting]);
+  }, [appliedFilterValues, canManageSalesOrderRequests, currentUserEmail, currentUserId, pagination.pageNumber, pagination.pageSize, salesOrderRequestService, sorting]);
 
   React.useEffect(() => {
     loadRequests().catch(() => undefined);

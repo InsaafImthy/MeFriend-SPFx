@@ -3,6 +3,7 @@ import { invoicesModuleConfig } from '../../../config/modules/invoicesModuleConf
 import type { IFormFieldConfig } from '../../../models/common/IFormFieldConfig';
 import type { ITableColumn } from '../../../models/common/ITableColumn';
 import type { IInvoiceDetail, IInvoiceLineItem, IInvoicePaymentRecord } from '../../../models/invoices';
+import type { IAppUser } from '../../../models/settings/IAppAccessModels';
 import { getUserFriendlyError, normalizeError } from '../../../services/api/apiErrorHandler';
 import type { InvoiceService } from '../../../services/invoices/invoiceService';
 import type { EntityFormValues } from '../../../utils/validationUtils';
@@ -12,6 +13,7 @@ import { ReadOnlyEntityForm } from '../../common/forms/ReadOnlyEntityForm';
 import { RelatedRecordsSection } from '../../common/relatedRecords/RelatedRecordsSection';
 
 export interface IInvoiceDetailPageProps {
+  currentUser?: IAppUser;
   invoiceId: string;
   invoiceService: InvoiceService;
   onNavigate: (path: string) => void;
@@ -72,7 +74,7 @@ const getDetailErrorMessage = (error: unknown): string => {
   return getUserFriendlyError(normalizedError);
 };
 
-export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ invoiceId, invoiceService, onNavigate }) => {
+export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ currentUser, invoiceId, invoiceService, onNavigate }) => {
   const [invoice, setInvoice] = React.useState<IInvoiceDetail | undefined>();
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | undefined>();
@@ -86,7 +88,7 @@ export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ invoiceId
       setError(undefined);
 
       try {
-        setInvoice(await invoiceService.getInvoiceById(invoiceId));
+        setInvoice(await invoiceService.getInvoiceById(invoiceId, currentUser));
       } catch (loadError) {
         setInvoice(undefined);
         setError(getDetailErrorMessage(loadError));
@@ -96,7 +98,7 @@ export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ invoiceId
     };
 
     loadInvoice().catch(() => undefined);
-  }, [invoiceId, invoiceService]);
+  }, [currentUser, invoiceId, invoiceService]);
 
   const invoiceHeaderValues = React.useMemo<EntityFormValues>(
     () => ({

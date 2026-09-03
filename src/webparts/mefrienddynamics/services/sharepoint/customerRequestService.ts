@@ -73,6 +73,11 @@ export interface IUpdateCustomerRequestWorkflowInput {
   bcErrorMessage?: string;
 }
 
+export interface IRequestSubmitterIdentity {
+  submittedById?: number;
+  submittedByEmail?: string;
+}
+
 const customerRequestSelect = [
   'Id',
   'ID',
@@ -244,6 +249,22 @@ export class CustomerRequestService {
     return this.toPagedResult(items.map(this.mapRequest), filters, pagination, sorting);
   }
 
+  public async getRequestsForSubmitter(
+    submitter: IRequestSubmitterIdentity,
+    filters: IRequestListFilter = {},
+    pagination?: Partial<IPaginationState>,
+    sorting?: ISortState
+  ): Promise<IPagedResult<ICustomerRequest>> {
+    const submittedById = await this.resolveSubmittedById(submitter);
+    const items = await this.restClient.readItems<ICustomerRequestListItem>(mefriendListTitles.customerRequests, {
+      select: customerRequestSelect,
+      expand: ['Workflow', 'SubmittedBy', 'LastActionBy'],
+      filter: `SubmittedById eq ${submittedById}`,
+      orderBy: 'SubmittedOn desc'
+    });
+    return this.toPagedResult(items.map(this.mapRequest), filters, pagination, sorting);
+  }
+
   public async getRequestById(id: number): Promise<ICustomerRequest | undefined> {
     const items = await this.restClient.readItems<ICustomerRequestListItem>(mefriendListTitles.customerRequests, {
       select: customerRequestSelect,
@@ -335,6 +356,19 @@ export class CustomerRequestService {
 
   private normalize(value: unknown): string {
     return value === undefined || value === null ? '' : String(value).trim().toLowerCase();
+  }
+
+  private async resolveSubmittedById(submitter: IRequestSubmitterIdentity): Promise<number> {
+    if (typeof submitter.submittedById === 'number' && submitter.submittedById > 0) {
+      return submitter.submittedById;
+    }
+
+    const email = (submitter.submittedByEmail || '').trim().toLowerCase();
+    if (!email) {
+      throw new Error('Unable to identify the signed-in request owner.');
+    }
+
+    return (await this.restClient.ensureUser(email)).id;
   }
 
   private assignIfDefined(payload: Record<string, unknown>, fieldName: string, value: unknown): void {

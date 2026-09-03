@@ -75,7 +75,7 @@ export class ApprovalProcessingService {
       isCurrent: false,
       actionById: context.currentSharePointUserId,
       actionOn: now,
-      comments
+      comments: this.mergeTaskComments(context.task.comments, comments)
     });
 
     const levelTasks = await this.approvalTaskService.getTasksForRequestCycleLevel(
@@ -168,7 +168,7 @@ export class ApprovalProcessingService {
       isCurrent: false,
       actionById: context.currentSharePointUserId,
       actionOn: now,
-      comments: comments || reason,
+      comments: this.mergeTaskComments(context.task.comments, comments || reason),
       reassignmentReason: reason
     });
 
@@ -184,7 +184,7 @@ export class ApprovalProcessingService {
         isCurrent: false,
         actionById: context.currentSharePointUserId,
         actionOn: now,
-        comments: 'Cancelled after rejection.'
+        comments: this.mergeTaskComments(task.comments, 'Cancelled after rejection.')
       })));
 
     await this.updateRequestState(context.task.requestType, context.task.requestItemId, {
@@ -230,6 +230,40 @@ export class ApprovalProcessingService {
       steps: context.levelOneSteps,
       approvalCycle: nextCycle
     });
+  }
+
+  public async updateCustomerRequestDuringApproval(taskId: number, form: ICustomerCreateFormState): Promise<void> {
+    const context = await this.getApprovalContext(taskId);
+
+    if (context.task.requestType !== 'Customer') {
+      throw new Error('This approval task is not for a customer request.');
+    }
+
+    await this.customerRequestService.updateRequestSnapshot(context.task.requestItemId, form);
+    await this.recordApprovalEdit(context);
+  }
+
+  public async updateSalesOrderRequestDuringApproval(taskId: number, input: ISalesOrderResubmissionInput): Promise<void> {
+    const context = await this.getApprovalContext(taskId);
+
+    if (context.task.requestType !== 'SalesOrder') {
+      throw new Error('This approval task is not for a sales-order request.');
+    }
+
+    const snapshot = this.toSalesOrderHeaderSnapshot(input);
+    const lineSnapshots = input.form.lines.map((line, index): ISalesOrderRequestLineSnapshot => ({
+      item: line,
+      lineNumber: index + 1,
+      requestNumber: context.task.requestNumber,
+      requestHeaderId: context.task.requestItemId,
+      description: input.lineSnapshots[index] ? input.lineSnapshots[index].description : line.description,
+      productDimensionCode: input.form.eventCode || '',
+      unitOfMeasureCode: input.lineSnapshots[index] ? input.lineSnapshots[index].unitOfMeasureCode || '' : line.unitOfMeasureCode || ''
+    }));
+
+    await this.salesOrderRequestService.updateRequestSnapshot(snapshot, context.task.requestItemId);
+    await this.salesOrderRequestService.replaceRequestLines(context.task.requestItemId, lineSnapshots);
+    await this.recordApprovalEdit(context);
   }
 
   public async resubmitSalesOrderRequest(requestId: number, input: ISalesOrderResubmissionInput): Promise<void> {
@@ -290,6 +324,7 @@ export class ApprovalProcessingService {
     currentLevel: IApprovalLevelDefinition;
     appUsers: readonly IAppUser[];
     currentSharePointUserId: number;
+    currentUserEmail: string;
   }> {
     const access = await this.appAccessService.getCurrentAccess(true);
     const approvalAccess = access.permissions.approvals;
@@ -350,8 +385,24 @@ export class ApprovalProcessingService {
       levels,
       currentLevel,
       appUsers: await this.appAccessService.getUsers(),
-      currentSharePointUserId: await this.getCurrentSharePointUserId(access.signedInEmail)
+      currentSharePointUserId: await this.getCurrentSharePointUserId(access.signedInEmail),
+      currentUserEmail: normalizeEmail(access.signedInEmail)
     };
+  }
+
+  private async recordApprovalEdit(context: {
+    task: NonNullable<Awaited<ReturnType<ApprovalTaskService['getTaskById']>>>;
+    currentUserEmail: string;
+  }): Promise<void> {
+    const auditNote = `Request updated during approval by ${context.currentUserEmail} at Stage ${context.task.levelNumber} on ${new Date().toISOString()}.`;
+    await this.approvalTaskService.updateTaskComments(
+      context.task.id,
+      this.mergeTaskComments(context.task.comments, auditNote)
+    );
+  }
+
+  private mergeTaskComments(existing?: string, next?: string): string {
+    return [existing?.trim(), next?.trim()].filter(Boolean).join('\n');
   }
 
   private async getResubmissionContext(request: IRequestBase, moduleKey: MefriendModuleKey): Promise<{
@@ -437,7 +488,7 @@ export class ApprovalProcessingService {
         isCurrent: false,
         actionById,
         actionOn: now,
-        comments: 'Skipped after approval threshold was met.'
+        comments: this.mergeTaskComments(task.comments, 'Skipped after approval threshold was met.')
       })));
   }
 

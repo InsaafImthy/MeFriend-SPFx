@@ -33,9 +33,12 @@ export const EntityFilters: React.FC<IEntityFiltersProps> = ({ filters, values, 
           label={filter.label}
           value={typeof values[filter.key] === 'string' ? String(values[filter.key]) : undefined}
           options={filter.options || []}
-          disabled={loading}
+          searchable={filter.searchable}
+          disabled={loading || filter.disabled}
+          loading={filter.loading}
+          errorMessage={filter.errorMessage}
           onChange={value => onChange(filter.key, typeof value === 'string' ? value : undefined)}
-          placeholder="All"
+          placeholder={filter.placeholder || 'All'}
         />
       );
     }

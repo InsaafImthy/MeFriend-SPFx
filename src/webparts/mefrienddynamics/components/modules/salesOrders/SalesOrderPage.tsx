@@ -3,15 +3,20 @@ import { salesOrdersModuleConfig } from '../../../config/modules/salesOrdersModu
 import type { IPaginationState } from '../../../models/common/IPaginationState';
 import type { ISortState, SortDirection } from '../../../models/common/ISortState';
 import type { ISalesOrderFilters, ISalesOrderListItem, SalesOrderStatus } from '../../../models/salesOrders';
+import type { IAppUser } from '../../../models/settings/IAppAccessModels';
 import { getUserFriendlyError, normalizeError } from '../../../services/api/apiErrorHandler';
 import type { SalesOrderService } from '../../../services/salesOrders/salesOrderService';
+import type { SalespersonService } from '../../../services/salespersons/salespersonService';
+import { useSalespersonFilter } from '../../../hooks/useSalespersonFilter';
 import { Button } from '../../common/buttons/Button';
 import { EntityDashboard } from '../../common/dashboard/EntityDashboard';
 import type { EntityFilterValues, FilterValue } from '../../common/filters/EntityFilters';
 
 export interface ISalesOrderPageProps {
   canCreateSalesOrder: boolean;
+  currentUser?: IAppUser;
   salesOrderService: SalesOrderService;
+  salespersonService: SalespersonService;
   onNavigate: (path: string) => void;
 }
 
@@ -37,10 +42,22 @@ const getListErrorMessage = (error: unknown): string => {
   return getUserFriendlyError(normalizedError);
 };
 
-export const SalesOrderPage: React.FC<ISalesOrderPageProps> = ({ canCreateSalesOrder, salesOrderService, onNavigate }) => {
+export const SalesOrderPage: React.FC<ISalesOrderPageProps> = ({
+  canCreateSalesOrder,
+  currentUser,
+  salesOrderService,
+  salespersonService,
+  onNavigate
+}) => {
+  const { filters, restrictedSalespersonCode } = useSalespersonFilter(
+    salesOrdersModuleConfig.filters || [],
+    salespersonService,
+    currentUser
+  );
+  const initialFilterValues = restrictedSalespersonCode ? { salespersonCode: restrictedSalespersonCode } : {};
   const [items, setItems] = React.useState<readonly ISalesOrderListItem[]>([]);
-  const [filterValues, setFilterValues] = React.useState<EntityFilterValues>({});
-  const [appliedFilterValues, setAppliedFilterValues] = React.useState<EntityFilterValues>({});
+  const [filterValues, setFilterValues] = React.useState<EntityFilterValues>(initialFilterValues);
+  const [appliedFilterValues, setAppliedFilterValues] = React.useState<EntityFilterValues>(initialFilterValues);
   const [pagination, setPagination] = React.useState<IPaginationState>({
     pageNumber: 1,
     pageSize,
@@ -55,7 +72,12 @@ export const SalesOrderPage: React.FC<ISalesOrderPageProps> = ({ canCreateSalesO
     setError(undefined);
 
     try {
-      const result = await salesOrderService.getSalesOrders(toSalesOrderFilters(appliedFilterValues), pagination, sorting);
+      const result = await salesOrderService.getSalesOrders(
+        toSalesOrderFilters(appliedFilterValues),
+        pagination,
+        sorting,
+        currentUser
+      );
       setItems(result.items);
       setPagination(current => ({
         ...current,
@@ -69,35 +91,51 @@ export const SalesOrderPage: React.FC<ISalesOrderPageProps> = ({ canCreateSalesO
     } finally {
       setLoading(false);
     }
-  }, [appliedFilterValues, pagination.pageNumber, pagination.pageSize, salesOrderService, sorting]);
+  }, [appliedFilterValues, currentUser, pagination.pageNumber, pagination.pageSize, salesOrderService, sorting]);
 
   React.useEffect(() => {
     loadSalesOrders().catch(() => undefined);
   }, [loadSalesOrders]);
 
+  React.useEffect(() => {
+    if (!restrictedSalespersonCode) {
+      return;
+    }
+
+    setFilterValues(current => ({ ...current, salespersonCode: restrictedSalespersonCode }));
+    setAppliedFilterValues(current => ({ ...current, salespersonCode: restrictedSalespersonCode }));
+  }, [restrictedSalespersonCode]);
+
   const handleFilterChange = React.useCallback((key: string, value: FilterValue): void => {
+    if (key === 'salespersonCode' && currentUser?.isSalesperson === true) {
+      return;
+    }
+
     setFilterValues(current => ({
       ...current,
       [key]: value
     }));
-  }, []);
+  }, [currentUser?.isSalesperson]);
 
   const handleFilterApply = React.useCallback((): void => {
     setPagination(current => ({
       ...current,
       pageNumber: 1
     }));
-    setAppliedFilterValues(filterValues);
-  }, [filterValues]);
+    setAppliedFilterValues(restrictedSalespersonCode
+      ? { ...filterValues, salespersonCode: restrictedSalespersonCode }
+      : filterValues);
+  }, [filterValues, restrictedSalespersonCode]);
 
   const handleFilterClear = React.useCallback((): void => {
-    setFilterValues({});
-    setAppliedFilterValues({});
+    const clearedValues = restrictedSalespersonCode ? { salespersonCode: restrictedSalespersonCode } : {};
+    setFilterValues(clearedValues);
+    setAppliedFilterValues(clearedValues);
     setPagination(current => ({
       ...current,
       pageNumber: 1
     }));
-  }, []);
+  }, [restrictedSalespersonCode]);
 
   const handleSort = React.useCallback((fieldName: string, direction?: SortDirection): void => {
     setSorting(direction ? {
@@ -115,7 +153,7 @@ export const SalesOrderPage: React.FC<ISalesOrderPageProps> = ({ canCreateSalesO
       title={salesOrdersModuleConfig.title}
       subtitle={salesOrdersModuleConfig.description}
       columns={salesOrdersModuleConfig.tableColumns || []}
-      filters={salesOrdersModuleConfig.filters || []}
+      filters={filters}
       filterValues={filterValues}
       items={items}
       loading={loading}

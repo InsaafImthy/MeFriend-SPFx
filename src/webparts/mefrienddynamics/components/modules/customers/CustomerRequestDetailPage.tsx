@@ -14,6 +14,7 @@ export interface ICustomerRequestDetailPageProps {
   canManageCustomerRequests?: boolean;
   canPostToBC?: boolean;
   currentUserEmail?: string;
+  currentUserId?: number;
   requestId: string;
   requestSubmissionService: RequestSubmissionService;
   onNavigate: (path: string) => void;
@@ -24,6 +25,7 @@ export const CustomerRequestDetailPage: React.FC<ICustomerRequestDetailPageProps
   canManageCustomerRequests = false,
   canPostToBC = false,
   currentUserEmail = '',
+  currentUserId,
   requestId,
   requestSubmissionService,
   onNavigate
@@ -40,7 +42,11 @@ export const CustomerRequestDetailPage: React.FC<ICustomerRequestDetailPageProps
     setError(undefined);
 
     try {
-      const result = await requestSubmissionService.getCustomerRequestDetail(requestId);
+      const result = await requestSubmissionService.getCustomerRequestDetailForSubmitter(
+        requestId,
+        { sharePointUserId: currentUserId, email: currentUserEmail },
+        canManageCustomerRequests
+      );
       setDetail(result);
 
       if (bcIntegrationQueueService) {
@@ -53,7 +59,7 @@ export const CustomerRequestDetailPage: React.FC<ICustomerRequestDetailPageProps
     } finally {
       setLoading(false);
     }
-  }, [bcIntegrationQueueService, requestId, requestSubmissionService]);
+  }, [bcIntegrationQueueService, canManageCustomerRequests, currentUserEmail, currentUserId, requestId, requestSubmissionService]);
 
   React.useEffect(() => {
     loadDetail().catch(() => undefined);

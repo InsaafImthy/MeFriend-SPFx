@@ -12,12 +12,18 @@ import type {
 import type { IPagedResult } from '../../models/common/IPagedResult';
 import type { IPaginationState } from '../../models/common/IPaginationState';
 import type { ISortState } from '../../models/common/ISortState';
+import type { IAppUser } from '../../models/settings/IAppAccessModels';
 import {
   calculateOutstandingAmount,
   calculatePaymentStatus,
   summarizeRelatedInvoices
 } from '../../utils/financialUtils';
 import { normalizeBusinessDate } from '../../utils/formatUtils';
+import {
+  filterByCurrentSalesperson,
+  getCurrentSalespersonCode,
+  normalizeSalespersonCode
+} from '../../utils/salespersonDataScope';
 
 interface ISalesOrderApiModel {
   '@odata.etag'?: string;
@@ -47,8 +53,13 @@ interface ISalesOrderApiModel {
   clientNo?: string;
   clientName?: string;
   customerCode?: string;
-  salespersonCode?: string;
+  salesperson?: string | number;
+  salesPerson?: string | number;
+  salespersonCode?: string | number;
+  salesPersonCode?: string | number;
+  SalespersonCode?: string | number;
   salespersonName?: string;
+  salesPersonName?: string;
   eventCode?: string;
   eventName?: string;
   postingDate?: string;
@@ -150,6 +161,11 @@ interface ISalesOrderRelatedInvoiceApiModel {
   invoiceNo?: string;
   id?: string;
   invoiceNumber?: string;
+  salespersonCode?: string | number;
+  salesPersonCode?: string | number;
+  SalespersonCode?: string | number;
+  salesPerson?: string | number;
+  salesperson?: string | number;
   postingDate?: string;
   invoiceDate?: string;
   salesOrderNo?: string;
@@ -187,22 +203,43 @@ export class SalesOrderService {
   public async getSalesOrders(
     filters: ISalesOrderFilters = {},
     pagination?: Partial<IPaginationState>,
-    sorting?: ISortState
+    sorting?: ISortState,
+    currentUser?: IAppUser
   ): Promise<IPagedResult<ISalesOrderListItem>> {
-    const response = await this.apiClient.get<SalesOrderListApiResponse>('/api/SalesOrders');
+    const mandatorySalespersonCode = getCurrentSalespersonCode(currentUser);
+    const selectedSalespersonCode = normalizeSalespersonCode(filters.salespersonCode) || undefined;
+    const salespersonCode = mandatorySalespersonCode || selectedSalespersonCode;
+    const effectiveFilters = mandatorySalespersonCode
+      ? { ...filters, salespersonCode: mandatorySalespersonCode }
+      : filters;
+    const response = await this.apiClient.get<SalesOrderListApiResponse>('/api/SalesOrders', {
+      salesperson: salespersonCode
+    });
 
-    return this.mapSalesOrderListApiToPagedResult(response.data, filters, pagination, sorting);
+    return this.mapSalesOrderListApiToPagedResult(response.data, effectiveFilters, pagination, sorting, currentUser);
   }
 
-  public async getSalesOrderById(id: string): Promise<ISalesOrderDetail> {
-    const response = await this.apiClient.get<SalesOrderListApiResponse>('/api/SalesOrders');
+  public async getSalesOrderById(id: string, currentUser?: IAppUser): Promise<ISalesOrderDetail> {
+    const salespersonCode = getCurrentSalespersonCode(currentUser);
+    const response = await this.apiClient.get<SalesOrderListApiResponse>('/api/SalesOrders', {
+      salesperson: salespersonCode
+    });
     const salesOrder = this.findSalesOrderApiById(response.data, id);
+    const scopedSalesOrder = salesOrder
+      ? filterByCurrentSalesperson([this.mapSalesOrderApiToUiModel(salesOrder)], currentUser)[0]
+      : undefined;
 
-    if (!salesOrder) {
+    if (!scopedSalesOrder) {
       throw new Error(`Sales order ${id} was not found.`);
     }
 
-    return this.mapSalesOrderApiToUiModel(salesOrder);
+    const scopedRelatedInvoices = filterByCurrentSalesperson(scopedSalesOrder.relatedInvoices, currentUser);
+
+    return {
+      ...scopedSalesOrder,
+      relatedInvoices: scopedRelatedInvoices,
+      invoiceSummary: this.getInvoiceSummaryFromRelatedInvoices(scopedRelatedInvoices)
+    };
   }
 
   public async postSalesOrderToBusinessCentral(payload: ISalesOrderCreateFormState): Promise<ISalesOrderDetail> {
@@ -219,13 +256,20 @@ export class SalesOrderService {
     return this.postSalesOrderToBusinessCentral(payload);
   }
 
-  public async getInvoicesForSalesOrder(salesOrderId: string): Promise<readonly ISalesOrderRelatedInvoice[]> {
-    const response = await this.apiClient.get<SalesInvoiceListApiResponse>('/api/SalesInvoices');
+  public async getInvoicesForSalesOrder(
+    salesOrderId: string,
+    currentUser?: IAppUser
+  ): Promise<readonly ISalesOrderRelatedInvoice[]> {
+    const salespersonCode = getCurrentSalespersonCode(currentUser);
+    const response = await this.apiClient.get<SalesInvoiceListApiResponse>('/api/SalesInvoices', {
+      salesOrderNumber: salesOrderId,
+      salesPerson: salespersonCode
+    });
     const invoices = this.getInvoiceItems(response.data).filter(invoice =>
       this.relatedInvoiceMatchesSalesOrder(invoice, salesOrderId)
     );
 
-    return this.mapRelatedInvoicesApiToUiModel(invoices);
+    return filterByCurrentSalesperson(this.mapRelatedInvoicesApiToUiModel(invoices), currentUser);
   }
 
   public mapSalesOrderApiToUiModel(api?: ISalesOrderApiModel): ISalesOrderDetail {
@@ -234,6 +278,11 @@ export class SalesOrderService {
     const customerCode = api?.customerCode || api?.sellToCustomerNo || api?.customerNo || '';
     const customerName = api?.customerName || api?.sellToCustomerName || '';
     const lines = api?.SalesOrderLines || api?.lines || [];
+    const rawSalespersonCode = api?.salespersonCode ?? api?.salesPersonCode ?? api?.SalespersonCode ??
+      api?.salesperson ?? api?.salesPerson;
+    const salespersonCode = rawSalespersonCode === undefined || rawSalespersonCode === null
+      ? ''
+      : String(rawSalespersonCode).trim();
     const invoiceDiscountAmountExclVat = this.toOptionalNumber(
       api?.invoiceDiscountAmountExclVat,
       this.toOptionalNumber(api?.invoiceDiscountAmountExclVAT, api?.invoiceDiscountAmount)
@@ -253,8 +302,8 @@ export class SalesOrderService {
       customerName2: api?.customerName2 || '',
       clientCode: api?.clientNo || '',
       clientName: api?.clientName || '',
-      salespersonCode: api?.salespersonCode || '',
-      salespersonName: api?.salespersonName || '',
+      salespersonCode,
+      salespersonName: api?.salespersonName || api?.salesPersonName || '',
       eventCode: api?.eventCode || '',
       eventName: api?.eventName || '',
       postingDate: normalizeBusinessDate(api?.postingDate),
@@ -382,10 +431,16 @@ export class SalesOrderService {
       const paidAmount = invoice.paidAmount || 0;
       const outstandingAmount = calculateOutstandingAmount(totalAmount, paidAmount, invoice.outstandingAmount);
       const invoiceNumber = invoice.invoiceNumber || invoice.invoiceNo || invoice.no || '';
+      const rawSalespersonCode = invoice.salespersonCode ?? invoice.salesPersonCode ?? invoice.SalespersonCode ??
+        invoice.salesPerson ?? invoice.salesperson;
+      const salespersonCode = rawSalespersonCode === undefined || rawSalespersonCode === null
+        ? ''
+        : String(rawSalespersonCode).trim();
 
       return {
         id: invoice.id || invoiceNumber,
         invoiceNumber,
+        salespersonCode,
         invoiceDate: normalizeBusinessDate(invoice.invoiceDate || invoice.postingDate),
         totalAmount,
         paidAmount,
@@ -407,14 +462,16 @@ export class SalesOrderService {
     api: SalesOrderListApiResponse | undefined,
     filters: ISalesOrderFilters,
     pagination?: Partial<IPaginationState>,
-    sorting?: ISortState
+    sorting?: ISortState,
+    currentUser?: IAppUser
   ): IPagedResult<ISalesOrderListItem> {
     if (!this.isSalesOrderArray(api)) {
-      return this.mapPagedResult(api);
+      return this.mapPagedResult(api, filters, currentUser);
     }
 
     const mappedItems = api.map(item => this.mapSalesOrderApiToUiModel(item));
-    const filteredItems = this.filterSalesOrders(mappedItems, filters);
+    const scopedItems = filterByCurrentSalesperson(mappedItems, currentUser);
+    const filteredItems = this.filterSalesOrders(scopedItems, filters);
     const sortedItems = this.sortSalesOrders(filteredItems, sorting);
     const pageSize = Math.max(1, pagination?.pageSize || sortedItems.length || 1);
     const totalCount = sortedItems.length;
@@ -431,13 +488,22 @@ export class SalesOrderService {
     };
   }
 
-  private mapPagedResult(api?: IPagedResult<ISalesOrderApiModel>): IPagedResult<ISalesOrderListItem> {
+  private mapPagedResult(
+    api?: IPagedResult<ISalesOrderApiModel>,
+    filters: ISalesOrderFilters = {},
+    currentUser?: IAppUser
+  ): IPagedResult<ISalesOrderListItem> {
+    const mappedItems = (api?.items || []).map(item => this.mapSalesOrderApiToUiModel(item));
+    const scopedItems = filterByCurrentSalesperson(mappedItems, currentUser);
+    const filteredItems = this.filterSalesOrders(scopedItems, filters);
+    const wasClientFiltered = filteredItems.length !== mappedItems.length;
+
     return {
-      items: (api?.items || []).map(item => this.mapSalesOrderApiToUiModel(item)),
+      items: filteredItems,
       pageNumber: api?.pageNumber || 1,
       pageSize: api?.pageSize || 0,
-      totalCount: api?.totalCount || 0,
-      totalPages: api?.totalPages || 0
+      totalCount: wasClientFiltered ? filteredItems.length : api?.totalCount || 0,
+      totalPages: wasClientFiltered ? Math.max(1, Math.ceil(filteredItems.length / (api?.pageSize || 1))) : api?.totalPages || 0
     };
   }
 
@@ -639,7 +705,7 @@ export class SalesOrderService {
   ): readonly ISalesOrderListItem[] {
     const searchText = (filters.searchText || '').trim().toLowerCase();
     const customerCode = (filters.customerCode || '').trim().toLowerCase();
-    const salespersonCode = (filters.salespersonCode || '').trim().toLowerCase();
+    const salespersonCode = normalizeSalespersonCode(filters.salespersonCode);
     const eventCode = (filters.eventCode || '').trim().toLowerCase();
     const status = (filters.status || '').trim().toLowerCase();
 
@@ -665,7 +731,7 @@ export class SalesOrderService {
         return false;
       }
 
-      if (salespersonCode && `${item.salespersonCode} ${item.salespersonName}`.toLowerCase().indexOf(salespersonCode) === -1) {
+      if (salespersonCode && normalizeSalespersonCode(item.salespersonCode) !== salespersonCode) {
         return false;
       }
 

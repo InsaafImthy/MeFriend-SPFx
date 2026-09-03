@@ -42,6 +42,11 @@ export interface ISalesOrderSubmissionInput {
   lineSnapshots: readonly ISalesOrderSubmissionLineSnapshot[];
 }
 
+export interface IRequestViewerIdentity {
+  sharePointUserId?: number;
+  email: string;
+}
+
 const knownSubmissionErrorMessage = 'Request submission failed before approval tasks could be prepared.';
 
 const toNumber = (value: number | undefined): number => typeof value === 'number' && Number.isFinite(value) ? value : 0;
@@ -162,6 +167,16 @@ export class RequestSubmissionService {
     };
   }
 
+  public async getCustomerRequestDetailForSubmitter(
+    idOrRequestNumber: string,
+    viewer: IRequestViewerIdentity,
+    canManage: boolean = false
+  ): Promise<IRequestDetailResult<ICustomerRequest>> {
+    const detail = await this.getCustomerRequestDetail(idOrRequestNumber);
+    this.ensureSubmitterCanView(detail.request, viewer, canManage);
+    return detail;
+  }
+
   public async getSalesOrderRequestDetail(idOrRequestNumber: string): Promise<ISalesOrderRequestDetailResult> {
     const request = await this.loadSalesOrderRequest(idOrRequestNumber);
     const [lines, tasks, workflows, steps] = await Promise.all([
@@ -180,12 +195,37 @@ export class RequestSubmissionService {
     };
   }
 
+  public async getSalesOrderRequestDetailForSubmitter(
+    idOrRequestNumber: string,
+    viewer: IRequestViewerIdentity,
+    canManage: boolean = false
+  ): Promise<ISalesOrderRequestDetailResult> {
+    const detail = await this.getSalesOrderRequestDetail(idOrRequestNumber);
+    this.ensureSubmitterCanView(detail.request, viewer, canManage);
+    return detail;
+  }
+
   private async ensureCreatePermission(moduleKey: MefriendModuleKey): Promise<void> {
     const access = await this.appAccessService.getCurrentAccess(true);
     const moduleAccess = access.permissions[moduleKey];
 
     if (!access.isAuthorized || !moduleAccess || !moduleAccess.canView || !moduleAccess.canCreate) {
       throw new Error('You do not have permission to submit requests for this module.');
+    }
+  }
+
+  private ensureSubmitterCanView(request: ICustomerRequest | ISalesOrderRequest, viewer: IRequestViewerIdentity, canManage: boolean): void {
+    if (canManage) {
+      return;
+    }
+
+    const hasViewerId = typeof viewer.sharePointUserId === 'number' && viewer.sharePointUserId > 0;
+    const isOwner = hasViewerId
+      ? request.submittedById === viewer.sharePointUserId
+      : normalizeEmail(request.submittedByEmail) === normalizeEmail(viewer.email);
+
+    if (!isOwner) {
+      throw new Error('You can only view requests that you submitted.');
     }
   }
 

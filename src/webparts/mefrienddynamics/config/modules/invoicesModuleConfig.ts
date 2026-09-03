@@ -44,6 +44,7 @@ export const invoicesModuleConfig: IModuleConfig<IInvoiceListItem> = {
     { key: 'customerCode', label: 'Customer', type: 'text' },
     { key: 'salesOrderNumber', label: 'Sales Order', type: 'text' },
     { key: 'paymentStatus', label: 'Payment Status', type: 'status', options: paymentStatusOptions },
+    { key: 'salespersonCode', label: 'Salesperson', type: 'dropdown', searchable: true },
     { key: 'outstandingOnly', label: 'Outstanding only', type: 'outstandingOnly' }
   ]
 };

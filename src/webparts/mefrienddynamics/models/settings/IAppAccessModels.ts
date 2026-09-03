@@ -14,6 +14,8 @@ export interface IAppUser {
   role: string;
   canAccessApp: boolean;
   isActive: boolean;
+  isSalesperson: boolean;
+  salespersonCode?: string;
   userId?: number;
   userTitle?: string;
   userEmail?: string;
@@ -26,6 +28,8 @@ export interface IAppUserInput {
   role: string;
   canAccessApp: boolean;
   isActive: boolean;
+  isSalesperson: boolean;
+  salespersonCode?: string;
 }
 
 export interface IAppUserPermission {

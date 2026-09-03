@@ -35,6 +35,11 @@ export interface ISalesOrderCreatePageProps {
   masterDataService: MasterDataService;
   requestSubmissionService: RequestSubmissionService;
   resubmitRequestId?: string;
+  approvalEditRequestId?: string;
+  approvalEditTaskId?: number;
+  embedded?: boolean;
+  onApprovalEditSaved?: () => void;
+  onApprovalEditCancel?: () => void;
   salespersonService: SalespersonService;
   onNavigate: (path: string) => void;
 }
@@ -230,6 +235,11 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
   masterDataService,
   requestSubmissionService,
   resubmitRequestId,
+  approvalEditRequestId,
+  approvalEditTaskId,
+  embedded = false,
+  onApprovalEditSaved,
+  onApprovalEditCancel,
   salespersonService,
   onNavigate
 }) => {
@@ -307,7 +317,9 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
   }, [customerService, eventService, itemMasterService, masterDataService, salespersonService, toast]);
 
   React.useEffect(() => {
-    if (!resubmitRequestId) {
+    const requestSnapshotId = approvalEditRequestId || resubmitRequestId;
+
+    if (!requestSnapshotId) {
       setInitialFormValues({ billToCustomerCode: '' });
       setSnapshotNames({
         sellToCustomerName: '',
@@ -324,7 +336,7 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
       setLookupLoading(true);
 
       try {
-        const detail = await requestSubmissionService.getSalesOrderRequestDetail(resubmitRequestId);
+        const detail = await requestSubmissionService.getSalesOrderRequestDetail(requestSnapshotId);
         const headerValues: EntityFormValues = {
           customerCode: detail.request.sellToCustomerCode,
           billToCustomerCode: detail.request.billToCustomerCode,
@@ -362,7 +374,7 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
         }
       } catch (error) {
         if (isMounted) {
-          toast.error(getUserFriendlyError(error), { title: 'Unable to load rejected sales order' });
+          toast.error(getUserFriendlyError(error), { title: 'Unable to load sales order request' });
         }
       } finally {
         if (isMounted) {
@@ -376,7 +388,7 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [requestSubmissionService, resubmitRequestId, toast]);
+  }, [approvalEditRequestId, requestSubmissionService, resubmitRequestId, toast]);
 
   const fields = React.useMemo<readonly IFormFieldConfig[]>(() => {
     return (salesOrdersModuleConfig.formFields || []).map(field => {
@@ -447,8 +459,13 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
       return;
     }
 
+    if (approvalEditTaskId) {
+      onApprovalEditCancel?.();
+      return;
+    }
+
     onNavigate(resubmitRequestId ? `${salesOrdersModuleConfig.route}/requests/detail/${encodeURIComponent(resubmitRequestId)}` : salesOrdersModuleConfig.route);
-  }, [isDirty, onNavigate, resubmitRequestId]);
+  }, [approvalEditTaskId, isDirty, onApprovalEditCancel, onNavigate, resubmitRequestId]);
 
   const resetInvoiceDiscount = React.useCallback((): void => {
     if (!hasInvoiceDiscount) {
@@ -513,6 +530,16 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
         }))
       };
 
+      if (approvalEditTaskId) {
+        if (!approvalProcessingService) {
+          throw new Error('Approval editing is not configured.');
+        }
+        await approvalProcessingService.updateSalesOrderRequestDuringApproval(approvalEditTaskId, submissionInput);
+        toast.success('Sales-order request changes saved. Approval is still pending.', { title: 'Approval Edit' });
+        onApprovalEditSaved?.();
+        return;
+      }
+
       if (resubmitRequestId && approvalProcessingService) {
         await approvalProcessingService.resubmitSalesOrderRequest(Number(resubmitRequestId), submissionInput);
         toast.success('Sales order request resubmitted for approval.', { title: 'Sales Order' });
@@ -538,7 +565,9 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
     lines,
     loading,
     onNavigate,
+    approvalEditTaskId,
     approvalProcessingService,
+    onApprovalEditSaved,
     requestSubmissionService,
     resubmitRequestId,
     salespersonOptions,
@@ -546,118 +575,137 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
     toast
   ]);
 
+  const isApprovalEdit = Boolean(approvalEditTaskId && approvalEditRequestId);
+  const form = (
+    <EntityForm
+      fields={fields}
+      initialValues={initialFormValues}
+      submitLabel={isApprovalEdit ? 'Save Changes' : resubmitRequestId ? 'Resubmit for Approval' : 'Submit for Approval'}
+      cancelLabel={isApprovalEdit ? 'Cancel Edit' : 'Cancel'}
+      loading={loading}
+      disabled={loading}
+      lookupLoadingKeys={{
+        customerCode: lookupLoading,
+        billToCustomerCode: lookupLoading,
+        eventCode: lookupLoading,
+        salespersonCode: lookupLoading,
+        stateCode: lookupLoading
+      }}
+      onDirtyChange={setHeaderDirty}
+      onSubmit={values => {
+        handleSubmit(values).catch(() => undefined);
+      }}
+      onCancel={handleCancel}
+    >
+      <LineItemsEditor<ISalesOrderLineFormItem>
+        title="Line Items"
+        fields={lineItemFields}
+        items={lines}
+        addLabel="Add Line"
+        disabled={loading}
+        requireAtLeastOneLine={true}
+        showValidationErrors={showLineValidation}
+        createDefaultItem={() => createDefaultLine(lines.length + 1)}
+        calculateItem={calculateSalesOrderLine}
+        validateLine={validateLine}
+        onChange={nextLines => {
+          resetInvoiceDiscount();
+          setLines(nextLines.map((line, index) => ({ ...line, lineNumber: String(index + 1) })));
+        }}
+        getRowKey={(item, index) => item.lineNumber || String(index)}
+        emptyTitle="No line items"
+        emptyMessage="Add at least one line item to create a sales order."
+      />
+      <section className={styles.discountPanel} aria-label="Invoice discount">
+        <div className={styles.discountHeader}>
+          <div>
+            <h3>Invoice Discount</h3>
+            <p>Choose whether the invoice-level discount is entered as an amount or as a percentage.</p>
+          </div>
+          <div className={styles.discountMode} aria-label="Invoice discount entry mode">
+            <button
+              className={invoiceDiscountMode === 'amount' ? styles.activeModeButton : styles.modeButton}
+              disabled={loading}
+              onClick={() => handleInvoiceDiscountModeChange('amount')}
+              type="button"
+            >
+              Amount
+            </button>
+            <button
+              className={invoiceDiscountMode === 'percent' ? styles.activeModeButton : styles.modeButton}
+              disabled={loading}
+              onClick={() => handleInvoiceDiscountModeChange('percent')}
+              type="button"
+            >
+              Percent
+            </button>
+          </div>
+        </div>
+        <div className={styles.discountGrid}>
+          <InputField
+            label="Invoice Discount Amount Excl. VAT"
+            type="number"
+            value={invoiceDiscountAmountValue || ''}
+            disabled={loading || linesSubtotal <= 0}
+            readOnly={invoiceDiscountMode !== 'amount'}
+            min={0}
+            max={linesSubtotal}
+            onChange={handleInvoiceDiscountAmountChange}
+          />
+          <InputField
+            label="Invoice Discount %"
+            type="number"
+            value={invoiceDiscountPercentValue || ''}
+            disabled={loading || linesSubtotal <= 0}
+            readOnly={invoiceDiscountMode !== 'percent'}
+            min={0}
+            max={100}
+            onChange={handleInvoiceDiscountPercentChange}
+          />
+          <div className={styles.discountMetric}>
+            <span>Line Subtotal</span>
+            <strong>{linesSubtotal.toFixed(2)}</strong>
+          </div>
+          <div className={styles.discountMetric}>
+            <span>Total After Discount</span>
+            <strong>{orderTotalAfterDiscount.toFixed(2)}</strong>
+          </div>
+        </div>
+      </section>
+    </EntityForm>
+  );
+
+  const cancelDialog = (
+    <ConfirmationDialog
+      isOpen={showCancelDialog}
+      title={isApprovalEdit ? 'Discard approval edits?' : 'Discard sales order?'}
+      message={isApprovalEdit ? 'You have unsaved request changes. Discard them and return to the approval preview?' : 'You have unsaved sales order changes. Discard them and leave this page?'}
+      confirmLabel="Discard"
+      cancelLabel="Keep Editing"
+      variant="danger"
+      onConfirm={() => {
+        if (isApprovalEdit) {
+          onApprovalEditCancel?.();
+          return;
+        }
+        onNavigate(resubmitRequestId ? `${salesOrdersModuleConfig.route}/requests/detail/${encodeURIComponent(resubmitRequestId)}` : salesOrdersModuleConfig.route);
+      }}
+      onCancel={() => setShowCancelDialog(false)}
+    />
+  );
+
+  if (embedded) {
+    return <>{form}{cancelDialog}</>;
+  }
+
   return (
     <PageContainer
       title={resubmitRequestId ? 'Edit and Resubmit Sales Order' : 'Create Sales Order'}
       description={resubmitRequestId ? 'Correct the rejected sales-order snapshot and submit it into the next approval cycle.' : 'Submit a sales order request for approval.'}
       actions={<Button label={resubmitRequestId ? 'Back to Request' : 'Back to Sales Orders'} variant="secondary" disabled={loading} onClick={handleCancel} />}
     >
-      <EntityForm
-        fields={fields}
-        initialValues={initialFormValues}
-        submitLabel={resubmitRequestId ? 'Resubmit for Approval' : 'Submit for Approval'}
-        cancelLabel="Cancel"
-        loading={loading}
-        disabled={loading}
-        lookupLoadingKeys={{
-          customerCode: lookupLoading,
-          billToCustomerCode: lookupLoading,
-          eventCode: lookupLoading,
-          salespersonCode: lookupLoading,
-          stateCode: lookupLoading
-        }}
-        onDirtyChange={setHeaderDirty}
-        onSubmit={values => {
-          handleSubmit(values).catch(() => undefined);
-        }}
-        onCancel={handleCancel}
-      >
-        <LineItemsEditor<ISalesOrderLineFormItem>
-          title="Line Items"
-          fields={lineItemFields}
-          items={lines}
-          addLabel="Add Line"
-          disabled={loading}
-          requireAtLeastOneLine={true}
-          showValidationErrors={showLineValidation}
-          createDefaultItem={() => createDefaultLine(lines.length + 1)}
-          calculateItem={calculateSalesOrderLine}
-          validateLine={validateLine}
-          onChange={nextLines => {
-            resetInvoiceDiscount();
-            setLines(nextLines.map((line, index) => ({ ...line, lineNumber: String(index + 1) })));
-          }}
-          getRowKey={(item, index) => item.lineNumber || String(index)}
-          emptyTitle="No line items"
-          emptyMessage="Add at least one line item to create a sales order."
-        />
-        <section className={styles.discountPanel} aria-label="Invoice discount">
-          <div className={styles.discountHeader}>
-            <div>
-              <h3>Invoice Discount</h3>
-              <p>Choose whether the invoice-level discount is entered as an amount or as a percentage.</p>
-            </div>
-            <div className={styles.discountMode} aria-label="Invoice discount entry mode">
-              <button
-                className={invoiceDiscountMode === 'amount' ? styles.activeModeButton : styles.modeButton}
-                disabled={loading}
-                onClick={() => handleInvoiceDiscountModeChange('amount')}
-                type="button"
-              >
-                Amount
-              </button>
-              <button
-                className={invoiceDiscountMode === 'percent' ? styles.activeModeButton : styles.modeButton}
-                disabled={loading}
-                onClick={() => handleInvoiceDiscountModeChange('percent')}
-                type="button"
-              >
-                Percent
-              </button>
-            </div>
-          </div>
-          <div className={styles.discountGrid}>
-            <InputField
-              label="Invoice Discount Amount Excl. VAT"
-              type="number"
-              value={invoiceDiscountAmountValue || ''}
-              disabled={loading || linesSubtotal <= 0}
-              readOnly={invoiceDiscountMode !== 'amount'}
-              min={0}
-              max={linesSubtotal}
-              onChange={handleInvoiceDiscountAmountChange}
-            />
-            <InputField
-              label="Invoice Discount %"
-              type="number"
-              value={invoiceDiscountPercentValue || ''}
-              disabled={loading || linesSubtotal <= 0}
-              readOnly={invoiceDiscountMode !== 'percent'}
-              min={0}
-              max={100}
-              onChange={handleInvoiceDiscountPercentChange}
-            />
-            <div className={styles.discountMetric}>
-              <span>Line Subtotal</span>
-              <strong>{linesSubtotal.toFixed(2)}</strong>
-            </div>
-            <div className={styles.discountMetric}>
-              <span>Total After Discount</span>
-              <strong>{orderTotalAfterDiscount.toFixed(2)}</strong>
-            </div>
-          </div>
-        </section>
-      </EntityForm>
-      <ConfirmationDialog
-        isOpen={showCancelDialog}
-        title="Discard sales order?"
-        message="You have unsaved sales order changes. Discard them and leave this page?"
-        confirmLabel="Discard"
-        cancelLabel="Keep Editing"
-        variant="danger"
-        onConfirm={() => onNavigate(resubmitRequestId ? `${salesOrdersModuleConfig.route}/requests/detail/${encodeURIComponent(resubmitRequestId)}` : salesOrdersModuleConfig.route)}
-        onCancel={() => setShowCancelDialog(false)}
-      />
+      {form}
+      {cancelDialog}
     </PageContainer>
   );
 };

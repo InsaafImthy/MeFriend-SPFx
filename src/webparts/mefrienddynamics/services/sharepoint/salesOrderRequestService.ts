@@ -127,6 +127,11 @@ export interface IUpdateSalesOrderRequestWorkflowInput {
   bcErrorMessage?: string;
 }
 
+export interface IRequestSubmitterIdentity {
+  submittedById?: number;
+  submittedByEmail?: string;
+}
+
 const salesOrderRequestSelect = [
   'Id',
   'ID',
@@ -364,20 +369,30 @@ export class SalesOrderRequestService {
 
   public async replaceRequestLines(requestId: number, snapshots: readonly ISalesOrderRequestLineSnapshot[]): Promise<readonly ISalesOrderRequestLine[]> {
     const existingLines = await this.getRequestLines(requestId);
-
-    for (const line of existingLines) {
-      await this.restClient.updateItem(mefriendListTitles.salesOrderRequestLines, line.id, {
-        [mefriendFields.salesOrderRequestLines.isActive]: false
-      });
-    }
-
     const createdLines: ISalesOrderRequestLine[] = [];
+    const deactivatedLines: ISalesOrderRequestLine[] = [];
 
     try {
       for (const snapshot of snapshots) {
         createdLines.push(await this.createRequestLine(snapshot));
       }
+
+      for (const line of existingLines) {
+        await this.restClient.updateItem(mefriendListTitles.salesOrderRequestLines, line.id, {
+          [mefriendFields.salesOrderRequestLines.isActive]: false
+        });
+        deactivatedLines.push(line);
+      }
     } catch (error) {
+      for (const deactivatedLine of deactivatedLines) {
+        try {
+          await this.restClient.updateItem(mefriendListTitles.salesOrderRequestLines, deactivatedLine.id, {
+            [mefriendFields.salesOrderRequestLines.isActive]: true
+          });
+        } catch (rollbackError) {
+          console.error('Unable to reactivate a previous sales-order request line.', rollbackError);
+        }
+      }
       for (const createdLine of createdLines) {
         try {
           await this.deleteRequestLine(createdLine.id);
@@ -399,6 +414,22 @@ export class SalesOrderRequestService {
     const items = await this.restClient.readItems<ISalesOrderRequestListItem>(mefriendListTitles.salesOrderRequests, {
       select: salesOrderRequestSelect,
       expand: ['Workflow', 'SubmittedBy', 'LastActionBy'],
+      orderBy: 'SubmittedOn desc'
+    });
+    return this.toPagedResult(items.map(this.mapRequest), filters, pagination, sorting);
+  }
+
+  public async getRequestsForSubmitter(
+    submitter: IRequestSubmitterIdentity,
+    filters: IRequestListFilter = {},
+    pagination?: Partial<IPaginationState>,
+    sorting?: ISortState
+  ): Promise<IPagedResult<ISalesOrderRequest>> {
+    const submittedById = await this.resolveSubmittedById(submitter);
+    const items = await this.restClient.readItems<ISalesOrderRequestListItem>(mefriendListTitles.salesOrderRequests, {
+      select: salesOrderRequestSelect,
+      expand: ['Workflow', 'SubmittedBy', 'LastActionBy'],
+      filter: `SubmittedById eq ${submittedById}`,
       orderBy: 'SubmittedOn desc'
     });
     return this.toPagedResult(items.map(this.mapRequest), filters, pagination, sorting);
@@ -507,6 +538,19 @@ export class SalesOrderRequestService {
 
   private normalize(value: unknown): string {
     return value === undefined || value === null ? '' : String(value).trim().toLowerCase();
+  }
+
+  private async resolveSubmittedById(submitter: IRequestSubmitterIdentity): Promise<number> {
+    if (typeof submitter.submittedById === 'number' && submitter.submittedById > 0) {
+      return submitter.submittedById;
+    }
+
+    const email = (submitter.submittedByEmail || '').trim().toLowerCase();
+    if (!email) {
+      throw new Error('Unable to identify the signed-in request owner.');
+    }
+
+    return (await this.restClient.ensureUser(email)).id;
   }
 
   private assignIfDefined(payload: Record<string, unknown>, fieldName: string, value: unknown): void {

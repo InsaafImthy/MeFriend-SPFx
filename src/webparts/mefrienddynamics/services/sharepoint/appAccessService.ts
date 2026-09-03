@@ -15,6 +15,7 @@ import type {
   IModuleAccess
 } from '../../models/settings/IAppAccessModels';
 import { SharePointRestClient } from './sharePointRestClient';
+import { normalizeSalespersonCode } from '../../utils/salespersonDataScope';
 
 interface IAppUserListItem {
   Id?: number;
@@ -30,6 +31,8 @@ interface IAppUserListItem {
   Role?: string;
   CanAccessApp?: boolean;
   IsActive?: boolean;
+  IsSalesperson?: boolean;
+  SalespersonCode?: string | number;
 }
 
 interface IAppUserPermissionListItem {
@@ -62,7 +65,9 @@ const appUserSelect = [
   'Email',
   'Role',
   'CanAccessApp',
-  'IsActive'
+  'IsActive',
+  'IsSalesperson',
+  'SalespersonCode'
 ];
 
 const permissionSelect = [
@@ -217,6 +222,13 @@ export class AppAccessService {
       throw new Error(`An app user already exists for ${email}.`);
     }
 
+    const isSalesperson = input.isSalesperson === true;
+    const salespersonCode = normalizeSalespersonCode(input.salespersonCode);
+
+    if (isSalesperson && !salespersonCode) {
+      throw new Error('Salesperson Code is required when Is Salesperson is selected.');
+    }
+
     const ensuredUser = await this.restClient.ensureUser(email);
     const payload = {
       [mefriendFields.appUsers.title]: input.title.trim() || ensuredUser.title,
@@ -224,6 +236,8 @@ export class AppAccessService {
       [mefriendFields.appUsers.role]: input.role.trim(),
       [mefriendFields.appUsers.canAccessApp]: input.canAccessApp,
       [mefriendFields.appUsers.isActive]: input.isActive,
+      [mefriendFields.appUsers.isSalesperson]: isSalesperson,
+      [mefriendFields.appUsers.salespersonCode]: isSalesperson ? salespersonCode : '',
       [mefriendFields.appUsers.userId]: ensuredUser.id
     };
 
@@ -236,6 +250,8 @@ export class AppAccessService {
         role: String(payload.Role),
         canAccessApp: Boolean(payload.CanAccessApp),
         isActive: Boolean(payload.IsActive),
+        isSalesperson: Boolean(payload.IsSalesperson),
+        salespersonCode: String(payload.SalespersonCode || ''),
         userId: ensuredUser.id,
         userTitle: ensuredUser.title,
         userEmail: ensuredUser.email
@@ -374,6 +390,8 @@ export class AppAccessService {
       role: item.Role || '',
       canAccessApp: item.CanAccessApp === true,
       isActive: item.IsActive !== false,
+      isSalesperson: item.IsSalesperson === true,
+      salespersonCode: normalizeSalespersonCode(item.SalespersonCode),
       userId: item.UserId,
       userTitle: item.User ? item.User.Title : undefined,
       userEmail: item.User ? normalizeEmail(item.User.EMail || item.User.Email) : undefined

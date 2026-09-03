@@ -35,7 +35,8 @@ export const salesOrdersModuleConfig: IModuleConfig<ISalesOrderListItem> = {
     { key: 'searchText', label: 'Search', type: 'text' },
     { key: 'orderDate', label: 'Order Date', type: 'dateRange' },
     { key: 'customerCode', label: 'Customer', type: 'text' },
-    { key: 'status', label: 'Status', type: 'status', options: salesOrderStatusOptions }
+    { key: 'status', label: 'Status', type: 'status', options: salesOrderStatusOptions },
+    { key: 'salespersonCode', label: 'Salesperson', type: 'dropdown', searchable: true }
   ],
   formFields: [
     { key: 'postingDate', label: 'Posting Date', type: 'date', required: true, section: 'Sales Order Header' },

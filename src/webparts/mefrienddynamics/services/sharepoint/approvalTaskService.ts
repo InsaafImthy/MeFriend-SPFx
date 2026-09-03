@@ -269,6 +269,12 @@ export class ApprovalTaskService {
     await this.restClient.updateItem(mefriendListTitles.approvalTasks, id, payload);
   }
 
+  public async updateTaskComments(id: number, comments: string): Promise<void> {
+    await this.restClient.updateItem(mefriendListTitles.approvalTasks, id, {
+      [mefriendFields.approvalTasks.comments]: comments
+    });
+  }
+
   public async deleteTask(id: number): Promise<void> {
     await this.restClient.deleteItem(mefriendListTitles.approvalTasks, id);
   }

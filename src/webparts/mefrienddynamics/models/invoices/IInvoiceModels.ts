@@ -38,6 +38,7 @@ export interface IInvoiceListItem {
   clientGSTNo?: string;
   customerGSTState?: string;
   clientGSTState?: string;
+  salespersonCode: string;
   salesPerson?: string;
   salesOrderNumber: string;
   salesOrderDate?: string;
@@ -72,6 +73,7 @@ export interface IInvoiceDetail extends IInvoiceListItem {
 export interface IInvoiceFilters {
   searchText?: string;
   customerCode?: string;
+  salespersonCode?: string;
   salesOrderNumber?: string;
   invoiceStatus?: string;
   paymentStatus?: PaymentStatus;

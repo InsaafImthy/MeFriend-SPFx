@@ -8,4 +8,9 @@ export interface IFilterConfig<TValue = unknown> {
   type: FilterConfigType;
   options?: readonly ILookupOption[];
   defaultValue?: TValue;
+  searchable?: boolean;
+  disabled?: boolean;
+  loading?: boolean;
+  errorMessage?: string;
+  placeholder?: string;
 }

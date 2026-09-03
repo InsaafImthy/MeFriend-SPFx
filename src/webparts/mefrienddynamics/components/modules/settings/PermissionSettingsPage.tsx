@@ -23,6 +23,8 @@ import type { IMasterCodeItem, MasterDataListKey } from '../../../models/setting
 import type { AppAccessService } from '../../../services/sharepoint/appAccessService';
 import type { ApprovalWorkflowService } from '../../../services/sharepoint/approvalWorkflowService';
 import type { MasterDataService } from '../../../services/sharepoint/masterDataService';
+import type { SalespersonService } from '../../../services/salespersons/salespersonService';
+import { normalizeSalespersonCode } from '../../../utils/salespersonDataScope';
 import { Button } from '../../common/buttons/Button';
 import { ConfirmationDialog } from '../../common/confirmationDialog/ConfirmationDialog';
 import { Dropdown } from '../../common/dropdowns/Dropdown';
@@ -62,6 +64,7 @@ export interface IPermissionSettingsPageProps {
   appAccessService: AppAccessService;
   approvalWorkflowService: ApprovalWorkflowService;
   masterDataService: MasterDataService;
+  salespersonService: SalespersonService;
   onPermissionsChanged: () => Promise<void>;
 }
 
@@ -72,7 +75,9 @@ const emptyUserForm: IAppUserInput = {
   email: '',
   role: '',
   canAccessApp: true,
-  isActive: true
+  isActive: true,
+  isSalesperson: false,
+  salespersonCode: ''
 };
 
 const emptyMasterForm: IMasterDataFormState = {
@@ -142,6 +147,7 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
   appAccessService,
   approvalWorkflowService,
   masterDataService,
+  salespersonService,
   onPermissionsChanged
 }) => {
   const toast = useToast();
@@ -213,6 +219,9 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
   const [userFilter, setUserFilter] = React.useState<'all' | 'active' | 'inactive'>('active');
   const [userDialogOpen, setUserDialogOpen] = React.useState<boolean>(false);
   const [userForm, setUserForm] = React.useState<IAppUserInput>(emptyUserForm);
+  const [salespersonOptions, setSalespersonOptions] = React.useState<readonly ILookupOption<string>[]>([]);
+  const [salespersonLookupLoading, setSalespersonLookupLoading] = React.useState<boolean>(false);
+  const [salespersonLookupError, setSalespersonLookupError] = React.useState<string | undefined>();
   const [masterDialogListKey, setMasterDialogListKey] = React.useState<MasterDataListKey | undefined>();
   const [masterForm, setMasterForm] = React.useState<IMasterDataFormState>(emptyMasterForm);
   const [deleteTarget, setDeleteTarget] = React.useState<IMasterDataDeleteTarget | undefined>();
@@ -220,6 +229,9 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
 
   const selectedUser = users.filter(user => user.id === selectedUserId)[0];
   const selectedWorkflow = workflows.filter(workflow => workflow.id === selectedWorkflowId)[0];
+  const hasValidSalespersonSelection = !userForm.isSalesperson || salespersonOptions.some(
+    option => normalizeSalespersonCode(option.value) === normalizeSalespersonCode(userForm.salespersonCode)
+  );
 
   const loadSettings = React.useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -255,6 +267,36 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
   React.useEffect(() => {
     loadSettings().catch(() => undefined);
   }, [loadSettings]);
+
+  React.useEffect(() => {
+    if (!canManageUsers) {
+      return;
+    }
+
+    const loadSalespersonOptions = async (): Promise<void> => {
+      setSalespersonLookupLoading(true);
+      setSalespersonLookupError(undefined);
+
+      try {
+        const lookupItems = await salespersonService.getSalespersonLookup();
+        setSalespersonOptions(lookupItems.map(item => ({
+          key: item.code,
+          text: item.code,
+          value: normalizeSalespersonCode(item.code),
+          description: item.name
+        })));
+      } catch (lookupError) {
+        setSalespersonOptions([]);
+        setSalespersonLookupError(
+          lookupError instanceof Error ? lookupError.message : 'Unable to load Salesperson Master.'
+        );
+      } finally {
+        setSalespersonLookupLoading(false);
+      }
+    };
+
+    loadSalespersonOptions().catch(() => undefined);
+  }, [canManageUsers, salespersonService]);
 
   React.useEffect(() => {
     if (visibleSections.length && !visibleSections.some(section => section.key === activeSectionKey)) {
@@ -331,10 +373,30 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
       return;
     }
 
+    const salespersonCode = normalizeSalespersonCode(userForm.salespersonCode);
+
+    if (userForm.isSalesperson && !salespersonCode) {
+      toast.error('Salesperson Code is required when Is Salesperson is selected.');
+      return;
+    }
+
+    if (
+      userForm.isSalesperson &&
+      !salespersonOptions.some(option => normalizeSalespersonCode(option.value) === salespersonCode)
+    ) {
+      toast.error('Select a valid Salesperson Code from Salesperson Master.');
+      return;
+    }
+
     setSaving(true);
 
     try {
-      await appAccessService.saveUser({ ...userForm, email: normalizeEmail(userForm.email), title: userForm.title.trim() });
+      await appAccessService.saveUser({
+        ...userForm,
+        email: normalizeEmail(userForm.email),
+        title: userForm.title.trim(),
+        salespersonCode: userForm.isSalesperson ? salespersonCode : ''
+      });
       toast.success('App user saved.');
       setUserDialogOpen(false);
       setUserForm(emptyUserForm);
@@ -451,6 +513,15 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
           customRender: user => renderRecordTitle(user.title, user.email)
         },
         { key: 'role', header: 'Role', fieldName: 'role', sortable: false, renderType: 'text', minWidth: 150 },
+        {
+          key: 'salesperson',
+          header: 'Salesperson',
+          fieldName: 'salespersonCode',
+          sortable: false,
+          renderType: 'custom',
+          minWidth: 140,
+          customRender: user => (user.isSalesperson ? user.salespersonCode || 'Not configured' : 'No')
+        },
         {
           key: 'access',
           header: 'Access',
@@ -768,11 +839,30 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
   return (
     <PageContainer title="Settings" description="Configure application access, workflow approvals, and sales order master data.">
       <div className={styles.settingsShell}>{renderSectionNav()}{renderContent()}</div>
-      <EntityModal isOpen={userDialogOpen} title={userForm.id ? 'Edit App User' : 'Add App User'} size="small" onDismiss={() => setUserDialogOpen(false)} confirmLabel={userForm.id ? 'Update' : 'Create'} confirmLoading={saving} confirmDisabled={!canManageUsers} onConfirm={() => saveUser().catch(() => undefined)} onCancel={() => setUserDialogOpen(false)}>
+      <EntityModal isOpen={userDialogOpen} title={userForm.id ? 'Edit App User' : 'Add App User'} size="small" onDismiss={() => setUserDialogOpen(false)} confirmLabel={userForm.id ? 'Update' : 'Create'} confirmLoading={saving} confirmDisabled={!canManageUsers || !hasValidSalespersonSelection} onConfirm={() => saveUser().catch(() => undefined)} onCancel={() => setUserDialogOpen(false)}>
         <div className={styles.masterForm}>
           <InputField disabled={saving} label="Display Name" onChange={value => setUserForm(current => ({ ...current, title: value }))} required value={userForm.title} />
           <InputField disabled={saving} label="Email" onChange={value => setUserForm(current => ({ ...current, email: value }))} required type="email" value={userForm.email} />
           <InputField disabled={saving} label="Role" onChange={value => setUserForm(current => ({ ...current, role: value }))} value={userForm.role} />
+          <label className={styles.toggle}><input checked={userForm.isSalesperson} disabled={saving} onChange={event => {
+            const checked = event.currentTarget.checked;
+            setUserForm(current => ({ ...current, isSalesperson: checked, salespersonCode: checked ? current.salespersonCode : '' }));
+          }} type="checkbox" /><span>Is Salesperson</span></label>
+          {userForm.isSalesperson ? (
+            <Dropdown
+              disabled={saving}
+              errorMessage={salespersonLookupError || (!normalizeSalespersonCode(userForm.salespersonCode) ? 'Salesperson Code is required.' : undefined)}
+              label="Salesperson Code"
+              loading={salespersonLookupLoading}
+              onChange={value => setUserForm(current => ({ ...current, salespersonCode: typeof value === 'string' ? value : '' }))}
+              options={salespersonOptions}
+              placeholder="Select salesperson"
+              required
+              searchable
+              showSelectedDetail
+              value={userForm.salespersonCode}
+            />
+          ) : null}
           <label className={styles.toggle}><input checked={userForm.canAccessApp} disabled={saving} onChange={event => {
             const checked = event.currentTarget.checked;
             setUserForm(current => ({ ...current, canAccessApp: checked }));

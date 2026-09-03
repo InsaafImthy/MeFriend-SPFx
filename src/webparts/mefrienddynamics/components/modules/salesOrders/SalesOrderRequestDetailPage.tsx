@@ -14,6 +14,7 @@ export interface ISalesOrderRequestDetailPageProps {
   canManageSalesOrderRequests?: boolean;
   canPostToBC?: boolean;
   currentUserEmail?: string;
+  currentUserId?: number;
   requestId: string;
   requestSubmissionService: RequestSubmissionService;
   onNavigate: (path: string) => void;
@@ -24,6 +25,7 @@ export const SalesOrderRequestDetailPage: React.FC<ISalesOrderRequestDetailPageP
   canManageSalesOrderRequests = false,
   canPostToBC = false,
   currentUserEmail = '',
+  currentUserId,
   requestId,
   requestSubmissionService,
   onNavigate
@@ -40,7 +42,11 @@ export const SalesOrderRequestDetailPage: React.FC<ISalesOrderRequestDetailPageP
     setError(undefined);
 
     try {
-      const result = await requestSubmissionService.getSalesOrderRequestDetail(requestId);
+      const result = await requestSubmissionService.getSalesOrderRequestDetailForSubmitter(
+        requestId,
+        { sharePointUserId: currentUserId, email: currentUserEmail },
+        canManageSalesOrderRequests
+      );
       setDetail(result);
 
       if (bcIntegrationQueueService) {
@@ -53,7 +59,7 @@ export const SalesOrderRequestDetailPage: React.FC<ISalesOrderRequestDetailPageP
     } finally {
       setLoading(false);
     }
-  }, [bcIntegrationQueueService, requestId, requestSubmissionService]);
+  }, [bcIntegrationQueueService, canManageSalesOrderRequests, currentUserEmail, currentUserId, requestId, requestSubmissionService]);
 
   React.useEffect(() => {
     loadDetail().catch(() => undefined);

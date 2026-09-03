@@ -23,6 +23,17 @@ interface IInvoicePrintWindow extends Window {
   openSystemPrintDialog?: () => void;
 }
 
+interface IInvoiceHtmlOptions {
+  autoPrint?: boolean;
+  showPreviewBar?: boolean;
+}
+
+interface IPdfImage {
+  data: Uint8Array;
+  height: number;
+  width: number;
+}
+
 let embeddedLogoSrcPromise: Promise<string> | undefined;
 
 const escapeHtml = (value?: string | number): string => String(value ?? '')
@@ -656,7 +667,11 @@ const buildStyles = (): string => `
   }
 `;
 
-export const buildInvoicePrintHtml = (invoice: IInvoiceDetail, logoSrc: string = mefriendLogo): string => {
+export const buildInvoicePrintHtml = (
+  invoice: IInvoiceDetail,
+  logoSrc: string = mefriendLogo,
+  options: IInvoiceHtmlOptions = {}
+): string => {
   const lineRows = invoice.lines.length
     ? invoice.lines.map(renderLine).join('')
     : renderBlankLine();
@@ -665,6 +680,8 @@ export const buildInvoicePrintHtml = (invoice: IInvoiceDetail, logoSrc: string =
   const invoiceDiscountAmount = invoice.invoiceDiscountAmountExclVat ?? invoice.tradeDiscount ?? 0;
   const subTotal = grossAmount - invoiceDiscountAmount;
   const pageModeClass = resolvePageModeClass(invoice);
+  const autoPrint = options.autoPrint !== false;
+  const showPreviewBar = options.showPreviewBar !== false;
 
   return `<!doctype html>
 <html>
@@ -673,7 +690,7 @@ export const buildInvoicePrintHtml = (invoice: IInvoiceDetail, logoSrc: string =
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Tax Invoice ${escapeHtml(invoice.invoiceNumber)}</title>
   <style>${buildStyles()}</style>
-  <script>
+  ${autoPrint ? `<script>
     (function () {
       var printStarted = false;
 ${waitForInvoiceAssetsScript()}
@@ -696,12 +713,12 @@ ${waitForInvoiceAssetsScript()}
 
       window.openSystemPrintDialog = openSystemPrintDialog;
     }());
-  </script>
+  </script>` : ''}
 </head>
 <body class="${pageModeClass}">
-  <div class="previewBar">
+  ${showPreviewBar ? `<div class="previewBar">
     <button type="button" onclick="window.openSystemPrintDialog()">Print Invoice</button>
-  </div>
+  </div>` : ''}
   <main class="page">
     <header class="header">
       <div>
@@ -828,7 +845,223 @@ const sanitizeFileName = (value: string): string => normalizeFileName(value)
   .replace(/[^a-zA-Z0-9._-]+/g, '-')
   .replace(/^-+|-+$/g, '') || 'invoice';
 
-const getInvoicePdfFileName = (invoice: IInvoiceDetail): string => `${sanitizeFileName(invoice.invoiceNumber)}.pdf`;
+const getInvoicePdfFileName = (invoice: IInvoiceDetail): string => `Invoice_${sanitizeFileName(invoice.invoiceNumber)}.pdf`;
+
+const encodeText = (value: string): Uint8Array => new TextEncoder().encode(value);
+
+const dataUriToBytes = (dataUri: string): Uint8Array => {
+  const separatorIndex = dataUri.indexOf(',');
+
+  if (separatorIndex === -1) {
+    throw new Error('Unable to encode the invoice PDF image.');
+  }
+
+  const binary = window.atob(dataUri.substr(separatorIndex + 1));
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return bytes;
+};
+
+const buildPdfBlob = (images: readonly IPdfImage[]): Blob => {
+  const pageWidth = 595.28;
+  const pageHeight = 841.89;
+  const objectCount = 2 + (images.length * 3);
+  const offsets = new Array<number>(objectCount + 1).fill(0);
+  const parts: Uint8Array[] = [encodeText('%PDF-1.4\n')];
+  let byteOffset = parts[0].length;
+
+  const appendObject = (objectId: number, objectParts: readonly Uint8Array[]): void => {
+    offsets[objectId] = byteOffset;
+    const prefix = encodeText(`${objectId} 0 obj\n`);
+    const suffix = encodeText('\nendobj\n');
+    parts.push(prefix, ...objectParts, suffix);
+    byteOffset += prefix.length + objectParts.reduce((total, part) => total + part.length, 0) + suffix.length;
+  };
+
+  appendObject(1, [encodeText('<< /Type /Catalog /Pages 2 0 R >>')]);
+  const pageReferences = images.map((_, index) => `${3 + (index * 3)} 0 R`).join(' ');
+  appendObject(2, [encodeText(`<< /Type /Pages /Kids [${pageReferences}] /Count ${images.length} >>`)]);
+
+  images.forEach((image, index) => {
+    const pageObjectId = 3 + (index * 3);
+    const contentObjectId = pageObjectId + 1;
+    const imageObjectId = pageObjectId + 2;
+    const imageName = `InvoicePage${index + 1}`;
+    const content = encodeText(`q\n${pageWidth} 0 0 ${pageHeight} 0 0 cm\n/${imageName} Do\nQ`);
+
+    appendObject(pageObjectId, [encodeText(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] ` +
+      `/Resources << /XObject << /${imageName} ${imageObjectId} 0 R >> >> /Contents ${contentObjectId} 0 R >>`
+    )]);
+    appendObject(contentObjectId, [
+      encodeText(`<< /Length ${content.length} >>\nstream\n`),
+      content,
+      encodeText('\nendstream')
+    ]);
+    appendObject(imageObjectId, [
+      encodeText(
+        `<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} ` +
+        `/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${image.data.length} >>\nstream\n`
+      ),
+      image.data,
+      encodeText('\nendstream')
+    ]);
+  });
+
+  const xrefOffset = byteOffset;
+  const xrefRows = offsets.slice(1).map(offset => {
+    const paddedOffset = `0000000000${offset}`.slice(-10);
+    return `${paddedOffset} 00000 n \n`;
+  }).join('');
+  parts.push(encodeText(
+    `xref\n0 ${objectCount + 1}\n0000000000 65535 f \n${xrefRows}` +
+    `trailer\n<< /Size ${objectCount + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`
+  ));
+
+  return new Blob(parts, { type: 'application/pdf' });
+};
+
+const waitForFrameAssets = async (frameDocument: Document): Promise<void> => {
+  const images = Array.prototype.slice.call(frameDocument.images) as HTMLImageElement[];
+
+  await Promise.all(images.map(image => image.complete ? Promise.resolve() : new Promise<void>(resolve => {
+    const timeoutId = window.setTimeout(resolve, 10000);
+    const finish = (): void => {
+      window.clearTimeout(timeoutId);
+      resolve();
+    };
+
+    image.addEventListener('load', finish, { once: true });
+    image.addEventListener('error', finish, { once: true });
+  })));
+  await new Promise<void>(resolve => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve())));
+};
+
+const loadSvgImage = (source: string): Promise<HTMLImageElement> => new Promise((resolve, reject) => {
+  const image = new Image();
+  const timeoutId = window.setTimeout(() => reject(new Error('Invoice PDF rendering timed out.')), 10000);
+
+  image.onload = () => {
+    window.clearTimeout(timeoutId);
+    resolve(image);
+  };
+  image.onerror = () => {
+    window.clearTimeout(timeoutId);
+    reject(new Error('Unable to render the invoice for PDF download.'));
+  };
+  image.src = source;
+});
+
+const renderInvoiceCanvas = async (invoice: IInvoiceDetail): Promise<HTMLCanvasElement> => {
+  const logoSrc = await resolveEmbeddedLogoSrc();
+  const frame = document.createElement('iframe');
+
+  frame.setAttribute('aria-hidden', 'true');
+  frame.style.height = '1123px';
+  frame.style.left = '-10000px';
+  frame.style.position = 'fixed';
+  frame.style.top = '0';
+  frame.style.visibility = 'hidden';
+  frame.style.width = '794px';
+  document.body.appendChild(frame);
+
+  try {
+    const frameDocument = frame.contentDocument;
+
+    if (!frameDocument) {
+      throw new Error('Unable to prepare the invoice PDF.');
+    }
+
+    frameDocument.open();
+    frameDocument.write(buildInvoicePrintHtml(invoice, logoSrc, { autoPrint: false, showPreviewBar: false }));
+    frameDocument.close();
+    await waitForFrameAssets(frameDocument);
+
+    const page = frameDocument.querySelector('.page') as HTMLElement | null;
+
+    if (!page) {
+      throw new Error('Unable to find the invoice document for PDF download.');
+    }
+
+    page.style.boxShadow = 'none';
+    page.style.margin = '0';
+    const width = Math.max(1, Math.ceil(page.scrollWidth));
+    const height = Math.max(1, Math.ceil(page.scrollHeight));
+    const pageMarkup = new XMLSerializer().serializeToString(page);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">` +
+      `<foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml">` +
+      `<style>${buildStyles()}</style>${pageMarkup}</div></foreignObject></svg>`;
+    const svgUrl = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
+
+    try {
+      const image = await loadSvgImage(svgUrl);
+      const scale = 2;
+      const canvas = document.createElement('canvas');
+      canvas.width = width * scale;
+      canvas.height = height * scale;
+      const context = canvas.getContext('2d');
+
+      if (!context) {
+        throw new Error('Canvas rendering is unavailable for invoice PDF download.');
+      }
+
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      return canvas;
+    } finally {
+      URL.revokeObjectURL(svgUrl);
+    }
+  } finally {
+    frame.remove();
+  }
+};
+
+const splitCanvasIntoPdfImages = (canvas: HTMLCanvasElement): readonly IPdfImage[] => {
+  const a4HeightRatio = 841.89 / 595.28;
+  const pageHeight = Math.max(1, Math.round(canvas.width * a4HeightRatio));
+  const images: IPdfImage[] = [];
+
+  for (let sourceY = 0; sourceY < canvas.height; sourceY += pageHeight) {
+    const sourceHeight = Math.min(pageHeight, canvas.height - sourceY);
+    const pageCanvas = document.createElement('canvas');
+    pageCanvas.width = canvas.width;
+    pageCanvas.height = pageHeight;
+    const context = pageCanvas.getContext('2d');
+
+    if (!context) {
+      throw new Error('Canvas rendering is unavailable for invoice PDF download.');
+    }
+
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+    context.drawImage(canvas, 0, sourceY, canvas.width, sourceHeight, 0, 0, canvas.width, sourceHeight);
+    images.push({
+      data: dataUriToBytes(pageCanvas.toDataURL('image/jpeg', 0.92)),
+      height: pageCanvas.height,
+      width: pageCanvas.width
+    });
+  }
+
+  return images;
+};
+
+const saveBlob = (blob: Blob, fileName: string): void => {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+
+  link.download = fileName;
+  link.href = url;
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+};
 
 export const openInvoicePrintPreviewWindow = (): Window => {
   const preview = window.open('', '_blank', 'width=900,height=1100');
@@ -873,7 +1106,7 @@ export const writeInvoicePrintPreview = async (preview: Window, invoice: IInvoic
   preview.focus();
 };
 
-export const downloadInvoicePdf = async (invoice: IInvoiceDetail, preview?: Window): Promise<void> => {
+export const printInvoice = async (invoice: IInvoiceDetail, preview?: Window): Promise<void> => {
   const printWindow = preview || openInvoicePrintPreviewWindow();
 
   if (!preview) {
@@ -890,6 +1123,17 @@ export const downloadInvoicePdf = async (invoice: IInvoiceDetail, preview?: Wind
 
   printWindow.focus();
   printWindow.print();
+};
+
+export const downloadInvoicePdf = async (invoice: IInvoiceDetail): Promise<void> => {
+  const canvas = await renderInvoiceCanvas(invoice);
+  const images = splitCanvasIntoPdfImages(canvas);
+
+  if (!images.length) {
+    throw new Error('Unable to render any invoice pages for PDF download.');
+  }
+
+  saveBlob(buildPdfBlob(images), getInvoicePdfFileName(invoice));
 };
 
 export const writeInvoicePrintError = (preview: Window, message: string): void => {

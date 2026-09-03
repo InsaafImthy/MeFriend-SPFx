@@ -21,6 +21,12 @@ export interface ICustomerCreatePageProps {
   masterDataService: MasterDataService;
   requestSubmissionService: RequestSubmissionService;
   resubmitRequestId?: string;
+  approvalEditRequestId?: string;
+  approvalEditTaskId?: number;
+  embedded?: boolean;
+  onApprovalEditSaved?: () => void;
+  onApprovalEditCancel?: () => void;
+  onDirtyChange?: (isDirty: boolean) => void;
   onNavigate: (path: string) => void;
 }
 
@@ -61,6 +67,12 @@ export const CustomerCreatePage: React.FC<ICustomerCreatePageProps> = ({
   masterDataService,
   requestSubmissionService,
   resubmitRequestId,
+  approvalEditRequestId,
+  approvalEditTaskId,
+  embedded = false,
+  onApprovalEditSaved,
+  onApprovalEditCancel,
+  onDirtyChange,
   onNavigate
 }) => {
   const toast = useToast();
@@ -110,7 +122,9 @@ export const CustomerCreatePage: React.FC<ICustomerCreatePageProps> = ({
   }, [masterDataService, toast]);
 
   React.useEffect(() => {
-    if (!resubmitRequestId) {
+    const requestSnapshotId = approvalEditRequestId || resubmitRequestId;
+
+    if (!requestSnapshotId) {
       setInitialValues({ countryRegionCode: appConfig.defaultCountryCode });
       setFormValues({ countryRegionCode: appConfig.defaultCountryCode });
       return;
@@ -122,7 +136,7 @@ export const CustomerCreatePage: React.FC<ICustomerCreatePageProps> = ({
       setLookupLoading(true);
 
       try {
-        const detail = await requestSubmissionService.getCustomerRequestDetail(resubmitRequestId);
+        const detail = await requestSubmissionService.getCustomerRequestDetail(requestSnapshotId);
         const snapshot: EntityFormValues = {
           name: detail.request.customerName,
           name2: detail.request.name2,
@@ -147,7 +161,7 @@ export const CustomerCreatePage: React.FC<ICustomerCreatePageProps> = ({
         }
       } catch (error) {
         if (isMounted) {
-          toast.error(getUserFriendlyError(error), { title: 'Unable to load rejected request' });
+          toast.error(getUserFriendlyError(error), { title: 'Unable to load customer request' });
         }
       } finally {
         if (isMounted) {
@@ -161,7 +175,7 @@ export const CustomerCreatePage: React.FC<ICustomerCreatePageProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [requestSubmissionService, resubmitRequestId, toast]);
+  }, [approvalEditRequestId, requestSubmissionService, resubmitRequestId, toast]);
 
   const fields = React.useMemo<readonly IFormFieldConfig[]>(
     () =>
@@ -186,6 +200,16 @@ export const CustomerCreatePage: React.FC<ICustomerCreatePageProps> = ({
       const formState = toCustomerFormState(values);
       const request = customerService.mapCustomerFormToApiRequest(formState);
 
+      if (approvalEditTaskId) {
+        if (!approvalProcessingService) {
+          throw new Error('Approval editing is not configured.');
+        }
+        await approvalProcessingService.updateCustomerRequestDuringApproval(approvalEditTaskId, request);
+        toast.success('Customer request changes saved. Approval is still pending.', { title: 'Approval Edit' });
+        onApprovalEditSaved?.();
+        return;
+      }
+
       if (resubmitRequestId && approvalProcessingService) {
         await approvalProcessingService.resubmitCustomerRequest(Number(resubmitRequestId), request);
         toast.success('Customer request resubmitted for approval.', { title: 'Customer Master' });
@@ -201,30 +225,46 @@ export const CustomerCreatePage: React.FC<ICustomerCreatePageProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [approvalProcessingService, customerService, loading, onNavigate, requestSubmissionService, resubmitRequestId, toast]);
+  }, [approvalEditTaskId, approvalProcessingService, customerService, loading, onApprovalEditSaved, onNavigate, requestSubmissionService, resubmitRequestId, toast]);
+
+  const isApprovalEdit = Boolean(approvalEditTaskId && approvalEditRequestId);
+  const form = (
+    <EntityForm
+      fields={fields}
+      initialValues={initialValues}
+      submitLabel={isApprovalEdit ? 'Save Changes' : resubmitRequestId ? 'Resubmit for Approval' : 'Submit for Approval'}
+      cancelLabel={isApprovalEdit ? 'Cancel Edit' : 'Back'}
+      loading={loading}
+      disabled={loading || lookupLoading}
+      lookupLoadingKeys={{
+        countryRegionCode: lookupLoading,
+        stateCode: lookupLoading
+      }}
+      onDirtyChange={onDirtyChange}
+      onValuesChange={setFormValues}
+      onSubmit={values => {
+        handleSubmit(values).catch(() => undefined);
+      }}
+      onCancel={() => {
+        if (isApprovalEdit) {
+          onApprovalEditCancel?.();
+          return;
+        }
+        onNavigate(resubmitRequestId ? `${customersModuleConfig.route}/requests/detail/${encodeURIComponent(resubmitRequestId)}` : customersModuleConfig.route);
+      }}
+    />
+  );
+
+  if (embedded) {
+    return form;
+  }
 
   return (
     <PageContainer
       title={resubmitRequestId ? 'Edit and Resubmit Customer' : 'Create Customer'}
       description={resubmitRequestId ? 'Correct the rejected customer snapshot and submit it into the next approval cycle.' : 'Submit a customer request for approval.'}
     >
-      <EntityForm
-        fields={fields}
-        initialValues={initialValues}
-        submitLabel={resubmitRequestId ? 'Resubmit for Approval' : 'Submit for Approval'}
-        cancelLabel="Back"
-        loading={loading}
-        disabled={loading || lookupLoading}
-        lookupLoadingKeys={{
-          countryRegionCode: lookupLoading,
-          stateCode: lookupLoading
-        }}
-        onValuesChange={setFormValues}
-        onSubmit={values => {
-          handleSubmit(values).catch(() => undefined);
-        }}
-        onCancel={() => onNavigate(resubmitRequestId ? `${customersModuleConfig.route}/requests/detail/${encodeURIComponent(resubmitRequestId)}` : customersModuleConfig.route)}
-      />
+      {form}
     </PageContainer>
   );
 };

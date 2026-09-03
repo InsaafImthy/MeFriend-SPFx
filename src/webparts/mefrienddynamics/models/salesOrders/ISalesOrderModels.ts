@@ -36,6 +36,7 @@ export interface ISalesOrderLineItem {
 export interface ISalesOrderRelatedInvoice {
   id: string;
   invoiceNumber: string;
+  salespersonCode: string;
   invoiceDate?: string;
   totalAmount: number;
   paidAmount?: number;

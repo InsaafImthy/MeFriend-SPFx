@@ -10,8 +10,14 @@ import type {
 import type { IPagedResult } from '../../models/common/IPagedResult';
 import type { IPaginationState } from '../../models/common/IPaginationState';
 import type { ISortState } from '../../models/common/ISortState';
+import type { IAppUser } from '../../models/settings/IAppAccessModels';
 import { calculateOutstandingAmount, calculatePaymentStatus } from '../../utils/financialUtils';
 import { normalizeBusinessDate } from '../../utils/formatUtils';
+import {
+  filterByCurrentSalesperson,
+  getCurrentSalespersonCode,
+  normalizeSalespersonCode
+} from '../../utils/salespersonDataScope';
 
 interface IInvoiceApiModel {
   '@odata.etag'?: string;
@@ -39,9 +45,13 @@ interface IInvoiceApiModel {
   clientGSTState?: string;
   clientGstState?: string;
   clientState?: string;
-  salesPerson?: string;
-  salesperson?: string;
+  salespersonCode?: string | number;
+  salesPersonCode?: string | number;
+  SalespersonCode?: string | number;
+  salesPerson?: string | number;
+  salesperson?: string | number;
   salesPersonName?: string;
+  salespersonName?: string;
   salesOrderNo?: string;
   salesOrderNumber?: string;
   salesOrderReference?: string;
@@ -135,36 +145,55 @@ export class InvoiceService {
   public async getInvoices(
     filters: IInvoiceFilters = {},
     pagination?: Partial<IPaginationState>,
-    sorting?: ISortState
+    sorting?: ISortState,
+    currentUser?: IAppUser
   ): Promise<IPagedResult<IInvoiceListItem>> {
-    const response = await this.apiClient.get<InvoiceListApiResponse>('/api/SalesInvoices');
+    const mandatorySalespersonCode = getCurrentSalespersonCode(currentUser);
+    const selectedSalespersonCode = normalizeSalespersonCode(filters.salespersonCode) || undefined;
+    const salespersonCode = mandatorySalespersonCode || selectedSalespersonCode;
+    const effectiveFilters = mandatorySalespersonCode
+      ? { ...filters, salespersonCode: mandatorySalespersonCode }
+      : filters;
+    const response = await this.apiClient.get<InvoiceListApiResponse>('/api/SalesInvoices', {
+      salesPerson: salespersonCode
+    });
 
-    return this.mapInvoiceListApiToPagedResult(response.data, filters, pagination, sorting);
+    return this.mapInvoiceListApiToPagedResult(response.data, effectiveFilters, pagination, sorting, currentUser);
   }
 
-  public async getInvoiceById(id: string): Promise<IInvoiceDetail> {
-    const response = await this.apiClient.get<InvoiceListApiResponse>('/api/SalesInvoices');
+  public async getInvoiceById(id: string, currentUser?: IAppUser): Promise<IInvoiceDetail> {
+    const salespersonCode = getCurrentSalespersonCode(currentUser);
+    const response = await this.apiClient.get<InvoiceListApiResponse>('/api/SalesInvoices', {
+      salesPerson: salespersonCode
+    });
     const invoice = this.findInvoiceApiById(response.data, id);
+    const scopedInvoice = invoice
+      ? filterByCurrentSalesperson([this.mapInvoiceApiToUiModel(invoice)], currentUser)[0]
+      : undefined;
 
-    if (!invoice) {
+    if (!scopedInvoice) {
       const notFoundError = new Error(`Invoice ${id} was not found.`) as Error & { status?: number };
       notFoundError.status = 404;
       throw notFoundError;
     }
 
-    return this.mapInvoiceApiToUiModel(invoice);
+    return scopedInvoice;
   }
 
   public async getOutstandingInvoices(
     filters: IInvoiceFilters = {},
     pagination?: Partial<IPaginationState>,
-    sorting?: ISortState
+    sorting?: ISortState,
+    currentUser?: IAppUser
   ): Promise<IPagedResult<IInvoiceListItem>> {
-    return this.getInvoices({ ...filters, outstandingOnly: true }, pagination, sorting);
+    return this.getInvoices({ ...filters, outstandingOnly: true }, pagination, sorting, currentUser);
   }
 
-  public async getInvoicesBySalesOrderId(salesOrderId: string): Promise<IPagedResult<IInvoiceListItem>> {
-    return this.getInvoices({ salesOrderNumber: salesOrderId });
+  public async getInvoicesBySalesOrderId(
+    salesOrderId: string,
+    currentUser?: IAppUser
+  ): Promise<IPagedResult<IInvoiceListItem>> {
+    return this.getInvoices({ salesOrderNumber: salesOrderId }, undefined, undefined, currentUser);
   }
 
   public mapInvoiceApiToUiModel(api?: IInvoiceApiModel): IInvoiceDetail {
@@ -185,6 +214,11 @@ export class InvoiceService {
     const paymentStatus = calculatePaymentStatus(paidAmount, outstandingAmount, api?.paymentStatus);
     const invoiceNumber = api?.invoiceNumber || api?.invoiceNo || api?.no || '';
     const lines = api?.SalesInvoiceLines || api?.lines || [];
+    const rawSalespersonCode = api?.salespersonCode ?? api?.salesPersonCode ?? api?.SalespersonCode ??
+      api?.salesPerson ?? api?.salesperson;
+    const salespersonCode = rawSalespersonCode === undefined || rawSalespersonCode === null
+      ? ''
+      : String(rawSalespersonCode).trim();
 
     return {
       id: api?.id || invoiceNumber,
@@ -199,7 +233,8 @@ export class InvoiceService {
       clientAddress: api?.clientAddress || '',
       clientGSTNo: api?.clientGSTNo || api?.clientGstin || api?.clientGSTIN || '',
       clientGSTState: api?.clientGSTState || api?.clientGstState || api?.clientState || '',
-      salesPerson: api?.salesPerson || api?.salesperson || api?.salesPersonName || '',
+      salespersonCode,
+      salesPerson: api?.salesPersonName || api?.salespersonName || salespersonCode,
       salesOrderNumber: api?.bookingOrderNumber || api?.bookingOrderNo || api?.salesOrderNumber || api?.salesOrderNo || api?.salesOrderReference || '',
       salesOrderDate: normalizeBusinessDate(api?.bookingOrderDate || api?.salesOrderDate),
       invoiceDate: normalizeBusinessDate(api?.invoiceDate || api?.postingDate),
@@ -249,14 +284,16 @@ export class InvoiceService {
     api: InvoiceListApiResponse | undefined,
     filters: IInvoiceFilters,
     pagination?: Partial<IPaginationState>,
-    sorting?: ISortState
+    sorting?: ISortState,
+    currentUser?: IAppUser
   ): IPagedResult<IInvoiceListItem> {
     if (!this.isInvoiceArray(api)) {
-      return this.mapPagedResult(api);
+      return this.mapPagedResult(api, filters, currentUser);
     }
 
     const mappedItems = api.map(item => this.mapInvoiceApiToUiModel(item));
-    const filteredItems = this.filterInvoices(mappedItems, filters);
+    const scopedItems = filterByCurrentSalesperson(mappedItems, currentUser);
+    const filteredItems = this.filterInvoices(scopedItems, filters);
     const sortedItems = this.sortInvoices(filteredItems, sorting);
     const pageSize = Math.max(1, pagination?.pageSize || sortedItems.length || 1);
     const totalCount = sortedItems.length;
@@ -273,13 +310,22 @@ export class InvoiceService {
     };
   }
 
-  private mapPagedResult(api?: IPagedResult<IInvoiceApiModel>): IPagedResult<IInvoiceListItem> {
+  private mapPagedResult(
+    api?: IPagedResult<IInvoiceApiModel>,
+    filters: IInvoiceFilters = {},
+    currentUser?: IAppUser
+  ): IPagedResult<IInvoiceListItem> {
+    const mappedItems = (api?.items || []).map(item => this.mapInvoiceApiToUiModel(item));
+    const scopedItems = filterByCurrentSalesperson(mappedItems, currentUser);
+    const filteredItems = this.filterInvoices(scopedItems, filters);
+    const wasClientFiltered = filteredItems.length !== mappedItems.length;
+
     return {
-      items: (api?.items || []).map(item => this.mapInvoiceApiToUiModel(item)),
+      items: filteredItems,
       pageNumber: api?.pageNumber || 1,
       pageSize: api?.pageSize || 0,
-      totalCount: api?.totalCount || 0,
-      totalPages: api?.totalPages || 0
+      totalCount: wasClientFiltered ? filteredItems.length : api?.totalCount || 0,
+      totalPages: wasClientFiltered ? Math.max(1, Math.ceil(filteredItems.length / (api?.pageSize || 1))) : api?.totalPages || 0
     };
   }
 
@@ -375,6 +421,7 @@ export class InvoiceService {
   ): readonly IInvoiceListItem[] {
     const searchText = this.normalizeFilterText(filters.searchText);
     const customerCode = this.normalizeFilterText(filters.customerCode);
+    const salespersonCode = normalizeSalespersonCode(filters.salespersonCode);
     const salesOrderNumber = this.normalizeFilterText(filters.salesOrderNumber);
     const invoiceStatus = this.normalizeFilterText(filters.invoiceStatus);
     const paymentStatus = this.normalizeFilterText(filters.paymentStatus);
@@ -394,6 +441,10 @@ export class InvoiceService {
       }
 
       if (customerCode && `${item.customerCode} ${item.customerName}`.toLowerCase().indexOf(customerCode) === -1) {
+        return false;
+      }
+
+      if (salespersonCode && normalizeSalespersonCode(item.salespersonCode) !== salespersonCode) {
         return false;
       }
 

@@ -8,6 +8,7 @@ import type {
   ISalesOrderLineItem,
   ISalesOrderRelatedInvoice
 } from '../../../models/salesOrders';
+import type { IAppUser } from '../../../models/settings/IAppAccessModels';
 import { getUserFriendlyError, normalizeError } from '../../../services/api/apiErrorHandler';
 import type { SalesOrderService } from '../../../services/salesOrders/salesOrderService';
 import type { EntityFormValues } from '../../../utils/validationUtils';
@@ -18,6 +19,7 @@ import { RelatedRecordsSection } from '../../common/relatedRecords/RelatedRecord
 
 export interface ISalesOrderDetailPageProps {
   salesOrderId: string;
+  currentUser?: IAppUser;
   salesOrderService: SalesOrderService;
   onNavigate: (path: string) => void;
 }
@@ -156,6 +158,7 @@ const getRelatedInvoicesErrorMessage = (error: unknown): string => {
 
 export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
   salesOrderId,
+  currentUser,
   salesOrderService,
   onNavigate
 }) => {
@@ -175,7 +178,7 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
       setError(undefined);
 
       try {
-        const detail = await salesOrderService.getSalesOrderById(salesOrderId);
+        const detail = await salesOrderService.getSalesOrderById(salesOrderId, currentUser);
         setSalesOrder(detail);
         setRelatedInvoices(detail.relatedInvoices || []);
       } catch (loadError) {
@@ -188,7 +191,7 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
     };
 
     loadSalesOrder().catch(() => undefined);
-  }, [salesOrderId, salesOrderService]);
+  }, [currentUser, salesOrderId, salesOrderService]);
 
   React.useEffect(() => {
     if (!salesOrder || !salesOrderId) {
@@ -200,7 +203,7 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
       setRelatedInvoicesError(undefined);
 
       try {
-        const invoices = await salesOrderService.getInvoicesForSalesOrder(salesOrderId);
+        const invoices = await salesOrderService.getInvoicesForSalesOrder(salesOrderId, currentUser);
         setRelatedInvoices(invoices);
       } catch (loadError) {
         setRelatedInvoicesError(getRelatedInvoicesErrorMessage(loadError));
@@ -210,7 +213,7 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
     };
 
     loadRelatedInvoices().catch(() => undefined);
-  }, [salesOrder, salesOrderId, salesOrderService]);
+  }, [currentUser, salesOrder, salesOrderId, salesOrderService]);
 
   const invoiceSummary = salesOrderService.getInvoiceSummaryFromRelatedInvoices(relatedInvoices);
   const currencyCode = salesOrder?.currencyCode || relatedInvoices[0]?.currencyCode;

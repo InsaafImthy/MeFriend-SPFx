@@ -19,7 +19,9 @@ export const mefriendFields = {
     email: 'Email',
     role: 'Role',
     canAccessApp: 'CanAccessApp',
-    isActive: 'IsActive'
+    isActive: 'IsActive',
+    isSalesperson: 'IsSalesperson',
+    salespersonCode: 'SalespersonCode'
   },
   appUserPermissions: {
     id: 'Id',

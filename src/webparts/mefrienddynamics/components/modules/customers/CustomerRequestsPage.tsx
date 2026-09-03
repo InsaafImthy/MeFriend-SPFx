@@ -13,6 +13,9 @@ import type { EntityFilterValues, FilterValue } from '../../common/filters/Entit
 
 export interface ICustomerRequestsPageProps {
   canCreateCustomer: boolean;
+  canManageCustomerRequests: boolean;
+  currentUserEmail: string;
+  currentUserId?: number;
   customerRequestService: CustomerRequestService;
   onNavigate: (path: string) => void;
 }
@@ -59,7 +62,14 @@ const toRequestFilters = (values: EntityFilterValues): IRequestListFilter => ({
   bcPostingStatus: typeof values.bcPostingStatus === 'string' ? values.bcPostingStatus as IRequestListFilter['bcPostingStatus'] : undefined
 });
 
-export const CustomerRequestsPage: React.FC<ICustomerRequestsPageProps> = ({ canCreateCustomer, customerRequestService, onNavigate }) => {
+export const CustomerRequestsPage: React.FC<ICustomerRequestsPageProps> = ({
+  canCreateCustomer,
+  canManageCustomerRequests,
+  currentUserEmail,
+  currentUserId,
+  customerRequestService,
+  onNavigate
+}) => {
   const [items, setItems] = React.useState<readonly ICustomerRequest[]>([]);
   const [filterValues, setFilterValues] = React.useState<EntityFilterValues>({});
   const [appliedFilterValues, setAppliedFilterValues] = React.useState<EntityFilterValues>({});
@@ -73,7 +83,14 @@ export const CustomerRequestsPage: React.FC<ICustomerRequestsPageProps> = ({ can
     setError(undefined);
 
     try {
-      const result = await customerRequestService.getRequests(toRequestFilters(appliedFilterValues), pagination, sorting);
+      const result = canManageCustomerRequests
+        ? await customerRequestService.getRequests(toRequestFilters(appliedFilterValues), pagination, sorting)
+        : await customerRequestService.getRequestsForSubmitter(
+          { submittedById: currentUserId, submittedByEmail: currentUserEmail },
+          toRequestFilters(appliedFilterValues),
+          pagination,
+          sorting
+        );
       setItems(result.items);
       setPagination(current => ({
         ...current,
@@ -87,7 +104,7 @@ export const CustomerRequestsPage: React.FC<ICustomerRequestsPageProps> = ({ can
     } finally {
       setLoading(false);
     }
-  }, [appliedFilterValues, customerRequestService, pagination.pageNumber, pagination.pageSize, sorting]);
+  }, [appliedFilterValues, canManageCustomerRequests, currentUserEmail, currentUserId, customerRequestService, pagination.pageNumber, pagination.pageSize, sorting]);
 
   React.useEffect(() => {
     loadRequests().catch(() => undefined);
