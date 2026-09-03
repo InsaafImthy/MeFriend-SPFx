@@ -30,6 +30,9 @@ export interface IAppUserInput {
   isActive: boolean;
   isSalesperson: boolean;
   salespersonCode?: string;
+  userId?: number;
+  userTitle?: string;
+  userEmail?: string;
 }
 
 export interface IAppUserPermission {

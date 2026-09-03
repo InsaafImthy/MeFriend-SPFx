@@ -54,6 +54,8 @@ export const Dropdown = <TValue extends string | number = string>({
   const fieldRef = React.useRef<HTMLDivElement | null>(null);
   const triggerRef = React.useRef<HTMLButtonElement | null>(null);
   const menuRef = React.useRef<HTMLDivElement | null>(null);
+  const searchRef = React.useRef<HTMLInputElement | null>(null);
+  const optionListRef = React.useRef<HTMLDivElement | null>(null);
   const closeTimerRef = React.useRef<number | undefined>(undefined);
 
   const getOptionKeyByValue = (optionValue?: TValue): string => {
@@ -76,6 +78,9 @@ export const Dropdown = <TValue extends string | number = string>({
   const filteredOptions = searchable && query
     ? options.filter(option => getSearchableOptionText(option).indexOf(query.trim().toLowerCase()) !== -1)
     : options;
+  const optionLayoutKey = filteredOptions
+    .map(option => `${option.key}:${option.text}:${option.detailText || ''}`)
+    .join('|');
 
   const updateMenuPosition = React.useCallback((): void => {
     if (!triggerRef.current || typeof window === 'undefined') {
@@ -86,16 +91,35 @@ export const Dropdown = <TValue extends string | number = string>({
     const triggerRect = triggerRef.current.getBoundingClientRect();
     const menuGap = 7;
     const emptyMenuHeight = 96;
-    const optionListHeight = filteredOptions.length ? 18 + filteredOptions.length * 39 : emptyMenuHeight;
-    const preferredMenuHeight = searchable
-      ? Math.min(300, 54 + (filteredOptions.length ? filteredOptions.length * 39 : emptyMenuHeight))
+    const optionRowHeight = showOptionDetails ? 74 : 54;
+    const optionListHeight = filteredOptions.length ? 18 + filteredOptions.length * optionRowHeight : emptyMenuHeight;
+    const estimatedMenuHeight = searchable
+      ? Math.min(340, 54 + (filteredOptions.length ? filteredOptions.length * optionRowHeight : emptyMenuHeight))
       : Math.min(300, optionListHeight);
+    const menuElement = menuRef.current;
+    const optionListElement = optionListRef.current;
+    const measuredMenuHeight = menuElement && optionListElement
+      ? (() => {
+        const menuStyles = window.getComputedStyle(menuElement);
+        const paddingTop = parseFloat(menuStyles.paddingTop) || 0;
+        const paddingBottom = parseFloat(menuStyles.paddingBottom) || 0;
+        const searchHeight = searchRef.current
+          ? searchRef.current.getBoundingClientRect().height + (parseFloat(window.getComputedStyle(searchRef.current).marginBottom) || 0)
+          : 0;
+
+        return Math.ceil(paddingTop + paddingBottom + searchHeight + optionListElement.scrollHeight);
+      })()
+      : undefined;
+    const preferredMenuHeight = Math.min(searchable ? 340 : 300, measuredMenuHeight || estimatedMenuHeight);
     const availableBelow = window.innerHeight - triggerRect.bottom - viewportPadding - menuGap;
     const availableAbove = triggerRect.top - viewportPadding - menuGap;
     const shouldOpenAbove = availableBelow < 180 && availableAbove > availableBelow;
     const availableHeight = Math.max(emptyMenuHeight, shouldOpenAbove ? availableAbove : availableBelow);
     const resolvedHeight = Math.min(preferredMenuHeight, availableHeight);
-    const maxLeft = window.innerWidth - viewportPadding - triggerRect.width;
+    const availableWidth = window.innerWidth - viewportPadding * 2;
+    const preferredWidth = searchable ? Math.max(triggerRect.width, 420) : triggerRect.width;
+    const resolvedWidth = Math.min(availableWidth, preferredWidth);
+    const maxLeft = window.innerWidth - viewportPadding - resolvedWidth;
     const resolvedLeft = Math.max(viewportPadding, Math.min(triggerRect.left, maxLeft));
 
     setMenuStyle({
@@ -103,9 +127,9 @@ export const Dropdown = <TValue extends string | number = string>({
       maxHeight: resolvedHeight,
       minWidth: triggerRect.width,
       top: shouldOpenAbove ? triggerRect.top - resolvedHeight - menuGap : triggerRect.bottom + menuGap,
-      width: triggerRect.width
+      width: resolvedWidth
     });
-  }, [filteredOptions.length, searchable]);
+  }, [filteredOptions.length, optionLayoutKey, searchable, showOptionDetails]);
 
   const openMenu = React.useCallback((): void => {
     if (closeTimerRef.current) {
@@ -182,6 +206,30 @@ export const Dropdown = <TValue extends string | number = string>({
     };
   }, [isOpen, updateMenuPosition]);
 
+  React.useEffect(() => {
+    if (!isMenuVisible || typeof window === 'undefined' || typeof document === 'undefined') {
+      return undefined;
+    }
+
+    let isCancelled = false;
+    const frameId = window.requestAnimationFrame(() => {
+      if (!isCancelled) {
+        updateMenuPosition();
+      }
+    });
+    const documentWithFonts = document as Document & { fonts?: { ready?: Promise<unknown> } };
+    documentWithFonts.fonts?.ready?.then(() => {
+      if (!isCancelled) {
+        updateMenuPosition();
+      }
+    }).catch(() => undefined);
+
+    return () => {
+      isCancelled = true;
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [isMenuVisible, updateMenuPosition]);
+
   const handleOptionSelect = (option: ILookupOption<TValue>): void => {
     if (!onChange || readOnly) {
       return;
@@ -245,7 +293,7 @@ export const Dropdown = <TValue extends string | number = string>({
     }
 
     if (showOptionDetails) {
-      return option.description || option.detailText;
+      return option.detailText;
     }
 
     return undefined;
@@ -256,7 +304,7 @@ export const Dropdown = <TValue extends string | number = string>({
     }
 
     if (showSelectedDetail) {
-      return option.description || option.detailText;
+      return option.detailText;
     }
 
     return undefined;
@@ -276,11 +324,12 @@ export const Dropdown = <TValue extends string | number = string>({
           disabled={isDisabled}
           onChange={event => setQuery(event.currentTarget.value)}
           placeholder={`Search ${label}`}
+          ref={searchRef}
           type="search"
           value={query}
         />
       ) : null}
-      <div className={filteredOptions.length ? styles.optionList : `${styles.optionList} ${styles.optionListEmpty}`} id={listboxId} role="listbox" aria-multiselectable={multiSelect || undefined}>
+      <div className={filteredOptions.length ? styles.optionList : `${styles.optionList} ${styles.optionListEmpty}`} id={listboxId} ref={optionListRef} role="listbox" aria-multiselectable={multiSelect || undefined}>
         {filteredOptions.length ? filteredOptions.map(option => {
           const isSelected = selectedKeys.indexOf(option.key) !== -1;
           const optionDetail = getOptionDetail(option);

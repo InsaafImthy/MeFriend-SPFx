@@ -79,8 +79,6 @@ export const EventDetailPage: React.FC<IEventDetailPageProps> = ({ eventId, even
           fields: [
             { key: 'eventCode', label: 'Event Code', value: event?.eventCode },
             { key: 'eventName', label: 'Event Name', value: event?.eventName },
-            { key: 'startDate', label: 'Start Date', value: event?.startDate, renderType: 'date' },
-            { key: 'endDate', label: 'End Date', value: event?.endDate, renderType: 'date' },
             { key: 'status', label: 'Status', value: event?.status, renderType: 'status' },
             { key: 'venue', label: 'Venue', value: event?.venue },
             { key: 'description', label: 'Description', value: event?.description }

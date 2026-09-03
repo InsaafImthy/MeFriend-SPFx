@@ -298,6 +298,7 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
       return (
         <InvoicePage
           currentUser={access.currentAppUser}
+          itemMasterService={itemMasterService}
           invoiceService={invoiceService}
           salespersonService={salespersonService}
           onNavigate={handleNavigate}
@@ -310,7 +311,9 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
         <InvoiceDetailPage
           currentUser={access.currentAppUser}
           invoiceId={route.params.id || ''}
+          itemMasterService={itemMasterService}
           invoiceService={invoiceService}
+          salespersonService={salespersonService}
           onNavigate={handleNavigate}
         />
       );
@@ -363,8 +366,10 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
       return (
         <SalesOrderDetailPage
           currentUser={access.currentAppUser}
+          itemMasterService={itemMasterService}
           salesOrderId={route.params.id || ''}
           salesOrderService={salesOrderService}
+          salespersonService={salespersonService}
           onNavigate={handleNavigate}
         />
       );
@@ -391,8 +396,10 @@ export const App: React.FC<IAppProps> = ({ aadHttpClientFactory, httpClient, pag
           canPostToBC={access.canPostToBC('salesOrders')}
           currentUserEmail={access.signedInEmail}
           currentUserId={access.currentAppUser?.userId}
+          itemMasterService={itemMasterService}
           requestId={route.params.id || ''}
           requestSubmissionService={requestSubmissionService}
+          salespersonService={salespersonService}
           onNavigate={handleNavigate}
         />
       );

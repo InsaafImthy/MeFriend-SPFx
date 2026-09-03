@@ -7,6 +7,7 @@ import {
   normalizeEmail,
   type MefriendModuleKey
 } from '../../config/sharePointConfig';
+import type { ILookupOption } from '../../models/common/ILookupOption';
 import type {
   IAppUser,
   IAppUserInput,
@@ -14,7 +15,7 @@ import type {
   ICurrentAppAccess,
   IModuleAccess
 } from '../../models/settings/IAppAccessModels';
-import { SharePointRestClient } from './sharePointRestClient';
+import { SharePointRestClient, type ISharePointPeoplePickerUser } from './sharePointRestClient';
 import { normalizeSalespersonCode } from '../../utils/salespersonDataScope';
 
 interface IAppUserListItem {
@@ -206,6 +207,20 @@ export class AppAccessService {
     });
 
     return items.map(this.mapAppUser).filter(user => !!user.email);
+  }
+
+  public async getRoleOptions(): Promise<readonly ILookupOption<string>[]> {
+    const choices = await this.restClient.getChoiceFieldValues(mefriendListTitles.appUsers, mefriendFields.appUsers.role);
+
+    return choices.map(choice => ({
+      key: choice,
+      text: choice,
+      value: choice
+    }));
+  }
+
+  public async searchUsers(query: string): Promise<readonly ISharePointPeoplePickerUser[]> {
+    return this.restClient.searchPeople(query);
   }
 
   public async saveUser(input: IAppUserInput): Promise<IAppUser> {

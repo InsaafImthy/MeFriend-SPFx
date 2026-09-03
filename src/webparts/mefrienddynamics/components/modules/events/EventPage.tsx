@@ -17,9 +17,7 @@ const pageSize = 10;
 
 const toEventFilters = (values: EntityFilterValues): IEventFilters => ({
   searchText: typeof values.searchText === 'string' ? values.searchText : undefined,
-  status: typeof values.status === 'string' ? values.status : undefined,
-  startDateFrom: typeof values.startDateFrom === 'string' ? values.startDateFrom : undefined,
-  startDateTo: typeof values.startDateTo === 'string' ? values.startDateTo : undefined
+  status: typeof values.status === 'string' ? values.status : undefined
 });
 
 const getListErrorMessage = (error: unknown): string => {

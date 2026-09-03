@@ -116,7 +116,7 @@
   color: #0f172a;
   display: flex;
   flex-direction: column;
-  font-family: "Josefin Sans", "Segoe UI", Arial, sans-serif;
+  font-family: var(--mefriend-font-family, "Poppins", "Segoe UI", Arial, sans-serif);
   gap: 10px;
   min-width: 276px;
   overflow-y: auto;

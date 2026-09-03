@@ -68,6 +68,8 @@ const renderField = (
         onChange={nextValue => setValue(field.key, typeof nextValue === 'string' || typeof nextValue === 'number' ? nextValue : undefined)}
         placeholder={field.placeholder || 'Select'}
         searchable={field.searchable || field.type === 'lookup'}
+        showOptionDetails={field.type === 'lookup'}
+        showSelectedDetail={field.type === 'lookup'}
       />
     );
   }

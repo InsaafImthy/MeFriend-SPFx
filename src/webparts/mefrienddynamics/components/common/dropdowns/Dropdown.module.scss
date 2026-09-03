@@ -38,7 +38,7 @@
   gap: 10px;
   justify-content: space-between;
   line-height: 1.4;
-  min-height: 38px;
+  min-height: 40px;
   min-width: 0;
   padding: 8px 9px 8px 10px;
   text-align: left;
@@ -74,9 +74,8 @@
 .selectedText {
   display: block;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .selectedDetail {
@@ -84,9 +83,8 @@
   display: block;
   font-size: 12px;
   line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .triggerActions {
@@ -259,10 +257,11 @@
 }
 
 .option {
-  align-items: center;
+  align-items: flex-start;
   background: transparent;
   border: 0;
   border-radius: 6px;
+  box-sizing: border-box;
   color: #334155;
   cursor: pointer;
   display: flex;
@@ -271,7 +270,7 @@
   gap: 8px;
   justify-content: space-between;
   line-height: 1.35;
-  min-height: 36px;
+  min-height: 38px;
   padding: 8px;
   text-align: left;
   width: 100%;
@@ -316,6 +315,7 @@
 .singleIndicator,
 .multiIndicator {
   align-items: center;
+  align-self: center;
   display: inline-flex;
   flex: 0 0 18px;
   height: 18px;
@@ -354,8 +354,8 @@
 .optionContent {
   display: flex;
   flex: 1 1 auto;
-  flex-wrap: wrap;
-  gap: 2px 6px;
+  flex-direction: column;
+  gap: 3px;
   min-width: 0;
 }
 
@@ -364,19 +364,22 @@
 }
 
 .optionText {
-  flex: 1 1 auto;
+  display: block;
+  flex: 0 1 auto;
+  line-height: 1.35;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .optionDetail {
   color: #64748b;
-  flex: 0 0 100%;
+  display: block;
+  flex: 0 1 auto;
   font-size: 12px;
   font-weight: 500;
   line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .emptyOption {

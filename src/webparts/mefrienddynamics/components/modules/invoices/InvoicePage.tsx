@@ -2,11 +2,12 @@ import * as React from 'react';
 import { invoicesModuleConfig } from '../../../config/modules/invoicesModuleConfig';
 import type { IPaginationState } from '../../../models/common/IPaginationState';
 import type { ISortState, SortDirection } from '../../../models/common/ISortState';
-import type { IInvoiceFilters, IInvoiceListItem, PaymentStatus } from '../../../models/invoices';
+import type { IInvoiceDetail, IInvoiceFilters, IInvoiceListItem, PaymentStatus } from '../../../models/invoices';
 import type { IAppUser } from '../../../models/settings/IAppAccessModels';
 import { getUserFriendlyError, normalizeError } from '../../../services/api/apiErrorHandler';
 import type { InvoiceService } from '../../../services/invoices/invoiceService';
-import type { SalespersonService } from '../../../services/salespersons/salespersonService';
+import type { IItemMasterLookupItem, ItemMasterService } from '../../../services/itemMasters';
+import type { ISalespersonLookupItem, SalespersonService } from '../../../services/salespersons/salespersonService';
 import { useSalespersonFilter } from '../../../hooks/useSalespersonFilter';
 import { EntityDashboard } from '../../common/dashboard/EntityDashboard';
 import type { EntityFilterValues, FilterValue } from '../../common/filters/EntityFilters';
@@ -21,6 +22,7 @@ import {
 
 export interface IInvoicePageProps {
   currentUser?: IAppUser;
+  itemMasterService: ItemMasterService;
   invoiceService: InvoiceService;
   salespersonService: SalespersonService;
   onNavigate: (path: string) => void;
@@ -56,7 +58,48 @@ const getListErrorMessage = (error: unknown): string => {
   return getUserFriendlyError(normalizedError);
 };
 
-export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, invoiceService, salespersonService, onNavigate }) => {
+const findSalespersonName = (
+  salespersons: readonly ISalespersonLookupItem[],
+  salespersonValue?: string
+): string | undefined => {
+  const normalizedValue = (salespersonValue || '').trim().toLowerCase();
+
+  if (!normalizedValue) {
+    return undefined;
+  }
+
+  const matchingSalesperson = salespersons.find(item => item.code.trim().toLowerCase() === normalizedValue);
+
+  return matchingSalesperson?.name || undefined;
+};
+
+const findItemDescription = (
+  itemMasters: readonly IItemMasterLookupItem[],
+  itemCode?: string
+): string | undefined => {
+  const normalizedCode = (itemCode || '').trim().toLowerCase();
+
+  if (!normalizedCode) {
+    return undefined;
+  }
+
+  const matchingItem = itemMasters.find(item => item.number.trim().toLowerCase() === normalizedCode);
+
+  return matchingItem?.description || undefined;
+};
+
+const enrichInvoiceItemDescriptions = (
+  invoice: IInvoiceDetail,
+  itemMasters: readonly IItemMasterLookupItem[]
+): IInvoiceDetail => ({
+  ...invoice,
+  lines: invoice.lines.map(line => ({
+    ...line,
+    description: line.description || findItemDescription(itemMasters, line.itemCode) || line.itemCode || ''
+  }))
+});
+
+export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, itemMasterService, invoiceService, salespersonService, onNavigate }) => {
   const toast = useToast();
   const { filters, restrictedSalespersonCode } = useSalespersonFilter(
     invoicesModuleConfig.filters || [],
@@ -77,6 +120,24 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, invoiceS
   const [error, setError] = React.useState<string | undefined>();
   const [documentAction, setDocumentAction] = React.useState<IInvoiceDocumentAction | undefined>();
   const documentActionsInProgress = React.useRef<Set<string>>(new Set());
+  const itemMasterLookupPromiseRef = React.useRef<Promise<readonly IItemMasterLookupItem[]> | undefined>();
+  const salespersonLookupPromiseRef = React.useRef<Promise<readonly ISalespersonLookupItem[]> | undefined>();
+
+  const getItemMasterLookup = React.useCallback((): Promise<readonly IItemMasterLookupItem[]> => {
+    if (!itemMasterLookupPromiseRef.current) {
+      itemMasterLookupPromiseRef.current = itemMasterService.getItemMasterLookup();
+    }
+
+    return itemMasterLookupPromiseRef.current;
+  }, [itemMasterService]);
+
+  const getSalespersonLookup = React.useCallback((): Promise<readonly ISalespersonLookupItem[]> => {
+    if (!salespersonLookupPromiseRef.current) {
+      salespersonLookupPromiseRef.current = salespersonService.getSalespersonLookup();
+    }
+
+    return salespersonLookupPromiseRef.current;
+  }, [salespersonService]);
 
   const loadInvoices = React.useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -170,8 +231,18 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, invoiceS
     try {
       preview = openInvoicePrintPreviewWindow();
       const invoice = await invoiceService.getInvoiceById(invoiceId, currentUser);
-      await writeInvoicePrintPreview(preview, invoice);
-      await printInvoice(invoice, preview);
+      const [salespersons, itemMasters] = await Promise.all([
+        getSalespersonLookup().catch(() => []),
+        getItemMasterLookup().catch(() => [])
+      ]);
+      const salespersonName = findSalespersonName(salespersons, invoice.salespersonCode || invoice.salesPerson);
+      const invoiceWithItemDescriptions = enrichInvoiceItemDescriptions(invoice, itemMasters);
+      const printableInvoice = salespersonName
+        ? { ...invoiceWithItemDescriptions, salesPerson: salespersonName }
+        : invoiceWithItemDescriptions;
+
+      await writeInvoicePrintPreview(preview, printableInvoice);
+      await printInvoice(printableInvoice, preview);
     } catch (printError) {
       const message = getUserFriendlyError(normalizeError(printError));
       toast.error(message, { title: 'Unable to print invoice' });
@@ -182,7 +253,7 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, invoiceS
       documentActionsInProgress.current.delete(invoiceId);
       setDocumentAction(undefined);
     }
-  }, [currentUser, invoiceService, toast]);
+  }, [currentUser, getItemMasterLookup, getSalespersonLookup, invoiceService, toast]);
 
   const handleDownload = React.useCallback(async (item: IInvoiceListItem): Promise<void> => {
     const invoiceId = item.id || item.invoiceNumber;
@@ -196,7 +267,17 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, invoiceS
 
     try {
       const invoice = await invoiceService.getInvoiceById(invoiceId, currentUser);
-      await downloadInvoicePdf(invoice);
+      const [salespersons, itemMasters] = await Promise.all([
+        getSalespersonLookup().catch(() => []),
+        getItemMasterLookup().catch(() => [])
+      ]);
+      const salespersonName = findSalespersonName(salespersons, invoice.salespersonCode || invoice.salesPerson);
+      const invoiceWithItemDescriptions = enrichInvoiceItemDescriptions(invoice, itemMasters);
+      const downloadableInvoice = salespersonName
+        ? { ...invoiceWithItemDescriptions, salesPerson: salespersonName }
+        : invoiceWithItemDescriptions;
+
+      await downloadInvoicePdf(downloadableInvoice);
       toast.success('Invoice PDF download started.', { title: invoice.invoiceNumber || 'Invoice' });
     } catch (downloadError) {
       toast.error(getUserFriendlyError(normalizeError(downloadError)), { title: 'Unable to download invoice' });
@@ -204,7 +285,7 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, invoiceS
       documentActionsInProgress.current.delete(invoiceId);
       setDocumentAction(undefined);
     }
-  }, [currentUser, invoiceService, toast]);
+  }, [currentUser, getItemMasterLookup, getSalespersonLookup, invoiceService, toast]);
 
   const outstandingOnlyActive = appliedFilterValues.outstandingOnly === true;
 
