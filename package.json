@@ -21,7 +21,8 @@
     "@microsoft/sp-property-pane": "1.23.0",
     "@microsoft/sp-webpart-base": "1.23.0",
     "@microsoft/sp-lodash-subset": "1.23.0",
-    "@microsoft/sp-office-ui-fabric-core": "1.23.0"
+    "@microsoft/sp-office-ui-fabric-core": "1.23.0",
+    "pdf-lib": "^1.17.1"
   },
   "devDependencies": {
     "@microsoft/eslint-plugin-spfx": "1.23.0",
