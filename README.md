@@ -1,58 +1,68 @@
-# Madhyamam MeFriend Business Central Extension
+# MeFriend Applications Portal
 
-This repository contains the Madhyamam / MeFriend extension around an existing Microsoft Dynamics 365 Business Central implementation.
+This repository is the SharePoint Framework (SPFx) frontend for the MeFriend Applications Portal. One portal can launch multiple independent applications that consume the same shared platform. The MeFriend BC Extension is the first application; its Business Central features do not define the platform architecture.
 
-The solution is split into two deployable parts:
-
-- SPFx React TypeScript frontend hosted in SharePoint Online.
-- Secure .NET Web API backend that proxies and maps Business Central API calls.
-
-## Project Structure
-
-The target repository structure is:
+## Architecture
 
 ```text
-Madhyamam-MeFriend/
-|-- mefriend-spfx/
-|-- mefriend-api/
-|-- docs/
-|   |-- architecture.md
-|   |-- implementation-notes.md
-|   |-- api-contract-status.md
-|-- README.md
+SPFx web part
+  portal/                       application launcher, registry, top-level routes
+  shared/                       UI, layout, design tokens, context contracts,
+                                API/auth transport, SharePoint REST, utilities
+  applications/
+    bc-extension/               BC pages, internal routes, services, models,
+                                permissions, requests, approvals, configuration
+    <future-application>/       its own pages, routes, services, models, access
 ```
 
-Current repository status:
+The dependency direction is `application -> shared -> SPFx / SharePoint / external services`. Shared code never imports an application. The portal imports application definitions only through [the central registry](src/webparts/mefrienddynamics/portal/config/applications.ts). Portal routing selects an application prefix; the selected application resolves and navigates its own pages. The same registry supplies launcher cards, route metadata, and enabled status.
 
-- The SPFx project already exists at the repository root.
-- The existing SPFx source entry point is `src/webparts/mefrienddynamics`.
-- The backend placeholder folder exists at `mefriend-api`.
-- Documentation exists under `docs`.
+The SPFx entry point is `src/webparts/mefrienddynamics/MefrienddynamicsWebPart.ts`. It passes the signed-in user and SPFx clients to the React portal. Generic controls, hooks, models, API transport, authentication, SharePoint REST access, formatting, and design foundations live under `src/webparts/mefrienddynamics/shared/`. Business Central endpoints, SharePoint list schemas, access rules, workflow, and page logic remain under `src/webparts/mefrienddynamics/applications/bc-extension/`.
 
-The SPFx project has not been moved into `mefriend-spfx` in this normalization pass, because the existing frontend project is already rooted here and must not be destroyed or disrupted.
+The BC application opens at `#/apps/bc`; its screens use `#/apps/bc/<module>/...`. The launcher opens at `#/` or `#/apps`. Hash routes keep SharePoint page refreshes on the same page. The BC application definition supplies legacy bookmark roots so old BC hashes can migrate without BC-specific logic in the portal router.
 
-## Build And Deployment Overview
+To add another application, create `src/webparts/mefrienddynamics/applications/<name>/` with its own component, pages, internal routes, services, models, and access source. Export one application definition from its `index.ts`, then add that definition to the central registry. The new module can import shared UI and infrastructure immediately; it does not need changes to the BC module. See [the platform guide](docs/portal-platform.md) for the application contract and development steps.
 
-Frontend:
+## Repository layout
 
-- Build with the SPFx toolchain from the existing repository root.
-- Current build script: `npm run build`.
-- Deploy the generated SPFx package to the SharePoint app catalog.
+```text
+config/                   SPFx build and package configuration
+docs/                     platform, integration, implementation, deployment notes
+src/webparts/mefrienddynamics/
+  portal/                 portal shell and application registry
+  shared/                 reusable platform code
+  applications/           independent application modules
+  components/             SPFx-facing React adapter
+  MefrienddynamicsWebPart.ts
+teams/                    Teams icons used by the SPFx package
+sharepoint/solution/      generated package output (Git ignored)
+mefriend-api/             local backend build artifacts; API source is not tracked here
+```
 
-Backend:
+The BC frontend calls its configured backend through the shared API client. Business Central authentication and Business Central API calls belong on the server side; the frontend must not contain BC client secrets or request BC OAuth tokens. [API contract notes](docs/api-contract-status.md) and [backend deployment guidance](docs/deployment.md) document that integration. They do not imply that a .NET API source project is included in this Git repository.
 
-- The .NET API project is not created yet.
-- The backend will be created under `mefriend-api` in a later implementation step.
-- Deploy the API separately from SPFx, for example to Azure App Service.
+## Build and verification
 
-Integration:
+Use Node.js `>=22.14.0 <23.0.0`. From the repository root, run `npm ci` to install dependencies and `npm run build` to compile, lint, test, and package the SPFx solution. The generated package is `sharepoint/solution/madhyamam-mefriend.sppkg` and is ignored by Git. Building or packaging does not publish the solution.
 
-- SPFx calls the .NET API only.
-- The .NET API authenticates to Business Central server-side.
-- Business Central payload mapping belongs in backend mappers or frontend service-layer adapters, not React UI components.
+Before release, verify the launcher, BC module navigation, permissions, approval flows, requests, Business Central integration, detail-page refreshes, and legacy bookmarks in a SharePoint test site. Compilation and routing tests do not replace those functional checks. The package must be reviewed and deployed through the approved SharePoint process; no deployment is performed by the build command.
 
-## Security Note
+## Git workflow
 
-Business Central client secrets, OAuth client credentials, and access tokens must never be stored in SPFx source, frontend configuration, browser storage, or SharePoint-hosted assets.
+This checkout currently has two Git remotes: `origin` (`https://github.com/InsaafImthy/MeFriend-SPFx.git`) and `shahad` (`https://github.com/shahadmdm/MeFriend.git`). The current local branch is `main` and tracks `shahad/main`. Check `git remote -v` and `git branch -vv` before publishing changes because remote ownership and tracking can change. Do not assume that both remotes should receive the same push.
 
-Only the .NET API may request Business Central OAuth tokens. Use user-secrets locally and Azure App Service settings or Key Vault in production.
+Develop changes on a focused feature branch, review the working tree, and stage only the files belonging to that change. A typical local sequence is:
+
+```bash
+git status --short
+git switch -c feature/<short-description>
+npm run build
+git diff --check
+git diff --stat
+git add <reviewed-paths>
+git commit -m "Describe the change"
+```
+
+Push the branch to the approved remote and open a review request only after the destination is confirmed. Keep portal changes in `portal/`, reusable code in `shared/`, and business code in `applications/<name>/` so reviews preserve the dependency boundary. Avoid force pushes, history rewrites, destructive resets, and broad staging that captures unrelated local changes.
+
+Commit source, configuration, documentation, and intentional assets. Do not commit `node_modules`, `lib`, `dist`, `temp`, `release`, `sharepoint/solution`, `.sppkg` files, generated styles, local credential caches, secrets, or tokens; [`.gitignore`](.gitignore) covers the main generated paths. Review `config/package-solution.json` when preparing a release and change the package version only as required by the release process.

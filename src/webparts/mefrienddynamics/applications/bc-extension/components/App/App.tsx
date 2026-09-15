@@ -1,0 +1,470 @@
+import * as React from 'react';
+import type { IPortalApplicationProps } from '../../../../shared/models/IPortalApplicationProps';
+import { appConfig } from '../../config/appConfig';
+import { ErrorBoundary } from '../../../../shared/components/errorState/ErrorBoundary';
+import { AccessDenied } from '../../../../shared/components/errorState/AccessDenied';
+import { AppLoader } from '../../../../shared/components/loaders/AppLoader';
+import { ToastProvider } from '../../../../shared/components/toast/ToastProvider';
+import { AppLayout } from '../Layout/AppLayout';
+import { PlaceholderModulePage } from '../modules/PlaceholderModulePage';
+import { ApprovalDetailPage, MyApprovalsPage } from '../modules/approvals';
+import { CustomerCreatePage, CustomerDetailPage, CustomerPage, CustomerRequestDetailPage, CustomerRequestsPage } from '../modules/customers';
+import { EventDetailPage, EventPage } from '../modules/events';
+import { InvoiceDetailPage, InvoicePage } from '../modules/invoices';
+import { SalesOrderCreatePage, SalesOrderDetailPage, SalesOrderPage, SalesOrderRequestDetailPage, SalesOrderRequestsPage } from '../modules/salesOrders';
+import { SalespersonDetailPage, SalespersonPage } from '../modules/salespersons';
+import { PermissionSettingsPage } from '../modules/settings';
+import { ApiClient } from '../../../../shared/api/apiClient';
+import { AuthClient } from '../../../../shared/api/authClient';
+import { CustomerService } from '../../services/customers/customerService';
+import { EventService } from '../../services/events/eventService';
+import { InvoiceService } from '../../services/invoices/invoiceService';
+import { ItemMasterService } from '../../services/itemMasters';
+import { SalesOrderService } from '../../services/salesOrders/salesOrderService';
+import { SalespersonService } from '../../services/salespersons/salespersonService';
+import { MasterDataService } from '../../services/sharepoint/masterDataService';
+import { AppAccessService } from '../../services/sharepoint/appAccessService';
+import { ApprovalProcessingService } from '../../services/sharepoint/approvalProcessingService';
+import { ApprovalTaskService } from '../../services/sharepoint/approvalTaskService';
+import { ApprovalWorkflowService } from '../../services/sharepoint/approvalWorkflowService';
+import { BCIntegrationQueueService } from '../../services/sharepoint/bcIntegrationQueueService';
+import { CustomerRequestService } from '../../services/sharepoint/customerRequestService';
+import { RequestSubmissionService } from '../../services/sharepoint/requestSubmissionService';
+import { SalesOrderRequestService } from '../../services/sharepoint/salesOrderRequestService';
+import { useAppAccess } from '../../hooks/useAppAccess';
+import { buildHashHref, resolveRoute } from '../../utils/routeUtils';
+import styles from './App.module.scss';
+
+export const App: React.FC<IPortalApplicationProps> = ({ aadHttpClientFactory, httpClient, onPortalNavigate, onPortalReady, pageContext, routePath, spHttpClient, userDisplayName }) => {
+  const [isLoading] = React.useState<boolean>(false);
+  const sharePointWebAbsoluteUrl = appConfig.sharePointSettings.masterDataWebUrl;
+  const apiClient = React.useMemo(() => {
+    const authClient = new AuthClient({
+      aadHttpClientFactory,
+      httpClient,
+      settings: {
+        baseUrl: appConfig.backendApi.baseUrl || appConfig.backendApiBaseUrl,
+        anonymous: appConfig.backendApi.anonymous,
+        useAadHttpClient: appConfig.backendApi.useAadHttpClient,
+        aadResourceUrl: appConfig.backendApi.aadResourceUrl
+      }
+    });
+
+    return new ApiClient(authClient);
+  }, [aadHttpClientFactory, httpClient]);
+  const customerService = React.useMemo(() => new CustomerService(apiClient), [apiClient]);
+  const eventService = React.useMemo(() => new EventService(apiClient), [apiClient]);
+  const invoiceService = React.useMemo(() => new InvoiceService(apiClient), [apiClient]);
+  const itemMasterService = React.useMemo(() => new ItemMasterService(apiClient), [apiClient]);
+  const salesOrderService = React.useMemo(() => new SalesOrderService(apiClient), [apiClient]);
+  const salespersonService = React.useMemo(() => new SalespersonService(apiClient), [apiClient]);
+  const masterDataService = React.useMemo(
+    () =>
+      new MasterDataService({
+        pageContext,
+        spHttpClient,
+        webAbsoluteUrl: sharePointWebAbsoluteUrl
+      }),
+    [pageContext, sharePointWebAbsoluteUrl, spHttpClient]
+  );
+  const appAccessService = React.useMemo(
+    () =>
+      new AppAccessService({
+        pageContext,
+        spHttpClient,
+        webAbsoluteUrl: sharePointWebAbsoluteUrl
+      }),
+    [pageContext, sharePointWebAbsoluteUrl, spHttpClient]
+  );
+  const approvalTaskService = React.useMemo(
+    () =>
+      new ApprovalTaskService({
+        pageContext,
+        spHttpClient,
+        webAbsoluteUrl: sharePointWebAbsoluteUrl
+      }),
+    [pageContext, sharePointWebAbsoluteUrl, spHttpClient]
+  );
+  const approvalProcessingService = React.useMemo(
+    () =>
+      new ApprovalProcessingService({
+        pageContext,
+        spHttpClient,
+        webAbsoluteUrl: sharePointWebAbsoluteUrl
+      }),
+    [pageContext, sharePointWebAbsoluteUrl, spHttpClient]
+  );
+  const approvalWorkflowService = React.useMemo(
+    () =>
+      new ApprovalWorkflowService({
+        pageContext,
+        spHttpClient,
+        webAbsoluteUrl: sharePointWebAbsoluteUrl
+      }),
+    [pageContext, sharePointWebAbsoluteUrl, spHttpClient]
+  );
+  const customerRequestService = React.useMemo(
+    () =>
+      new CustomerRequestService({
+        pageContext,
+        spHttpClient,
+        webAbsoluteUrl: sharePointWebAbsoluteUrl
+      }),
+    [pageContext, sharePointWebAbsoluteUrl, spHttpClient]
+  );
+  const salesOrderRequestService = React.useMemo(
+    () =>
+      new SalesOrderRequestService({
+        pageContext,
+        spHttpClient,
+        webAbsoluteUrl: sharePointWebAbsoluteUrl
+      }),
+    [pageContext, sharePointWebAbsoluteUrl, spHttpClient]
+  );
+  const requestSubmissionService = React.useMemo(
+    () =>
+      new RequestSubmissionService({
+        pageContext,
+        spHttpClient,
+        webAbsoluteUrl: sharePointWebAbsoluteUrl
+      }),
+    [pageContext, sharePointWebAbsoluteUrl, spHttpClient]
+  );
+  const bcIntegrationQueueService = React.useMemo(
+    () =>
+      new BCIntegrationQueueService({
+        pageContext,
+        spHttpClient,
+        webAbsoluteUrl: sharePointWebAbsoluteUrl,
+        customerService,
+        salesOrderService
+      }),
+    [customerService, pageContext, salesOrderService, sharePointWebAbsoluteUrl, spHttpClient]
+  );
+  const access = useAppAccess(appAccessService);
+
+  React.useEffect(() => {
+    if (!access.loading) {
+      onPortalReady?.();
+    }
+  }, [access.loading, onPortalReady]);
+
+  const route = resolveRoute(routePath);
+
+  const canAccessModule = React.useCallback((moduleKey: string): boolean => {
+    if (moduleKey === 'approvals') {
+      return access.canView('approvals') || access.canApprove('approvals') || access.canApprove('customers') || access.canApprove('salesOrders');
+    }
+
+    return access.canView(moduleKey);
+  }, [access]);
+
+  const canAccessRoute = React.useCallback((): boolean => {
+    if (!access.isAuthorized) {
+      return false;
+    }
+
+    if (route.key === 'customerCreate') {
+      return access.canView(route.moduleKey) && access.canCreate(route.moduleKey);
+    }
+
+    if (route.key === 'salesOrderCreate') {
+      return access.canView(route.moduleKey) && access.canCreate(route.moduleKey);
+    }
+
+    return canAccessModule(route.moduleKey);
+  }, [access, canAccessModule, route.key, route.moduleKey]);
+
+  const handleNavigate = React.useCallback((path: string): void => {
+    const href = buildHashHref(path);
+
+    if (window.location.hash !== href) {
+      window.location.hash = href;
+    }
+  }, []);
+
+  const renderRoute = (): React.ReactNode => {
+    if (route.key === 'customers') {
+      return (
+        <CustomerPage
+          canCreateCustomer={access.canCreate('customers')}
+          customerService={customerService}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
+
+    if (route.key === 'customerCreate') {
+      return (
+        <CustomerCreatePage
+          approvalProcessingService={approvalProcessingService}
+          customerService={customerService}
+          masterDataService={masterDataService}
+          requestSubmissionService={requestSubmissionService}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
+
+    if (route.key === 'customerRequestResubmit') {
+      return (
+        <CustomerCreatePage
+          approvalProcessingService={approvalProcessingService}
+          customerService={customerService}
+          masterDataService={masterDataService}
+          requestSubmissionService={requestSubmissionService}
+          resubmitRequestId={route.params.id || ''}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
+
+    if (route.key === 'customerDetail') {
+      return (
+        <CustomerDetailPage
+          customerId={route.params.id || ''}
+          customerService={customerService}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
+
+    if (route.key === 'customerRequests') {
+      return (
+        <CustomerRequestsPage
+          canCreateCustomer={access.canCreate('customers')}
+          canManageCustomerRequests={access.canManage('customers')}
+          currentUserEmail={access.signedInEmail}
+          currentUserId={access.currentAppUser?.userId}
+          customerRequestService={customerRequestService}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
+
+    if (route.key === 'customerRequestDetail') {
+      return (
+        <CustomerRequestDetailPage
+          bcIntegrationQueueService={bcIntegrationQueueService}
+          canManageCustomerRequests={access.canManage('customers')}
+          canPostToBC={access.canPostToBC('customers')}
+          currentUserEmail={access.signedInEmail}
+          currentUserId={access.currentAppUser?.userId}
+          requestId={route.params.id || ''}
+          requestSubmissionService={requestSubmissionService}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
+
+    if (route.key === 'events') {
+      return <EventPage eventService={eventService} onNavigate={handleNavigate} />;
+    }
+
+    if (route.key === 'eventDetail') {
+      return <EventDetailPage eventId={route.params.id || ''} eventService={eventService} onNavigate={handleNavigate} />;
+    }
+
+    if (route.key === 'salespersons') {
+      return <SalespersonPage salespersonService={salespersonService} onNavigate={handleNavigate} />;
+    }
+
+    if (route.key === 'salespersonDetail') {
+      return (
+        <SalespersonDetailPage
+          salespersonId={route.params.id || ''}
+          salespersonService={salespersonService}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
+
+    if (route.key === 'invoices') {
+      return (
+        <InvoicePage
+          currentUser={access.currentAppUser}
+          itemMasterService={itemMasterService}
+          invoiceService={invoiceService}
+          salespersonService={salespersonService}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
+
+    if (route.key === 'invoiceDetail') {
+      return (
+        <InvoiceDetailPage
+          currentUser={access.currentAppUser}
+          invoiceId={route.params.id || ''}
+          itemMasterService={itemMasterService}
+          invoiceService={invoiceService}
+          salespersonService={salespersonService}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
+
+    if (route.key === 'salesOrders') {
+      return (
+        <SalesOrderPage
+          canCreateSalesOrder={access.canCreate('salesOrders')}
+          currentUser={access.currentAppUser}
+          salesOrderService={salesOrderService}
+          salespersonService={salespersonService}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
+
+    if (route.key === 'salesOrderCreate') {
+      return (
+        <SalesOrderCreatePage
+          approvalProcessingService={approvalProcessingService}
+          customerService={customerService}
+          eventService={eventService}
+          itemMasterService={itemMasterService}
+          masterDataService={masterDataService}
+          requestSubmissionService={requestSubmissionService}
+          salespersonService={salespersonService}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
+
+    if (route.key === 'salesOrderRequestResubmit') {
+      return (
+        <SalesOrderCreatePage
+          approvalProcessingService={approvalProcessingService}
+          customerService={customerService}
+          eventService={eventService}
+          itemMasterService={itemMasterService}
+          masterDataService={masterDataService}
+          requestSubmissionService={requestSubmissionService}
+          resubmitRequestId={route.params.id || ''}
+          salespersonService={salespersonService}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
+
+    if (route.key === 'salesOrderDetail') {
+      return (
+        <SalesOrderDetailPage
+          currentUser={access.currentAppUser}
+          itemMasterService={itemMasterService}
+          salesOrderId={route.params.id || ''}
+          salesOrderService={salesOrderService}
+          salespersonService={salespersonService}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
+
+    if (route.key === 'salesOrderRequests') {
+      return (
+        <SalesOrderRequestsPage
+          canCreateSalesOrder={access.canCreate('salesOrders')}
+          canManageSalesOrderRequests={access.canManage('salesOrders')}
+          currentUserEmail={access.signedInEmail}
+          currentUserId={access.currentAppUser?.userId}
+          salesOrderRequestService={salesOrderRequestService}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
+
+    if (route.key === 'salesOrderRequestDetail') {
+      return (
+        <SalesOrderRequestDetailPage
+          bcIntegrationQueueService={bcIntegrationQueueService}
+          canManageSalesOrderRequests={access.canManage('salesOrders')}
+          canPostToBC={access.canPostToBC('salesOrders')}
+          currentUserEmail={access.signedInEmail}
+          currentUserId={access.currentAppUser?.userId}
+          itemMasterService={itemMasterService}
+          requestId={route.params.id || ''}
+          requestSubmissionService={requestSubmissionService}
+          salespersonService={salespersonService}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
+
+    if (route.key === 'approvals') {
+      return (
+        <MyApprovalsPage
+          approvalTaskService={approvalTaskService}
+          currentUserEmail={access.signedInEmail}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
+
+    if (route.key === 'approvalDetail') {
+      return (
+        <ApprovalDetailPage
+          taskId={route.params.id || ''}
+          approvalProcessingService={approvalProcessingService}
+          approvalTaskService={approvalTaskService}
+          bcIntegrationQueueService={bcIntegrationQueueService}
+          canApprove={access.canApprove('approvals')}
+          canPostCustomerToBC={access.canPostToBC('customers')}
+          canPostSalesOrderToBC={access.canPostToBC('salesOrders')}
+          currentUserEmail={access.signedInEmail}
+          customerService={customerService}
+          eventService={eventService}
+          itemMasterService={itemMasterService}
+          masterDataService={masterDataService}
+          requestSubmissionService={requestSubmissionService}
+          salespersonService={salespersonService}
+          onNavigate={handleNavigate}
+        />
+      );
+    }
+
+    if (route.key === 'settings') {
+      return (
+        <PermissionSettingsPage
+          access={access}
+          appAccessService={appAccessService}
+          approvalWorkflowService={approvalWorkflowService}
+          masterDataService={masterDataService}
+          salespersonService={salespersonService}
+          onPermissionsChanged={access.refreshAccess}
+        />
+      );
+    }
+
+    return <PlaceholderModulePage route={route} />;
+  };
+
+  return (
+    <ErrorBoundary>
+      <ToastProvider>
+        <div className={styles.app}>
+          <AppLayout
+            activeRouteKey={route.key}
+            canAccessModule={canAccessModule}
+            onAllApplications={onPortalNavigate ? () => onPortalNavigate('apps') : undefined}
+            routeTransitionKey={`${route.key}:${routePath}`}
+            userDisplayName={userDisplayName}
+            onNavigate={handleNavigate}
+          >
+            {isLoading || access.loading ? (
+              <AppLoader label="Loading workspace" />
+            ) : canAccessRoute() ? (
+              renderRoute()
+            ) : (
+              <AccessDenied
+                message={
+                  access.accessError ||
+                  `The signed-in account ${access.signedInEmail || 'unknown user'} is not allowed to access this area.`
+                }
+              />
+            )}
+          </AppLayout>
+        </div>
+      </ToastProvider>
+    </ErrorBoundary>
+  );
+};

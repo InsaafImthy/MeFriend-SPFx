@@ -12,9 +12,9 @@ import { SPComponentLoader } from '@microsoft/sp-loader';
 import * as strings from 'MefrienddynamicsWebPartStrings';
 import Mefrienddynamics from './components/Mefrienddynamics';
 import { IMefrienddynamicsProps } from './components/IMefrienddynamicsProps';
-import './styles/commonTypography.css';
-import './styles/commonScrollbars.css';
-import './styles/sharepointCanvasOverrides.css';
+import './shared/styles/commonTypography.css';
+import './shared/styles/commonScrollbars.css';
+import './shared/styles/sharepointCanvasOverrides.css';
 
 const poppinsStylesheetUrl: string = 'https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap';
 

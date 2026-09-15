@@ -3,6 +3,13 @@
 ## High-Level Architecture
 
 ```text
+SharePoint Online / one SPFx web part
+  MeFriend Applications Portal (launcher and application routes)
+    +-- Shared platform (UI, context, API/auth, SharePoint, utilities)
+    +-- MeFriend BC Extension (pages, routes, permissions, integrations)
+    +-- Future application modules (their own pages, routes, integrations)
+
+BC Extension integration:
 +-------------------------------+
 | SharePoint Online             |
 | SPFx React TypeScript App     |
@@ -22,16 +29,20 @@
 +-------------------------------+
 ```
 
-The Madhyamam / MeFriend system extends an existing Dynamics 365 Business Central implementation with a SharePoint-hosted SPFx frontend and a separately deployed .NET Web API backend.
+The MeFriend Applications Portal is a SharePoint-hosted SPFx platform for independent applications. The BC Extension is the first consumer and uses a separately deployed .NET API backend for Business Central integration. Future applications may use their own integrations through the shared API infrastructure.
 
 ## Frontend Responsibility
+
+The SPFx frontend has portal, shared, and application layers. `portal/Portal.tsx` owns the SharePoint page hash and application-level routes. `portal/config/applications.ts` is the single application registry used by the launcher and router. `applications/bc-extension/components/App/App.tsx` is the BC composition root and receives a relative BC route. BC owns its module routes and navigation. The portal does not call BC APIs or run BC permission checks on its home page. See [the platform architecture](portal-platform.md) for dependency rules and Application 2 setup.
+
+Routes are `#/` and `#/apps` for the launcher, `#/apps/bc` for the BC default module, and `#/apps/bc/<module>/...` for existing BC screens. Existing BC hash bookmarks migrate to the new prefix while preserving detail identifiers. Each future application registers its own prefix, component, and default route.
 
 The SPFx frontend is responsible for:
 
 - Rendering the business application inside SharePoint.
 - Providing reusable React TypeScript UI components.
 - Composing module screens using configuration-driven tables, filters, forms, dashboards, details, financial summaries, and related-record sections.
-- Calling only the MeFriend .NET API through a centralized SPFx API client.
+- Calling the BC backend through shared API transport from the BC application; future applications configure their own backend integrations.
 - Keeping endpoint selection, payload adaptation, and module service calls outside React UI components.
 
 SPFx must not call Business Central directly.
@@ -71,7 +82,7 @@ The backend must:
 
 ## Common Component Strategy
 
-The frontend must be one reusable business application framework, not five separate mini applications.
+The frontend is one SPFx deployable solution with independent feature modules. Reusable components belong in `shared`; business pages and integration logic stay in their application module.
 
 Common reusable components should include:
 
