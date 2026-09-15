@@ -49,8 +49,6 @@ Before release, verify the launcher, BC module navigation, permissions, approval
 
 ## Git workflow
 
-This checkout currently has two Git remotes: `origin` (`https://github.com/InsaafImthy/MeFriend-SPFx.git`) and `shahad` (`https://github.com/shahadmdm/MeFriend.git`). The current local branch is `main` and tracks `shahad/main`. Check `git remote -v` and `git branch -vv` before publishing changes because remote ownership and tracking can change. Do not assume that both remotes should receive the same push.
-
 Develop changes on a focused feature branch, review the working tree, and stage only the files belonging to that change. A typical local sequence is:
 
 ```bash
