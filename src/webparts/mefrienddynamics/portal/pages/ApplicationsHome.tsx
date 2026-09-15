@@ -21,7 +21,7 @@ export const ApplicationsHome: React.FC<IApplicationsHomeProps> = ({ onLaunch })
     <div className={styles.content}>
       <div className={styles.intro}>
         <span className={styles.eyebrow}>YOUR WORKSPACE</span>
-        <h1>MeFriend Applications</h1>
+        <h1>MeFriend Applications List</h1>
         <p>Select an application to get started.</p>
       </div>
       <section aria-label="Available applications" className={styles.applicationSection}>
