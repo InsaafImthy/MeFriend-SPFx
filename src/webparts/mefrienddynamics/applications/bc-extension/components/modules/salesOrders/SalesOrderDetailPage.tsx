@@ -1,5 +1,4 @@
 import * as React from 'react';
-import { invoicesModuleConfig } from '../../../config/modules/invoicesModuleConfig';
 import { salesOrdersModuleConfig } from '../../../config/modules/salesOrdersModuleConfig';
 import type { IFormFieldConfig } from '../../../../../shared/models/IFormFieldConfig';
 import type { ITableColumn } from '../../../../../shared/models/ITableColumn';
@@ -16,6 +15,8 @@ import { EntityDetailPage, EntityDetailSection } from '../../../../../shared/com
 import { FinancialSummaryCards } from '../../../../../shared/components/financialSummary/FinancialSummaryCards';
 import { ReadOnlyEntityForm } from '../../../../../shared/components/forms/ReadOnlyEntityForm';
 import { RelatedRecordsSection } from '../../../../../shared/components/relatedRecords/RelatedRecordsSection';
+import { useToast } from '../../../../../shared/components/toast/useToast';
+import { buildInvoiceDetailPath } from '../../../utils/invoiceReference';
 
 export interface ISalesOrderDetailPageProps {
   salesOrderId: string;
@@ -168,6 +169,7 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
   salesOrderService,
   onNavigate
 }) => {
+  const toast = useToast();
   const [salesOrder, setSalesOrder] = React.useState<ISalesOrderDetail | undefined>();
   const [relatedInvoices, setRelatedInvoices] = React.useState<readonly ISalesOrderRelatedInvoice[]>([]);
   const [itemDescriptionByCode, setItemDescriptionByCode] = React.useState<DescriptionByCode>({});
@@ -232,6 +234,13 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
 
   const invoiceSummary = salesOrderService.getInvoiceSummaryFromRelatedInvoices(relatedInvoices);
   const currencyCode = salesOrder?.currencyCode || relatedInvoices[0]?.currencyCode;
+  const handleRelatedInvoiceClick = React.useCallback((invoice: ISalesOrderRelatedInvoice): void => {
+    try {
+      onNavigate(buildInvoiceDetailPath(invoice.invoiceNumber));
+    } catch (referenceError) {
+      toast.error(getUserFriendlyError(normalizeError(referenceError)), { title: 'Unable to open invoice' });
+    }
+  }, [onNavigate, toast]);
 
   const formValues = React.useMemo<EntityFormValues>(
     () => ({
@@ -424,7 +433,7 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
           error={relatedInvoicesError}
           emptyTitle="No invoices found for this sales order."
           emptyMessage="No invoices found for this sales order."
-          onRowClick={invoice => onNavigate(`${invoicesModuleConfig.route}/detail/${encodeURIComponent(invoice.id || invoice.invoiceNumber)}`)}
+          onRowClick={handleRelatedInvoiceClick}
           getRowKey={(item, index) => item.id || item.invoiceNumber || String(index)}
         />
       </EntityDetailSection>

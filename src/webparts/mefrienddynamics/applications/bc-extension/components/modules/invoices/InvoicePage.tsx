@@ -8,6 +8,7 @@ import { getUserFriendlyError, normalizeError } from '../../../../../shared/api/
 import type { InvoiceService } from '../../../services/invoices/invoiceService';
 import type { SalespersonService } from '../../../services/salespersons/salespersonService';
 import { useSalespersonFilter } from '../../../hooks/useSalespersonFilter';
+import { buildInvoiceDetailPath, requireInvoiceNumber } from '../../../utils/invoiceReference';
 import { EntityDashboard } from '../../../../../shared/components/dashboard/EntityDashboard';
 import type { EntityFilterValues, FilterValue } from '../../../../../shared/components/filters/EntityFilters';
 import { useToast } from '../../../../../shared/components/toast/useToast';
@@ -144,19 +145,28 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, invoiceS
   }, [reset]);
 
   const handlePrint = React.useCallback(async (item: IInvoiceListItem): Promise<void> => {
-    const invoiceId = item.id || item.invoiceNumber;
+    let invoiceNumber: string;
     let preview: Window | undefined;
 
     if (documentActionsInProgress.current.size) {
       return;
     }
 
-    documentActionsInProgress.current.add(invoiceId);
+    try {
+      invoiceNumber = requireInvoiceNumber(item.invoiceNumber);
+    } catch (referenceError) {
+      toast.error(getUserFriendlyError(normalizeError(referenceError)), { title: 'Unable to print invoice' });
+      return;
+    }
+
+    documentActionsInProgress.current.add(invoiceNumber);
     setDocumentAction({ type: 'print' });
 
     try {
       preview = openInvoicePrintPreviewWindow();
-      const printableInvoice = normalizeInvoiceDescriptions(await invoiceService.getInvoiceById(invoiceId, currentUser));
+      const printableInvoice = normalizeInvoiceDescriptions(
+        await invoiceService.getInvoiceByNumber(invoiceNumber, currentUser)
+      );
 
       await writeInvoicePrintPreview(preview, printableInvoice);
       await printInvoice(printableInvoice, preview);
@@ -167,23 +177,30 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, invoiceS
         writeInvoicePrintError(preview, message);
       }
     } finally {
-      documentActionsInProgress.current.delete(invoiceId);
+      documentActionsInProgress.current.delete(invoiceNumber);
       setDocumentAction(undefined);
     }
   }, [currentUser, invoiceService, toast]);
 
   const handleDownload = React.useCallback(async (item: IInvoiceListItem): Promise<void> => {
-    const invoiceId = item.id || item.invoiceNumber;
+    let invoiceNumber: string;
 
     if (documentActionsInProgress.current.size) {
       return;
     }
 
-    documentActionsInProgress.current.add(invoiceId);
+    try {
+      invoiceNumber = requireInvoiceNumber(item.invoiceNumber);
+    } catch (referenceError) {
+      toast.error(getUserFriendlyError(normalizeError(referenceError)), { title: 'Unable to download invoice' });
+      return;
+    }
+
+    documentActionsInProgress.current.add(invoiceNumber);
     setDocumentAction({ type: 'download' });
 
     try {
-      const invoice = await invoiceService.getInvoiceById(invoiceId, currentUser);
+      const invoice = await invoiceService.getInvoiceByNumber(invoiceNumber, currentUser);
       const downloadableInvoice = normalizeInvoiceDescriptions(invoice);
 
       await downloadInvoicePdf(downloadableInvoice);
@@ -191,10 +208,18 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, invoiceS
     } catch (downloadError) {
       toast.error(getUserFriendlyError(normalizeError(downloadError)), { title: 'Unable to download invoice' });
     } finally {
-      documentActionsInProgress.current.delete(invoiceId);
+      documentActionsInProgress.current.delete(invoiceNumber);
       setDocumentAction(undefined);
     }
   }, [currentUser, invoiceService, toast]);
+
+  const handleRowClick = React.useCallback((item: IInvoiceListItem): void => {
+    try {
+      onNavigate(buildInvoiceDetailPath(item.invoiceNumber));
+    } catch (referenceError) {
+      toast.error(getUserFriendlyError(normalizeError(referenceError)), { title: 'Unable to open invoice' });
+    }
+  }, [onNavigate, toast]);
 
   const outstandingOnlyActive = appliedFilterValues.outstandingOnly === true;
 
@@ -210,7 +235,7 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, invoiceS
       error={error}
       onRowClick={
         invoicesModuleConfig.detailEnabled
-          ? item => onNavigate(`${invoicesModuleConfig.route}/detail/${encodeURIComponent(item.id || item.invoiceNumber)}`)
+          ? handleRowClick
           : undefined
       }
       rowActions={[

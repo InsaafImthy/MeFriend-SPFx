@@ -58,23 +58,37 @@ describe('Business Central server paging services', () => {
 
   it('uses direct record endpoints for every BC detail service', async () => {
     const customer = createApiClient({ id: 'customer/id', number: 'C-1', name: 'Customer' });
-    const invoice = createApiClient({ id: 'invoice/id', invoiceNumber: 'I-1' });
+    const invoice = createApiClient({
+      id: '42eadb99-be08-f111-8405-6045bde7abd0',
+      invoiceNumber: 'INV/123'
+    });
     const order = createApiClient({ id: 'order/id', salesOrderNumber: 'SO-1' });
     const salesperson = createApiClient({ id: 'salesperson/id', code: 'SP-1', name: 'Salesperson' });
     const event = createApiClient({ id: 'event/id', eventCode: 'E-1', eventName: 'Event' });
 
     await Promise.all([
       new CustomerService(customer.apiClient).getCustomerById('customer/id'),
-      new InvoiceService(invoice.apiClient).getInvoiceById('invoice/id'),
+      new InvoiceService(invoice.apiClient).getInvoiceByNumber(' INV/123 '),
       new SalesOrderService(order.apiClient).getSalesOrderById('order/id'),
       new SalespersonService(salesperson.apiClient).getSalespersonById('salesperson/id'),
       new EventService(event.apiClient).getEventById('event/id')
     ]);
 
     expect(customer.get).toHaveBeenCalledWith('/api/Customers/customer%2Fid');
-    expect(invoice.get).toHaveBeenCalledWith('/api/SalesInvoices/invoice%2Fid', { salesPerson: undefined });
+    expect(invoice.get).toHaveBeenCalledWith('/api/SalesInvoices/INV%2F123', { salesPerson: undefined });
     expect(order.get).toHaveBeenCalledWith('/api/SalesOrders/order%2Fid', { salesperson: undefined });
     expect(salesperson.get).toHaveBeenCalledWith('/api/Salespersons/salesperson%2Fid');
     expect(event.get).toHaveBeenCalledWith('/api/Events/event%2Fid');
+  });
+
+  it('rejects a missing invoice number without calling the invoice detail endpoint', async () => {
+    const invoice = createApiClient({
+      id: '42eadb99-be08-f111-8405-6045bde7abd0',
+      invoiceNumber: ''
+    });
+
+    await expect(new InvoiceService(invoice.apiClient).getInvoiceByNumber('   '))
+      .rejects.toThrow('Invoice number is missing');
+    expect(invoice.get).not.toHaveBeenCalled();
   });
 });

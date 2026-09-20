@@ -17,6 +17,7 @@ import {
   normalizeSalespersonCode
 } from '../../utils/salespersonDataScope';
 import { buildServerPageQuery, createCursorPaginationState } from '../../../../shared/utilities/serverPagination';
+import { requireInvoiceNumber } from '../../utils/invoiceReference';
 
 interface IInvoiceApiModel {
   '@odata.etag'?: string;
@@ -167,15 +168,19 @@ export class InvoiceService {
     return this.mapPagedResult(response.data, pagination.pageSize);
   }
 
-  public async getInvoiceById(id: string, currentUser?: IAppUser): Promise<IInvoiceDetail> {
+  public async getInvoiceByNumber(invoiceNumber: string, currentUser?: IAppUser): Promise<IInvoiceDetail> {
+    const invoiceReference = requireInvoiceNumber(invoiceNumber);
     const salespersonCode = getCurrentSalespersonCode(currentUser);
-    const response = await this.apiClient.get<IInvoiceApiModel>(`/api/SalesInvoices/${encodeURIComponent(id)}`, {
-      salesPerson: salespersonCode
-    });
+    const response = await this.apiClient.get<IInvoiceApiModel>(
+      `/api/SalesInvoices/${encodeURIComponent(invoiceReference)}`,
+      {
+        salesPerson: salespersonCode
+      }
+    );
     const scopedInvoice = response.data ? this.mapInvoiceApiToUiModel(response.data) : undefined;
 
     if (!scopedInvoice || (salespersonCode && normalizeSalespersonCode(scopedInvoice.salespersonCode) !== salespersonCode)) {
-      const notFoundError = new Error(`Invoice ${id} was not found.`) as Error & { status?: number };
+      const notFoundError = new Error(`Invoice ${invoiceReference} was not found.`) as Error & { status?: number };
       notFoundError.status = 404;
       throw notFoundError;
     }

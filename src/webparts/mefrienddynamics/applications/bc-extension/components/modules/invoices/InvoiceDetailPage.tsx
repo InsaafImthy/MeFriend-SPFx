@@ -14,7 +14,7 @@ import { RelatedRecordsSection } from '../../../../../shared/components/relatedR
 
 export interface IInvoiceDetailPageProps {
   currentUser?: IAppUser;
-  invoiceId: string;
+  invoiceNumber: string;
   invoiceService: InvoiceService;
   onNavigate: (path: string) => void;
 }
@@ -81,7 +81,7 @@ const getDetailErrorMessage = (error: unknown): string => {
   return getUserFriendlyError(normalizedError);
 };
 
-export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ currentUser, invoiceId, invoiceService, onNavigate }) => {
+export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ currentUser, invoiceNumber, invoiceService, onNavigate }) => {
   const [invoice, setInvoice] = React.useState<IInvoiceDetail | undefined>();
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | undefined>();
@@ -95,7 +95,7 @@ export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ currentUs
       setError(undefined);
 
       try {
-        const detail = await invoiceService.getInvoiceById(invoiceId, currentUser);
+        const detail = await invoiceService.getInvoiceByNumber(invoiceNumber, currentUser);
         setInvoice(normalizeInvoiceDescriptions(detail));
       } catch (loadError) {
         setInvoice(undefined);
@@ -106,7 +106,7 @@ export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ currentUs
     };
 
     loadInvoice().catch(() => undefined);
-  }, [currentUser, invoiceId, invoiceService]);
+  }, [currentUser, invoiceNumber, invoiceService]);
 
   const invoiceHeaderValues = React.useMemo<EntityFormValues>(
     () => ({
@@ -144,7 +144,7 @@ export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ currentUs
   return (
     <EntityDetailPage
       title="Invoice Detail"
-      description={invoice ? invoice.invoiceNumber : invoiceId ? `Invoice reference: ${invoiceId}` : undefined}
+      description={invoice ? invoice.invoiceNumber : invoiceNumber ? `Invoice reference: ${invoiceNumber}` : undefined}
       backLabel="Back to Invoices"
       onBack={handleBack}
       loading={loading}

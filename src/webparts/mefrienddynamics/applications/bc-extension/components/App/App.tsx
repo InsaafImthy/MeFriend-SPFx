@@ -304,7 +304,7 @@ const AppWorkspace: React.FC<IAppWorkspaceProps> = ({ aadHttpClientFactory, http
       return (
         <InvoiceDetailPage
           currentUser={access.currentAppUser}
-          invoiceId={route.params.id || ''}
+          invoiceNumber={route.params.id || ''}
           invoiceService={invoiceService}
           onNavigate={handleNavigate}
         />
