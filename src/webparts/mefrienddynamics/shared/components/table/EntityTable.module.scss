@@ -503,6 +503,25 @@ a.documentLink:hover {
   font-size: 11px;
 }
 
+.cursorPageButton {
+  min-width: 72px;
+  padding: 0 12px;
+  width: auto;
+}
+
+.cursorPageLabel {
+  align-items: center;
+  color: #172033;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 700;
+  height: 26px;
+  justify-content: center;
+  min-width: 54px;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
 .pageButtonActive {
   background: #f3f6fb;
   border-color: #cdd6e4;
@@ -582,6 +601,16 @@ a.documentLink:hover {
   .pageButton {
     height: 32px;
     width: 32px;
+  }
+
+  .pageButton.cursorPageButton {
+    min-width: 76px;
+    padding: 0 12px;
+    width: auto;
+  }
+
+  .cursorPageLabel {
+    height: 32px;
   }
 
   .viewButton {

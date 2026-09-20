@@ -14,9 +14,11 @@ const userMenuAnimationDurationMs = 150;
 export interface IAppLayoutProps {
   activeRouteKey: AppRouteKey;
   userDisplayName: string;
+  currentCompanyLabel: string;
   canAccessModule: (moduleKey: string) => boolean;
   onNavigate: (path: string) => void;
   onAllApplications?: () => void;
+  onChangeCompany: () => void;
   routeTransitionKey: string;
   children: React.ReactNode;
 }
@@ -38,7 +40,7 @@ const getInitials = (displayName: string): string => {
   return `${nameParts[0].charAt(0)}${nameParts[nameParts.length - 1].charAt(0)}`.toUpperCase();
 };
 
-export const AppLayout: React.FC<IAppLayoutProps> = ({ activeRouteKey, canAccessModule, routeTransitionKey, userDisplayName, onNavigate, onAllApplications, children }) => {
+export const AppLayout: React.FC<IAppLayoutProps> = ({ activeRouteKey, canAccessModule, currentCompanyLabel, routeTransitionKey, userDisplayName, onNavigate, onAllApplications, onChangeCompany, children }) => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState<boolean>(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = React.useState<boolean>(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = React.useState<boolean>(false);
@@ -164,6 +166,11 @@ export const AppLayout: React.FC<IAppLayoutProps> = ({ activeRouteKey, canAccess
     }
   };
 
+  const handleChangeCompany = (): void => {
+    setIsMobileDrawerOpen(false);
+    onChangeCompany();
+  };
+
   return (
     <div className={layoutClassName}>
       <header className={styles.mobileHeader}>
@@ -181,6 +188,7 @@ export const AppLayout: React.FC<IAppLayoutProps> = ({ activeRouteKey, canAccess
           <img className={styles.mobileBrandMark} src={mefriendLogo} alt="" />
           <span>{appConfig.appName}</span>
         </div>
+        <span className={styles.mobileCompanyLabel} title={currentCompanyLabel}>{currentCompanyLabel}</span>
         <a className={styles.mobileAllApps} href={buildPortalHref('apps')} onClick={handleAllApplicationsClick} aria-label="All Applications" title="All Applications">
           <Icon iconName="Home" aria-hidden="true" />
         </a>
@@ -213,6 +221,16 @@ export const AppLayout: React.FC<IAppLayoutProps> = ({ activeRouteKey, canAccess
           <Icon iconName="Back" aria-hidden="true" />
           <span>All Applications</span>
         </a>
+        <div className={`${styles.companyPanel} ${styles.mobileCompanyPanel}`}>
+          <span className={styles.companyMeta}>
+            <span className={styles.companyCaption}>Company</span>
+            <strong className={styles.companyName} title={currentCompanyLabel}>{currentCompanyLabel}</strong>
+          </span>
+          <button className={styles.changeCompanyButton} onClick={handleChangeCompany} type="button">
+            <Icon iconName="Switch" aria-hidden="true" />
+            <span>Change Company</span>
+          </button>
+        </div>
         <AppNavigation
           activeRouteKey={activeRouteKey}
           canAccessModule={canAccessModule}
@@ -262,6 +280,22 @@ export const AppLayout: React.FC<IAppLayoutProps> = ({ activeRouteKey, canAccess
             <Icon iconName="Back" aria-hidden="true" />
             <span>All Applications</span>
           </a>
+          <div className={styles.companyPanel}>
+            <span className={styles.companyMeta}>
+              <span className={styles.companyCaption}>Company</span>
+              <strong className={styles.companyName} title={currentCompanyLabel}>{currentCompanyLabel}</strong>
+            </span>
+            <button
+              aria-label={`Change company. Current company: ${currentCompanyLabel}`}
+              className={styles.changeCompanyButton}
+              onClick={handleChangeCompany}
+              title={isSidebarCollapsed ? `Change Company (${currentCompanyLabel})` : undefined}
+              type="button"
+            >
+              <Icon iconName="Switch" aria-hidden="true" />
+              <span>Change Company</span>
+            </button>
+          </div>
           <AppNavigation
             activeRouteKey={activeRouteKey}
             canAccessModule={canAccessModule}

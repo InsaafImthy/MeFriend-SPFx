@@ -115,20 +115,16 @@ export const ApprovalDetailPage: React.FC<IApprovalDetailPageProps> = ({
         return;
       }
 
-      const [salesOrderDetail, itemMasters, salespersons] = await Promise.all([
-        requestSubmissionService.getSalesOrderRequestDetail(String(task.requestItemId)),
-        itemMasterService.getItemMasterLookup().catch(() => []),
-        salespersonService.getSalespersonLookup().catch(() => [])
-      ]);
+      const salesOrderDetail = await requestSubmissionService.getSalesOrderRequestDetail(String(task.requestItemId));
 
-      setItemDescriptionByCode(itemMasters.reduce<Record<string, string>>((itemsByCode, item) => {
-        itemsByCode[normalizeLookupKey(item.number)] = item.description;
+      setItemDescriptionByCode(salesOrderDetail.lines.reduce<Record<string, string>>((itemsByCode, line) => {
+        itemsByCode[normalizeLookupKey(line.itemCode)] = line.description || line.itemCode;
         return itemsByCode;
       }, {}));
-      setSalespersonNameByCode(salespersons.reduce<Record<string, string>>((salespersonsByCode, salesperson) => {
-        salespersonsByCode[normalizeLookupKey(salesperson.code)] = salesperson.name;
-        return salespersonsByCode;
-      }, {}));
+      setSalespersonNameByCode({
+        [normalizeLookupKey(salesOrderDetail.request.salespersonCode)]:
+          salesOrderDetail.request.salespersonName || salesOrderDetail.request.salespersonCode
+      });
       setDetail({ task, finalLevel, queueHistory, salesOrderDetail });
     } catch (loadError) {
       setDetail(undefined);

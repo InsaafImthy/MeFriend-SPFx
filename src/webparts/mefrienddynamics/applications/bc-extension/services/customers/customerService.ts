@@ -6,9 +6,9 @@ import type {
   ICustomerFilters,
   ICustomerListItem
 } from '../../models/customers';
-import type { IPagedResult } from '../../../../shared/models/IPagedResult';
-import type { IPaginationState } from '../../../../shared/models/IPaginationState';
+import { DEFAULT_SERVER_PAGE_SIZE, type ICursorPaginationState, type IServerPagedResult } from '../../../../shared/models/IServerPagination';
 import type { ISortState } from '../../../../shared/models/ISortState';
+import { buildServerPageQuery } from '../../../../shared/utilities/serverPagination';
 
 interface ICustomerApiModel {
   id?: string;
@@ -56,8 +56,8 @@ export interface ICustomerLookupItem {
   name: string;
 }
 
-type CustomerListApiResponse = IPagedResult<ICustomerApiModel> | readonly ICustomerApiModel[];
-type CustomerLookupApiResponse = readonly ICustomerLookupItem[];
+type CustomerListApiResponse = IServerPagedResult<ICustomerApiModel>;
+type CustomerLookupApiResponse = IServerPagedResult<ICustomerLookupItem>;
 
 const indiaCountryCode = 'IN';
 const normalizeText = (value: string): string => value.trim();
@@ -68,27 +68,46 @@ export class CustomerService {
 
   public async getCustomers(
     filters: ICustomerFilters = {},
-    pagination?: Partial<IPaginationState>,
+    pagination: ICursorPaginationState,
     sorting?: ISortState
-  ): Promise<IPagedResult<ICustomerListItem>> {
-    const response = await this.apiClient.get<CustomerListApiResponse>('/api/Customers');
+  ): Promise<IServerPagedResult<ICustomerListItem>> {
+    const response = await this.apiClient.get<CustomerListApiResponse>('/api/Customers', buildServerPageQuery({
+      searchText: filters.searchText,
+      branch: filters.branch,
+      department: filters.department,
+      city: filters.city,
+      stateCode: filters.stateCode,
+      status: filters.status
+    }, pagination, sorting));
 
-    return this.mapCustomerListResult(response.data, filters, pagination, sorting);
+    return this.mapPagedResult(response.data, pagination.pageSize);
   }
 
-  public async getCustomerLookup(): Promise<readonly ICustomerLookupItem[]> {
-    const response = await this.apiClient.get<CustomerLookupApiResponse>('/api/Customers/lookup');
+  public async getCustomerLookup(
+    searchText?: string,
+    pageSize: number = DEFAULT_SERVER_PAGE_SIZE
+  ): Promise<IServerPagedResult<ICustomerLookupItem>> {
+    const response = await this.apiClient.get<CustomerLookupApiResponse>('/api/Customers/lookup', {
+      searchText,
+      pageSize
+    });
+    const result = response.data;
 
-    return (response.data || []).map(item => ({
-      number: normalizeText(item.number || item.no || ''),
-      no: normalizeText(item.no || item.number || ''),
-      name: normalizeText(item.name || '')
-    })).filter(item => item.no);
+    return {
+      items: (result?.items || []).map(item => ({
+        number: normalizeText(item.number || item.no || ''),
+        no: normalizeText(item.no || item.number || ''),
+        name: normalizeText(item.name || '')
+      })).filter(item => item.no),
+      pageSize: result?.pageSize || pageSize,
+      hasNext: Boolean(result?.hasNext),
+      nextToken: result?.nextToken
+    };
   }
 
   public async getCustomerById(id: string): Promise<ICustomerDetail> {
-    const response = await this.apiClient.get<CustomerListApiResponse>('/api/Customers');
-    const customer = this.findCustomerById(response.data, id);
+    const response = await this.apiClient.get<ICustomerApiModel>(`/api/Customers/${encodeURIComponent(id)}`);
+    const customer = response.data;
 
     if (!customer) {
       const notFoundError = new Error(`Customer ${id} was not found.`) as Error & { status?: number };
@@ -161,170 +180,15 @@ export class CustomerService {
     };
   }
 
-  private mapCustomerListResult(
+  private mapPagedResult(
     api: CustomerListApiResponse | undefined,
-    filters: ICustomerFilters,
-    pagination?: Partial<IPaginationState>,
-    sorting?: ISortState
-  ): IPagedResult<ICustomerListItem> {
-    if (this.isCustomerArray(api)) {
-      return this.mapArrayResult(api, filters, pagination, sorting);
-    }
-
-    return this.mapPagedResult(api);
-  }
-
-  private mapArrayResult(
-    apiItems: readonly ICustomerApiModel[],
-    filters: ICustomerFilters,
-    pagination?: Partial<IPaginationState>,
-    sorting?: ISortState
-  ): IPagedResult<ICustomerListItem> {
-    const pageNumber = Math.max(1, pagination?.pageNumber || 1);
-    const pageSize = Math.max(1, pagination?.pageSize || apiItems.length || 1);
-    const mappedItems = apiItems.map(item => this.mapCustomerApiToUiModel(item));
-    const filteredItems = this.filterCustomers(mappedItems, filters);
-    const sortedItems = this.sortCustomers(filteredItems, sorting);
-    const startIndex = (pageNumber - 1) * pageSize;
-    const pagedItems = sortedItems.slice(startIndex, startIndex + pageSize);
-    const totalCount = sortedItems.length;
-
-    return {
-      items: pagedItems,
-      pageNumber,
-      pageSize,
-      totalCount,
-      totalPages: Math.max(1, Math.ceil(totalCount / pageSize))
-    };
-  }
-
-  private mapPagedResult(api?: IPagedResult<ICustomerApiModel>): IPagedResult<ICustomerListItem> {
+    requestedPageSize: number
+  ): IServerPagedResult<ICustomerListItem> {
     return {
       items: (api?.items || []).map(item => this.mapCustomerApiToUiModel(item)),
-      pageNumber: api?.pageNumber || 1,
-      pageSize: api?.pageSize || 0,
-      totalCount: api?.totalCount || 0,
-      totalPages: api?.totalPages || 0
+      pageSize: api?.pageSize || requestedPageSize,
+      hasNext: Boolean(api?.hasNext),
+      nextToken: api?.nextToken
     };
-  }
-
-  private filterCustomers(
-    customers: readonly ICustomerListItem[],
-    filters: ICustomerFilters
-  ): readonly ICustomerListItem[] {
-    const searchText = this.normalizeFilterText(filters.searchText);
-    const branch = this.normalizeFilterText(filters.branch);
-    const department = this.normalizeFilterText(filters.department);
-    const city = this.normalizeFilterText(filters.city);
-    const stateCode = this.normalizeFilterText(filters.stateCode);
-    const status = this.normalizeFilterText(filters.status);
-
-    return customers.filter(customer => {
-      if (searchText && !this.customerMatchesSearch(customer, searchText)) {
-        return false;
-      }
-
-      if (branch && this.normalizeFilterText(customer.branch).indexOf(branch) === -1) {
-        return false;
-      }
-
-      if (department && this.normalizeFilterText(customer.department).indexOf(department) === -1) {
-        return false;
-      }
-
-      if (city && this.normalizeFilterText(customer.city).indexOf(city) === -1) {
-        return false;
-      }
-
-      if (stateCode && this.normalizeFilterText(customer.stateCode).indexOf(stateCode) === -1) {
-        return false;
-      }
-
-      if (status && this.normalizeFilterText(customer.status).indexOf(status) === -1) {
-        return false;
-      }
-
-      return true;
-    });
-  }
-
-  private customerMatchesSearch(customer: ICustomerListItem, searchText: string): boolean {
-    const searchableText = [
-      customer.customerCode,
-      customer.customerName,
-      customer.city,
-      customer.stateCode,
-      customer.countryCode,
-      customer.locationCode,
-      customer.phoneNumber,
-      customer.status
-    ].map(value => this.normalizeFilterText(value)).join(' ');
-
-    return searchableText.indexOf(searchText) !== -1;
-  }
-
-  private sortCustomers(
-    customers: readonly ICustomerListItem[],
-    sorting?: ISortState
-  ): readonly ICustomerListItem[] {
-    if (!sorting) {
-      return customers;
-    }
-
-    const directionMultiplier = sorting.direction === 'desc' ? -1 : 1;
-
-    return customers.slice().sort((left, right) => {
-      const leftValue = this.normalizeSortValue(this.getCustomerFieldValue(left, sorting.fieldName));
-      const rightValue = this.normalizeSortValue(this.getCustomerFieldValue(right, sorting.fieldName));
-
-      if (leftValue < rightValue) {
-        return -1 * directionMultiplier;
-      }
-
-      if (leftValue > rightValue) {
-        return directionMultiplier;
-      }
-
-      return 0;
-    });
-  }
-
-  private isCustomerArray(api: CustomerListApiResponse | undefined): api is readonly ICustomerApiModel[] {
-    return Array.isArray(api);
-  }
-
-  private findCustomerById(
-    api: CustomerListApiResponse | undefined,
-    id: string
-  ): ICustomerApiModel | undefined {
-    const normalizedId = this.normalizeFilterText(id);
-    const items = this.isCustomerArray(api) ? api : api?.items || [];
-
-    return items.find(item => this.customerMatchesId(item, normalizedId));
-  }
-
-  private customerMatchesId(customer: ICustomerApiModel, normalizedId: string): boolean {
-    return [
-      customer.id,
-      customer.number,
-      customer.no,
-      customer.customerCode
-    ].some(value => this.normalizeFilterText(value) === normalizedId);
-  }
-
-  private getCustomerFieldValue(customer: ICustomerListItem, fieldName: string): unknown {
-    return (customer as unknown as Record<string, unknown>)[fieldName];
-  }
-
-  private normalizeFilterText(value: string | undefined): string {
-    return (value || '').trim().toLowerCase();
-  }
-
-  private normalizeSortValue(value: unknown): string {
-    if (value === undefined || value === null) {
-      return '';
-    }
-
-    return String(value).trim().toLowerCase();
   }
 }

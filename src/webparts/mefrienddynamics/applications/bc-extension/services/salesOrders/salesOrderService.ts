@@ -9,8 +9,7 @@ import type {
   ISalesOrderListItem,
   ISalesOrderRelatedInvoice
 } from '../../models/salesOrders';
-import type { IPagedResult } from '../../../../shared/models/IPagedResult';
-import type { IPaginationState } from '../../../../shared/models/IPaginationState';
+import { DEFAULT_SERVER_PAGE_SIZE, type ICursorPaginationState, type IServerPagedResult } from '../../../../shared/models/IServerPagination';
 import type { ISortState } from '../../../../shared/models/ISortState';
 import type { IAppUser } from '../../models/settings/IAppAccessModels';
 import {
@@ -24,6 +23,7 @@ import {
   getCurrentSalespersonCode,
   normalizeSalespersonCode
 } from '../../utils/salespersonDataScope';
+import { buildServerPageQuery } from '../../../../shared/utilities/serverPagination';
 
 interface ISalesOrderApiModel {
   '@odata.etag'?: string;
@@ -192,41 +192,41 @@ interface ISalesOrderPostResponseApiModel extends ISalesOrderApiModel {
   base64?: string;
 }
 
-type SalesOrderListApiResponse = IPagedResult<ISalesOrderApiModel> | readonly ISalesOrderApiModel[];
-type SalesInvoiceListApiResponse =
-  | IPagedResult<ISalesOrderRelatedInvoiceApiModel>
-  | readonly ISalesOrderRelatedInvoiceApiModel[];
+type SalesOrderListApiResponse = IServerPagedResult<ISalesOrderApiModel>;
+type SalesInvoiceListApiResponse = IServerPagedResult<ISalesOrderRelatedInvoiceApiModel>;
 
 export class SalesOrderService {
   public constructor(private readonly apiClient: ApiClient) {}
 
   public async getSalesOrders(
     filters: ISalesOrderFilters = {},
-    pagination?: Partial<IPaginationState>,
+    pagination: ICursorPaginationState,
     sorting?: ISortState,
     currentUser?: IAppUser
-  ): Promise<IPagedResult<ISalesOrderListItem>> {
+  ): Promise<IServerPagedResult<ISalesOrderListItem>> {
     const mandatorySalespersonCode = getCurrentSalespersonCode(currentUser);
     const selectedSalespersonCode = normalizeSalespersonCode(filters.salespersonCode) || undefined;
     const salespersonCode = mandatorySalespersonCode || selectedSalespersonCode;
-    const effectiveFilters = mandatorySalespersonCode
-      ? { ...filters, salespersonCode: mandatorySalespersonCode }
-      : filters;
-    const response = await this.apiClient.get<SalesOrderListApiResponse>('/api/SalesOrders', {
-      salesperson: salespersonCode
-    });
+    const response = await this.apiClient.get<SalesOrderListApiResponse>('/api/SalesOrders', buildServerPageQuery({
+      searchText: filters.searchText,
+      customerCode: filters.customerCode,
+      salesperson: salespersonCode,
+      eventCode: filters.eventCode,
+      status: filters.status,
+      orderDateFrom: filters.orderDateFrom,
+      orderDateTo: filters.orderDateTo
+    }, pagination, sorting));
 
-    return this.mapSalesOrderListApiToPagedResult(response.data, effectiveFilters, pagination, sorting, currentUser);
+    return this.mapPagedResult(response.data, pagination.pageSize);
   }
 
   public async getSalesOrderById(id: string, currentUser?: IAppUser): Promise<ISalesOrderDetail> {
     const salespersonCode = getCurrentSalespersonCode(currentUser);
-    const response = await this.apiClient.get<SalesOrderListApiResponse>('/api/SalesOrders', {
+    const response = await this.apiClient.get<ISalesOrderApiModel>(`/api/SalesOrders/${encodeURIComponent(id)}`, {
       salesperson: salespersonCode
     });
-    const salesOrder = this.findSalesOrderApiById(response.data, id);
-    const scopedSalesOrder = salesOrder
-      ? filterByCurrentSalesperson([this.mapSalesOrderApiToUiModel(salesOrder)], currentUser)[0]
+    const scopedSalesOrder = response.data
+      ? filterByCurrentSalesperson([this.mapSalesOrderApiToUiModel(response.data)], currentUser)[0]
       : undefined;
 
     if (!scopedSalesOrder) {
@@ -263,11 +263,10 @@ export class SalesOrderService {
     const salespersonCode = getCurrentSalespersonCode(currentUser);
     const response = await this.apiClient.get<SalesInvoiceListApiResponse>('/api/SalesInvoices', {
       salesOrderNumber: salesOrderId,
-      salesPerson: salespersonCode
+      salesPerson: salespersonCode,
+      pageSize: DEFAULT_SERVER_PAGE_SIZE
     });
-    const invoices = this.getInvoiceItems(response.data).filter(invoice =>
-      this.relatedInvoiceMatchesSalesOrder(invoice, salesOrderId)
-    );
+    const invoices = response.data?.items || [];
 
     return filterByCurrentSalesperson(this.mapRelatedInvoicesApiToUiModel(invoices), currentUser);
   }
@@ -458,52 +457,15 @@ export class SalesOrderService {
     return this.mapInvoiceSummaryApiToUiModel(undefined, relatedInvoices);
   }
 
-  private mapSalesOrderListApiToPagedResult(
-    api: SalesOrderListApiResponse | undefined,
-    filters: ISalesOrderFilters,
-    pagination?: Partial<IPaginationState>,
-    sorting?: ISortState,
-    currentUser?: IAppUser
-  ): IPagedResult<ISalesOrderListItem> {
-    if (!this.isSalesOrderArray(api)) {
-      return this.mapPagedResult(api, filters, currentUser);
-    }
-
-    const mappedItems = api.map(item => this.mapSalesOrderApiToUiModel(item));
-    const scopedItems = filterByCurrentSalesperson(mappedItems, currentUser);
-    const filteredItems = this.filterSalesOrders(scopedItems, filters);
-    const sortedItems = this.sortSalesOrders(filteredItems, sorting);
-    const pageSize = Math.max(1, pagination?.pageSize || sortedItems.length || 1);
-    const totalCount = sortedItems.length;
-    const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
-    const pageNumber = Math.min(Math.max(1, pagination?.pageNumber || 1), totalPages);
-    const startIndex = (pageNumber - 1) * pageSize;
-
-    return {
-      items: sortedItems.slice(startIndex, startIndex + pageSize),
-      pageNumber,
-      pageSize,
-      totalCount,
-      totalPages
-    };
-  }
-
   private mapPagedResult(
-    api?: IPagedResult<ISalesOrderApiModel>,
-    filters: ISalesOrderFilters = {},
-    currentUser?: IAppUser
-  ): IPagedResult<ISalesOrderListItem> {
-    const mappedItems = (api?.items || []).map(item => this.mapSalesOrderApiToUiModel(item));
-    const scopedItems = filterByCurrentSalesperson(mappedItems, currentUser);
-    const filteredItems = this.filterSalesOrders(scopedItems, filters);
-    const wasClientFiltered = filteredItems.length !== mappedItems.length;
-
+    api: SalesOrderListApiResponse | undefined,
+    requestedPageSize: number
+  ): IServerPagedResult<ISalesOrderListItem> {
     return {
-      items: filteredItems,
-      pageNumber: api?.pageNumber || 1,
-      pageSize: api?.pageSize || 0,
-      totalCount: wasClientFiltered ? filteredItems.length : api?.totalCount || 0,
-      totalPages: wasClientFiltered ? Math.max(1, Math.ceil(filteredItems.length / (api?.pageSize || 1))) : api?.totalPages || 0
+      items: (api?.items || []).map(item => this.mapSalesOrderApiToUiModel(item)),
+      pageSize: api?.pageSize || requestedPageSize,
+      hasNext: Boolean(api?.hasNext),
+      nextToken: api?.nextToken
     };
   }
 
@@ -697,198 +659,6 @@ export class SalesOrderService {
 
   private isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null;
-  }
-
-  private filterSalesOrders(
-    items: readonly ISalesOrderListItem[],
-    filters: ISalesOrderFilters
-  ): readonly ISalesOrderListItem[] {
-    const searchText = (filters.searchText || '').trim().toLowerCase();
-    const customerCode = (filters.customerCode || '').trim().toLowerCase();
-    const salespersonCode = normalizeSalespersonCode(filters.salespersonCode);
-    const eventCode = (filters.eventCode || '').trim().toLowerCase();
-    const status = (filters.status || '').trim().toLowerCase();
-
-    return items.filter(item => {
-      const searchableText = [
-        item.salesOrderNumber,
-        item.customerCode,
-        item.customerName,
-        item.clientCode,
-        item.clientName,
-        item.salespersonCode,
-        item.salespersonName,
-        item.eventCode,
-        item.eventName,
-        item.status
-      ].join(' ').toLowerCase();
-
-      if (searchText && searchableText.indexOf(searchText) === -1) {
-        return false;
-      }
-
-      if (customerCode && `${item.customerCode} ${item.customerName}`.toLowerCase().indexOf(customerCode) === -1) {
-        return false;
-      }
-
-      if (salespersonCode && normalizeSalespersonCode(item.salespersonCode) !== salespersonCode) {
-        return false;
-      }
-
-      if (eventCode && `${item.eventCode} ${item.eventName}`.toLowerCase().indexOf(eventCode) === -1) {
-        return false;
-      }
-
-      if (status && String(item.status || '').toLowerCase() !== status) {
-        return false;
-      }
-
-      if (filters.orderDateFrom && (!item.orderDate || item.orderDate < filters.orderDateFrom)) {
-        return false;
-      }
-
-      if (filters.orderDateTo && (!item.orderDate || item.orderDate > filters.orderDateTo)) {
-        return false;
-      }
-
-      return true;
-    });
-  }
-
-  private sortSalesOrders(
-    items: readonly ISalesOrderListItem[],
-    sorting?: ISortState
-  ): readonly ISalesOrderListItem[] {
-    if (!sorting) {
-      return items;
-    }
-
-    return items.slice().sort((left, right) => {
-      const leftValue = this.getSortableValue(left, sorting.fieldName);
-      const rightValue = this.getSortableValue(right, sorting.fieldName);
-      const comparison = this.compareValues(leftValue, rightValue);
-
-      return sorting.direction === 'desc' ? comparison * -1 : comparison;
-    });
-  }
-
-  private findSalesOrderApiById(
-    api: SalesOrderListApiResponse | undefined,
-    id: string
-  ): ISalesOrderApiModel | undefined {
-    const normalizedId = id.trim().toLowerCase();
-    const items = this.isSalesOrderArray(api) ? api : api?.items || [];
-
-    return items.filter(item => this.salesOrderMatchesId(item, normalizedId))[0];
-  }
-
-  private salesOrderMatchesId(api: ISalesOrderApiModel, normalizedId: string): boolean {
-    const identifiers = [
-      api.id,
-      api.Id,
-      api.salesOrderNumber,
-      api.no
-    ];
-
-    return identifiers
-      .filter((value): value is string => Boolean(value))
-      .map(value => value.toLowerCase())
-      .indexOf(normalizedId) !== -1;
-  }
-
-  private getSortableValue(item: ISalesOrderListItem, fieldName: string): string | number | undefined {
-    switch (fieldName) {
-      case 'salesOrderNumber':
-        return item.salesOrderNumber;
-      case 'customerCode':
-        return item.customerCode;
-      case 'customerName':
-        return item.customerName;
-      case 'clientCode':
-        return item.clientCode;
-      case 'clientName':
-        return item.clientName;
-      case 'salespersonCode':
-        return item.salespersonCode;
-      case 'salespersonName':
-        return item.salespersonName;
-      case 'eventCode':
-        return item.eventCode;
-      case 'eventName':
-        return item.eventName;
-      case 'postingDate':
-        return item.postingDate;
-      case 'orderDate':
-        return item.orderDate;
-      case 'status':
-        return item.status;
-      case 'totalAmount':
-        return item.totalAmount;
-      case 'amountIncludingVAT':
-        return item.amountIncludingVAT;
-      case 'invoiceDiscountAmountExclVat':
-        return item.invoiceDiscountAmountExclVat;
-      case 'currencyCode':
-        return item.currencyCode;
-      default:
-        return undefined;
-    }
-  }
-
-  private compareValues(leftValue: string | number | undefined, rightValue: string | number | undefined): number {
-    if (leftValue === rightValue) {
-      return 0;
-    }
-
-    if (leftValue === undefined || leftValue === '') {
-      return 1;
-    }
-
-    if (rightValue === undefined || rightValue === '') {
-      return -1;
-    }
-
-    if (typeof leftValue === 'number' && typeof rightValue === 'number') {
-      return leftValue - rightValue;
-    }
-
-    return String(leftValue).localeCompare(String(rightValue), undefined, { sensitivity: 'base' });
-  }
-
-  private isSalesOrderArray(api: SalesOrderListApiResponse | undefined): api is readonly ISalesOrderApiModel[] {
-    return Array.isArray(api);
-  }
-
-  private getInvoiceItems(
-    api: SalesInvoiceListApiResponse | undefined
-  ): readonly ISalesOrderRelatedInvoiceApiModel[] {
-    if (this.isSalesInvoiceArray(api)) {
-      return api;
-    }
-
-    return api?.items || [];
-  }
-
-  private isSalesInvoiceArray(
-    api: SalesInvoiceListApiResponse | undefined
-  ): api is readonly ISalesOrderRelatedInvoiceApiModel[] {
-    return Array.isArray(api);
-  }
-
-  private relatedInvoiceMatchesSalesOrder(
-    invoice: ISalesOrderRelatedInvoiceApiModel,
-    salesOrderId: string
-  ): boolean {
-    const normalizedSalesOrderId = salesOrderId.trim().toLowerCase();
-
-    return [
-      invoice.salesOrderNo,
-      invoice.salesOrderNumber,
-      invoice.salesOrderReference
-    ]
-      .filter((value): value is string => Boolean(value))
-      .map(value => value.trim().toLowerCase())
-      .indexOf(normalizedSalesOrderId) !== -1;
   }
 
   private sumLineAmount(

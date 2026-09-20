@@ -129,10 +129,75 @@
   }
 }
 
+.companyPanel {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  box-sizing: border-box;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 0;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+.companyMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.companyCaption {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.companyName {
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.changeCompanyButton {
+  align-items: center;
+  align-self: flex-start;
+  background: transparent;
+  border: 0;
+  color: #d9ccff;
+  cursor: pointer;
+  display: inline-flex;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 650;
+  gap: 7px;
+  padding: 0;
+
+  &:hover,
+  &:focus-visible {
+    color: #ffffff;
+    outline: none;
+    text-decoration: underline;
+  }
+}
+
 .mobileAllApps {
   color: #fff;
   font-size: 18px;
   padding: 10px;
+}
+
+.mobileCompanyLabel {
+  display: none;
 }
 
 .brandText {
@@ -421,6 +486,23 @@
     }
   }
 
+  .companyPanel {
+    align-items: center;
+    padding: 8px 0;
+    width: 42px;
+  }
+
+  .companyMeta,
+  .changeCompanyButton span {
+    display: none;
+  }
+
+  .changeCompanyButton {
+    align-self: center;
+    font-size: 16px;
+    padding: 4px;
+  }
+
   .sidebar {
     padding-left: 0;
     padding-right: 0;
@@ -566,6 +648,18 @@
     width: 34px;
   }
 
+  .mobileCompanyLabel {
+    color: rgba(255, 255, 255, 0.72);
+    display: block;
+    flex: 0 1 170px;
+    font-size: 10px;
+    line-height: 1.2;
+    overflow: hidden;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .mobileAvatar {
     align-items: center;
     background: #e8fbff;
@@ -628,6 +722,10 @@
     gap: 12px;
     justify-content: space-between;
     min-width: 0;
+  }
+
+  .mobileCompanyPanel {
+    flex: 0 0 auto;
   }
 
   .mobileCloseButton {
@@ -697,6 +795,10 @@
   .mobileDrawer {
     max-width: 88vw;
     width: 292px;
+  }
+
+  .mobileCompanyLabel {
+    display: none;
   }
 }
 

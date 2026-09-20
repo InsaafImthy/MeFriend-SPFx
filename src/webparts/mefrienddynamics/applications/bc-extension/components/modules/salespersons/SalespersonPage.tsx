@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { salespersonsModuleConfig } from '../../../config/modules/salespersonsModuleConfig';
-import type { IPaginationState } from '../../../../../shared/models/IPaginationState';
 import type { ISortState, SortDirection } from '../../../../../shared/models/ISortState';
+import { useCursorPagination } from '../../../../../shared/hooks/useCursorPagination';
 import type { ISalespersonFilters, ISalespersonListItem } from '../../../models/salespersons';
 import { getUserFriendlyError, normalizeError } from '../../../../../shared/api/apiErrorHandler';
 import type { SalespersonService } from '../../../services/salespersons/salespersonService';
@@ -12,8 +12,6 @@ export interface ISalespersonPageProps {
   salespersonService: SalespersonService;
   onNavigate: (path: string) => void;
 }
-
-const pageSize = 10;
 
 const toSalespersonFilters = (values: EntityFilterValues): ISalespersonFilters => ({
   searchText: typeof values.searchText === 'string' ? values.searchText : undefined,
@@ -36,11 +34,7 @@ export const SalespersonPage: React.FC<ISalespersonPageProps> = ({ salespersonSe
   const [items, setItems] = React.useState<readonly ISalespersonListItem[]>([]);
   const [filterValues, setFilterValues] = React.useState<EntityFilterValues>({});
   const [appliedFilterValues, setAppliedFilterValues] = React.useState<EntityFilterValues>({});
-  const [pagination, setPagination] = React.useState<IPaginationState>({
-    pageNumber: 1,
-    pageSize,
-    totalCount: 0
-  });
+  const { pagination, applyResult, changePage, reset } = useCursorPagination();
   const [sorting, setSorting] = React.useState<ISortState | undefined>();
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | undefined>();
@@ -52,19 +46,14 @@ export const SalespersonPage: React.FC<ISalespersonPageProps> = ({ salespersonSe
     try {
       const result = await salespersonService.getSalespersons(toSalespersonFilters(appliedFilterValues), pagination, sorting);
       setItems(result.items);
-      setPagination(current => ({
-        ...current,
-        pageNumber: result.pageNumber || current.pageNumber,
-        pageSize: result.pageSize || current.pageSize,
-        totalCount: result.totalCount || 0
-      }));
+      applyResult(result);
     } catch (loadError) {
       setItems([]);
       setError(getListErrorMessage(loadError));
     } finally {
       setLoading(false);
     }
-  }, [appliedFilterValues, pagination.pageNumber, pagination.pageSize, salespersonService, sorting]);
+  }, [appliedFilterValues, applyResult, pagination.currentToken, pagination.pageNumber, pagination.pageSize, salespersonService, sorting]);
 
   React.useEffect(() => {
     loadSalespersons().catch(() => undefined);
@@ -78,32 +67,23 @@ export const SalespersonPage: React.FC<ISalespersonPageProps> = ({ salespersonSe
   }, []);
 
   const handleFilterApply = React.useCallback((): void => {
-    setPagination(current => ({
-      ...current,
-      pageNumber: 1
-    }));
+    reset();
     setAppliedFilterValues(filterValues);
-  }, [filterValues]);
+  }, [filterValues, reset]);
 
   const handleFilterClear = React.useCallback((): void => {
     setFilterValues({});
     setAppliedFilterValues({});
-    setPagination(current => ({
-      ...current,
-      pageNumber: 1
-    }));
-  }, []);
+    reset();
+  }, [reset]);
 
   const handleSort = React.useCallback((fieldName: string, direction?: SortDirection): void => {
     setSorting(direction ? {
       fieldName,
       direction
     } : undefined);
-    setPagination(current => ({
-      ...current,
-      pageNumber: 1
-    }));
-  }, []);
+    reset();
+  }, [reset]);
 
   return (
     <EntityDashboard<ISalespersonListItem>
@@ -126,8 +106,8 @@ export const SalespersonPage: React.FC<ISalespersonPageProps> = ({ salespersonSe
       onFilterChange={handleFilterChange}
       onFilterApply={handleFilterApply}
       onFilterClear={handleFilterClear}
-      pagination={pagination}
-      onPageChange={pageNumber => setPagination(current => ({ ...current, pageNumber }))}
+      cursorPagination={pagination}
+      onPageChange={changePage}
       sorting={sorting}
       onSort={handleSort}
       getRowKey={(item, index) => item.id || item.salespersonCode || String(index)}

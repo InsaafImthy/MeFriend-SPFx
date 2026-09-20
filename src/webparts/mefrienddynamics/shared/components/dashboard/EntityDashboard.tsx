@@ -1,6 +1,7 @@
 import * as React from 'react';
 import type { IFilterConfig } from '../../models/IFilterConfig';
 import type { IPaginationState } from '../../models/IPaginationState';
+import type { ICursorPaginationState } from '../../models/IServerPagination';
 import type { ISortState, SortDirection } from '../../models/ISortState';
 import type { ITableColumn } from '../../models/ITableColumn';
 import { Button, ButtonVariant } from '../buttons/Button';
@@ -36,6 +37,7 @@ export interface IEntityDashboardProps<TItem> {
   onFilterApply?: () => void;
   onFilterClear?: () => void;
   pagination?: IPaginationState;
+  cursorPagination?: ICursorPaginationState;
   onPageChange?: (pageNumber: number) => void;
   sorting?: ISortState;
   onSort?: (fieldName: string, direction?: SortDirection) => void;
@@ -63,6 +65,7 @@ export const EntityDashboard = <TItem,>({
   onFilterApply,
   onFilterClear,
   pagination,
+  cursorPagination,
   onPageChange,
   sorting,
   onSort,
@@ -107,6 +110,7 @@ export const EntityDashboard = <TItem,>({
           emptyMessage={emptyMessage}
           sortState={sorting}
           paginationState={pagination}
+          cursorPaginationState={cursorPagination}
           onSort={onSort}
           onPageChange={onPageChange}
           onRowClick={onRowClick}

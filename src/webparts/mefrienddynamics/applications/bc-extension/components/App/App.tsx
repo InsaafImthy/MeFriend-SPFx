@@ -1,11 +1,14 @@
 import * as React from 'react';
 import type { IPortalApplicationProps } from '../../../../shared/models/IPortalApplicationProps';
 import { appConfig } from '../../config/appConfig';
+import { getBcCompanyLabel, getBcCompanyRequestHeaders, type BcCompany } from '../../config/bcCompanies';
+import { BcCompanyProvider, useBcCompany } from '../../context/BcCompanyContext';
 import { ErrorBoundary } from '../../../../shared/components/errorState/ErrorBoundary';
 import { AccessDenied } from '../../../../shared/components/errorState/AccessDenied';
 import { AppLoader } from '../../../../shared/components/loaders/AppLoader';
 import { ToastProvider } from '../../../../shared/components/toast/ToastProvider';
 import { AppLayout } from '../Layout/AppLayout';
+import { BcCompanySelector } from '../CompanySelector/BcCompanySelector';
 import { PlaceholderModulePage } from '../modules/PlaceholderModulePage';
 import { ApprovalDetailPage, MyApprovalsPage } from '../modules/approvals';
 import { CustomerCreatePage, CustomerDetailPage, CustomerPage, CustomerRequestDetailPage, CustomerRequestsPage } from '../modules/customers';
@@ -35,7 +38,12 @@ import { useAppAccess } from '../../hooks/useAppAccess';
 import { buildHashHref, resolveRoute } from '../../utils/routeUtils';
 import styles from './App.module.scss';
 
-export const App: React.FC<IPortalApplicationProps> = ({ aadHttpClientFactory, httpClient, onPortalNavigate, onPortalReady, pageContext, routePath, spHttpClient, userDisplayName }) => {
+interface IAppWorkspaceProps extends IPortalApplicationProps {
+  selectedCompany: BcCompany;
+  onChangeCompany: () => void;
+}
+
+const AppWorkspace: React.FC<IAppWorkspaceProps> = ({ aadHttpClientFactory, httpClient, onChangeCompany, onPortalNavigate, onPortalReady, pageContext, routePath, selectedCompany, spHttpClient, userDisplayName }) => {
   const [isLoading] = React.useState<boolean>(false);
   const sharePointWebAbsoluteUrl = appConfig.sharePointSettings.masterDataWebUrl;
   const apiClient = React.useMemo(() => {
@@ -50,8 +58,10 @@ export const App: React.FC<IPortalApplicationProps> = ({ aadHttpClientFactory, h
       }
     });
 
-    return new ApiClient(authClient);
-  }, [aadHttpClientFactory, httpClient]);
+    return new ApiClient(authClient, {
+      headerProvider: () => getBcCompanyRequestHeaders(selectedCompany)
+    });
+  }, [aadHttpClientFactory, httpClient, selectedCompany]);
   const customerService = React.useMemo(() => new CustomerService(apiClient), [apiClient]);
   const eventService = React.useMemo(() => new EventService(apiClient), [apiClient]);
   const invoiceService = React.useMemo(() => new InvoiceService(apiClient), [apiClient]);
@@ -283,7 +293,6 @@ export const App: React.FC<IPortalApplicationProps> = ({ aadHttpClientFactory, h
       return (
         <InvoicePage
           currentUser={access.currentAppUser}
-          itemMasterService={itemMasterService}
           invoiceService={invoiceService}
           salespersonService={salespersonService}
           onNavigate={handleNavigate}
@@ -296,9 +305,7 @@ export const App: React.FC<IPortalApplicationProps> = ({ aadHttpClientFactory, h
         <InvoiceDetailPage
           currentUser={access.currentAppUser}
           invoiceId={route.params.id || ''}
-          itemMasterService={itemMasterService}
           invoiceService={invoiceService}
-          salespersonService={salespersonService}
           onNavigate={handleNavigate}
         />
       );
@@ -351,10 +358,8 @@ export const App: React.FC<IPortalApplicationProps> = ({ aadHttpClientFactory, h
       return (
         <SalesOrderDetailPage
           currentUser={access.currentAppUser}
-          itemMasterService={itemMasterService}
           salesOrderId={route.params.id || ''}
           salesOrderService={salesOrderService}
-          salespersonService={salespersonService}
           onNavigate={handleNavigate}
         />
       );
@@ -381,10 +386,8 @@ export const App: React.FC<IPortalApplicationProps> = ({ aadHttpClientFactory, h
           canPostToBC={access.canPostToBC('salesOrders')}
           currentUserEmail={access.signedInEmail}
           currentUserId={access.currentAppUser?.userId}
-          itemMasterService={itemMasterService}
           requestId={route.params.id || ''}
           requestSubmissionService={requestSubmissionService}
-          salespersonService={salespersonService}
           onNavigate={handleNavigate}
         />
       );
@@ -445,7 +448,9 @@ export const App: React.FC<IPortalApplicationProps> = ({ aadHttpClientFactory, h
           <AppLayout
             activeRouteKey={route.key}
             canAccessModule={canAccessModule}
+            currentCompanyLabel={getBcCompanyLabel(selectedCompany)}
             onAllApplications={onPortalNavigate ? () => onPortalNavigate('apps') : undefined}
+            onChangeCompany={onChangeCompany}
             routeTransitionKey={`${route.key}:${routePath}`}
             userDisplayName={userDisplayName}
             onNavigate={handleNavigate}
@@ -468,3 +473,60 @@ export const App: React.FC<IPortalApplicationProps> = ({ aadHttpClientFactory, h
     </ErrorBoundary>
   );
 };
+
+const BcCompanyGate: React.FC<IPortalApplicationProps> = props => {
+  const { clearCompany, selectCompany, selectedCompany } = useBcCompany();
+  const [isChangingCompany, setIsChangingCompany] = React.useState<boolean>(false);
+
+  React.useEffect(() => {
+    if (!selectedCompany) {
+      props.onPortalReady?.();
+    }
+  }, [props.onPortalReady, selectedCompany]);
+
+  React.useEffect(() => {
+    if (isChangingCompany && selectedCompany && props.routePath === appConfig.defaultRoutePath) {
+      setIsChangingCompany(false);
+    }
+  }, [isChangingCompany, props.routePath, selectedCompany]);
+
+  const handleChangeCompany = React.useCallback((): void => {
+    setIsChangingCompany(true);
+    clearCompany();
+  }, [clearCompany]);
+
+  const handleEnterCompany = React.useCallback((company: BcCompany): void => {
+    if (isChangingCompany) {
+      window.location.hash = buildHashHref(appConfig.defaultRoutePath);
+    }
+
+    selectCompany(company);
+  }, [isChangingCompany, selectCompany]);
+
+  if (!selectedCompany) {
+    return (
+      <div className={styles.app}>
+        <BcCompanySelector
+          onBack={props.onPortalNavigate ? () => props.onPortalNavigate?.('apps') : undefined}
+          onEnter={handleEnterCompany}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <AppWorkspace
+      {...props}
+      key={selectedCompany.id}
+      onChangeCompany={handleChangeCompany}
+      routePath={isChangingCompany ? appConfig.defaultRoutePath : props.routePath}
+      selectedCompany={selectedCompany}
+    />
+  );
+};
+
+export const App: React.FC<IPortalApplicationProps> = props => (
+  <BcCompanyProvider>
+    <BcCompanyGate {...props} />
+  </BcCompanyProvider>
+);

@@ -24,19 +24,13 @@ export const useSalespersonFilter = (
   const [loading, setLoading] = React.useState<boolean>(true);
   const [errorMessage, setErrorMessage] = React.useState<string | undefined>();
 
-  React.useEffect(() => {
-    let isMounted = true;
-
-    const loadOptions = async (): Promise<void> => {
+  const loadOptions = React.useCallback(async (searchText?: string): Promise<void> => {
       setLoading(true);
       setErrorMessage(undefined);
 
       try {
-        const lookupItems = await salespersonService.getSalespersonLookup();
-
-        if (!isMounted) {
-          return;
-        }
+        const result = await salespersonService.getSalespersonLookup(searchText);
+        const lookupItems = result.items;
 
         const seenCodes = new Set<string>();
         const nextOptions = lookupItems.reduce<ILookupOption[]>((result, item) => {
@@ -66,10 +60,6 @@ export const useSalespersonFilter = (
 
         setOptions(nextOptions);
       } catch (lookupError) {
-        if (!isMounted) {
-          return;
-        }
-
         setOptions(restrictedSalespersonCode ? [{
           key: restrictedSalespersonCode,
           text: restrictedSalespersonCode,
@@ -77,27 +67,26 @@ export const useSalespersonFilter = (
         }] : []);
         setErrorMessage(getUserFriendlyError(lookupError));
       } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+        setLoading(false);
       }
-    };
-
-    loadOptions().catch(() => undefined);
-
-    return () => {
-      isMounted = false;
-    };
   }, [restrictedSalespersonCode, salespersonService]);
+
+  React.useEffect(() => {
+    loadOptions().catch(() => undefined);
+  }, [loadOptions]);
 
   const filters = React.useMemo(() => baseFilters.map(filter => filter.key === 'salespersonCode' ? {
     ...filter,
     options,
     disabled: isSalespersonRestricted,
     loading,
+    remoteSearch: !isSalespersonRestricted,
+    onSearch: isSalespersonRestricted ? undefined : (query: string) => {
+      loadOptions(query).catch(() => undefined);
+    },
     errorMessage,
     placeholder: options.length ? 'All' : 'No salespersons available'
-  } : filter), [baseFilters, errorMessage, isSalespersonRestricted, loading, options]);
+  } : filter), [baseFilters, errorMessage, isSalespersonRestricted, loadOptions, loading, options]);
 
   return {
     filters,

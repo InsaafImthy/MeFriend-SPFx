@@ -1,5 +1,6 @@
 import * as React from 'react';
 import type { IPaginationState } from '../../models/IPaginationState';
+import type { ICursorPaginationState } from '../../models/IServerPagination';
 import type { ISortState, SortDirection } from '../../models/ISortState';
 import type { ITableColumn, TableColumnAlign } from '../../models/ITableColumn';
 import { AmountDisplay } from '../amountDisplay/AmountDisplay';
@@ -34,6 +35,7 @@ export interface IEntityTableProps<TItem> {
   emptyMessage?: string;
   sortState?: ISortState;
   paginationState?: IPaginationState;
+  cursorPaginationState?: ICursorPaginationState;
   onSort?: (fieldName: string, direction?: SortDirection) => void;
   onPageChange?: (pageNumber: number) => void;
   onRowClick?: (item: TItem) => void;
@@ -380,6 +382,7 @@ export const EntityTable = <TItem,>({
   emptyMessage = 'There are no records to display.',
   sortState,
   paginationState,
+  cursorPaginationState,
   onSort,
   onPageChange,
   onRowClick,
@@ -633,7 +636,37 @@ export const EntityTable = <TItem,>({
           </tbody>
         </table>
       </div>
-      {paginationState ? (
+      {cursorPaginationState ? (
+        <div className={styles.pagination}>
+          <span className={styles.recordCount}>
+            Showing up to <strong>{formatNullFallback(cursorPaginationState.pageSize)}</strong> records
+          </span>
+          <nav aria-label="Table pagination" className={styles.pageActions}>
+            <button
+              aria-label="Previous page"
+              className={`${styles.pageButton} ${styles.cursorPageButton}`}
+              disabled={loading || cursorPaginationState.pageNumber <= 1}
+              onClick={() => onPageChange?.(cursorPaginationState.pageNumber - 1)}
+              type="button"
+            >
+              Previous
+            </button>
+            <span aria-current="page" className={styles.cursorPageLabel}>
+              Page {cursorPaginationState.pageNumber}
+            </span>
+            <button
+              aria-label="Next page"
+              className={`${styles.pageButton} ${styles.cursorPageButton}`}
+              disabled={loading || !cursorPaginationState.hasNext || !cursorPaginationState.nextToken}
+              onClick={() => onPageChange?.(cursorPaginationState.pageNumber + 1)}
+              type="button"
+            >
+              Next
+            </button>
+          </nav>
+          <span className={styles.paginationSpacer} aria-hidden="true" />
+        </div>
+      ) : paginationState ? (
         <div className={styles.pagination}>
           <span className={styles.recordCount}>
             Showing <strong>{formatNullFallback(firstRecord)}-{formatNullFallback(lastRecord)}</strong> of {formatNullFallback(totalRecords)} records

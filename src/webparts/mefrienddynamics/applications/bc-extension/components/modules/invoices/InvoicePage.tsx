@@ -1,13 +1,12 @@
 import * as React from 'react';
 import { invoicesModuleConfig } from '../../../config/modules/invoicesModuleConfig';
-import type { IPaginationState } from '../../../../../shared/models/IPaginationState';
 import type { ISortState, SortDirection } from '../../../../../shared/models/ISortState';
+import { useCursorPagination } from '../../../../../shared/hooks/useCursorPagination';
 import type { IInvoiceDetail, IInvoiceFilters, IInvoiceListItem, PaymentStatus } from '../../../models/invoices';
 import type { IAppUser } from '../../../models/settings/IAppAccessModels';
 import { getUserFriendlyError, normalizeError } from '../../../../../shared/api/apiErrorHandler';
 import type { InvoiceService } from '../../../services/invoices/invoiceService';
-import type { IItemMasterLookupItem, ItemMasterService } from '../../../services/itemMasters';
-import type { ISalespersonLookupItem, SalespersonService } from '../../../services/salespersons/salespersonService';
+import type { SalespersonService } from '../../../services/salespersons/salespersonService';
 import { useSalespersonFilter } from '../../../hooks/useSalespersonFilter';
 import { EntityDashboard } from '../../../../../shared/components/dashboard/EntityDashboard';
 import type { EntityFilterValues, FilterValue } from '../../../../../shared/components/filters/EntityFilters';
@@ -22,13 +21,10 @@ import {
 
 export interface IInvoicePageProps {
   currentUser?: IAppUser;
-  itemMasterService: ItemMasterService;
   invoiceService: InvoiceService;
   salespersonService: SalespersonService;
   onNavigate: (path: string) => void;
 }
-
-const pageSize = 10;
 
 interface IInvoiceDocumentAction {
   type: 'download' | 'print';
@@ -58,48 +54,15 @@ const getListErrorMessage = (error: unknown): string => {
   return getUserFriendlyError(normalizedError);
 };
 
-const findSalespersonName = (
-  salespersons: readonly ISalespersonLookupItem[],
-  salespersonValue?: string
-): string | undefined => {
-  const normalizedValue = (salespersonValue || '').trim().toLowerCase();
-
-  if (!normalizedValue) {
-    return undefined;
-  }
-
-  const matchingSalesperson = salespersons.find(item => item.code.trim().toLowerCase() === normalizedValue);
-
-  return matchingSalesperson?.name || undefined;
-};
-
-const findItemDescription = (
-  itemMasters: readonly IItemMasterLookupItem[],
-  itemCode?: string
-): string | undefined => {
-  const normalizedCode = (itemCode || '').trim().toLowerCase();
-
-  if (!normalizedCode) {
-    return undefined;
-  }
-
-  const matchingItem = itemMasters.find(item => item.number.trim().toLowerCase() === normalizedCode);
-
-  return matchingItem?.description || undefined;
-};
-
-const enrichInvoiceItemDescriptions = (
-  invoice: IInvoiceDetail,
-  itemMasters: readonly IItemMasterLookupItem[]
-): IInvoiceDetail => ({
+const normalizeInvoiceDescriptions = (invoice: IInvoiceDetail): IInvoiceDetail => ({
   ...invoice,
   lines: invoice.lines.map(line => ({
     ...line,
-    description: line.description || findItemDescription(itemMasters, line.itemCode) || line.itemCode || ''
+    description: line.description || line.itemCode || ''
   }))
 });
 
-export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, itemMasterService, invoiceService, salespersonService, onNavigate }) => {
+export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, invoiceService, salespersonService, onNavigate }) => {
   const toast = useToast();
   const { filters, restrictedSalespersonCode } = useSalespersonFilter(
     invoicesModuleConfig.filters || [],
@@ -110,35 +73,12 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, itemMast
   const [items, setItems] = React.useState<readonly IInvoiceListItem[]>([]);
   const [filterValues, setFilterValues] = React.useState<EntityFilterValues>(initialFilterValues);
   const [appliedFilterValues, setAppliedFilterValues] = React.useState<EntityFilterValues>(initialFilterValues);
-  const [pagination, setPagination] = React.useState<IPaginationState>({
-    pageNumber: 1,
-    pageSize,
-    totalCount: 0
-  });
+  const { pagination, applyResult, changePage, reset } = useCursorPagination();
   const [sorting, setSorting] = React.useState<ISortState | undefined>();
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | undefined>();
   const [documentAction, setDocumentAction] = React.useState<IInvoiceDocumentAction | undefined>();
   const documentActionsInProgress = React.useRef<Set<string>>(new Set());
-  const itemMasterLookupPromiseRef = React.useRef<Promise<readonly IItemMasterLookupItem[]> | undefined>();
-  const salespersonLookupPromiseRef = React.useRef<Promise<readonly ISalespersonLookupItem[]> | undefined>();
-
-  const getItemMasterLookup = React.useCallback((): Promise<readonly IItemMasterLookupItem[]> => {
-    if (!itemMasterLookupPromiseRef.current) {
-      itemMasterLookupPromiseRef.current = itemMasterService.getItemMasterLookup();
-    }
-
-    return itemMasterLookupPromiseRef.current;
-  }, [itemMasterService]);
-
-  const getSalespersonLookup = React.useCallback((): Promise<readonly ISalespersonLookupItem[]> => {
-    if (!salespersonLookupPromiseRef.current) {
-      salespersonLookupPromiseRef.current = salespersonService.getSalespersonLookup();
-    }
-
-    return salespersonLookupPromiseRef.current;
-  }, [salespersonService]);
-
   const loadInvoices = React.useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(undefined);
@@ -148,19 +88,14 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, itemMast
       const result = await invoiceService.getInvoices(filters, pagination, sorting, currentUser);
 
       setItems(result.items);
-      setPagination(current => ({
-        ...current,
-        pageNumber: result.pageNumber || current.pageNumber,
-        pageSize: result.pageSize || current.pageSize,
-        totalCount: result.totalCount || 0
-      }));
+      applyResult(result);
     } catch (loadError) {
       setItems([]);
       setError(getListErrorMessage(loadError));
     } finally {
       setLoading(false);
     }
-  }, [appliedFilterValues, currentUser, invoiceService, pagination.pageNumber, pagination.pageSize, sorting]);
+  }, [appliedFilterValues, applyResult, currentUser, invoiceService, pagination.currentToken, pagination.pageNumber, pagination.pageSize, sorting]);
 
   React.useEffect(() => {
     loadInvoices().catch(() => undefined);
@@ -187,35 +122,26 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, itemMast
   }, [currentUser?.isSalesperson]);
 
   const handleFilterApply = React.useCallback((): void => {
-    setPagination(current => ({
-      ...current,
-      pageNumber: 1
-    }));
+    reset();
     setAppliedFilterValues(restrictedSalespersonCode
       ? { ...filterValues, salespersonCode: restrictedSalespersonCode }
       : filterValues);
-  }, [filterValues, restrictedSalespersonCode]);
+  }, [filterValues, reset, restrictedSalespersonCode]);
 
   const handleFilterClear = React.useCallback((): void => {
     const clearedValues = restrictedSalespersonCode ? { salespersonCode: restrictedSalespersonCode } : {};
     setFilterValues(clearedValues);
     setAppliedFilterValues(clearedValues);
-    setPagination(current => ({
-      ...current,
-      pageNumber: 1
-    }));
-  }, [restrictedSalespersonCode]);
+    reset();
+  }, [reset, restrictedSalespersonCode]);
 
   const handleSort = React.useCallback((fieldName: string, direction?: SortDirection): void => {
     setSorting(direction ? {
       fieldName,
       direction
     } : undefined);
-    setPagination(current => ({
-      ...current,
-      pageNumber: 1
-    }));
-  }, []);
+    reset();
+  }, [reset]);
 
   const handlePrint = React.useCallback(async (item: IInvoiceListItem): Promise<void> => {
     const invoiceId = item.id || item.invoiceNumber;
@@ -230,16 +156,7 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, itemMast
 
     try {
       preview = openInvoicePrintPreviewWindow();
-      const invoice = await invoiceService.getInvoiceById(invoiceId, currentUser);
-      const [salespersons, itemMasters] = await Promise.all([
-        getSalespersonLookup().catch(() => []),
-        getItemMasterLookup().catch(() => [])
-      ]);
-      const salespersonName = findSalespersonName(salespersons, invoice.salespersonCode || invoice.salesPerson);
-      const invoiceWithItemDescriptions = enrichInvoiceItemDescriptions(invoice, itemMasters);
-      const printableInvoice = salespersonName
-        ? { ...invoiceWithItemDescriptions, salesPerson: salespersonName }
-        : invoiceWithItemDescriptions;
+      const printableInvoice = normalizeInvoiceDescriptions(await invoiceService.getInvoiceById(invoiceId, currentUser));
 
       await writeInvoicePrintPreview(preview, printableInvoice);
       await printInvoice(printableInvoice, preview);
@@ -253,7 +170,7 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, itemMast
       documentActionsInProgress.current.delete(invoiceId);
       setDocumentAction(undefined);
     }
-  }, [currentUser, getItemMasterLookup, getSalespersonLookup, invoiceService, toast]);
+  }, [currentUser, invoiceService, toast]);
 
   const handleDownload = React.useCallback(async (item: IInvoiceListItem): Promise<void> => {
     const invoiceId = item.id || item.invoiceNumber;
@@ -267,15 +184,7 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, itemMast
 
     try {
       const invoice = await invoiceService.getInvoiceById(invoiceId, currentUser);
-      const [salespersons, itemMasters] = await Promise.all([
-        getSalespersonLookup().catch(() => []),
-        getItemMasterLookup().catch(() => [])
-      ]);
-      const salespersonName = findSalespersonName(salespersons, invoice.salespersonCode || invoice.salesPerson);
-      const invoiceWithItemDescriptions = enrichInvoiceItemDescriptions(invoice, itemMasters);
-      const downloadableInvoice = salespersonName
-        ? { ...invoiceWithItemDescriptions, salesPerson: salespersonName }
-        : invoiceWithItemDescriptions;
+      const downloadableInvoice = normalizeInvoiceDescriptions(invoice);
 
       await downloadInvoicePdf(downloadableInvoice);
       toast.success('Invoice PDF download started.', { title: invoice.invoiceNumber || 'Invoice' });
@@ -285,7 +194,7 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, itemMast
       documentActionsInProgress.current.delete(invoiceId);
       setDocumentAction(undefined);
     }
-  }, [currentUser, getItemMasterLookup, getSalespersonLookup, invoiceService, toast]);
+  }, [currentUser, invoiceService, toast]);
 
   const outstandingOnlyActive = appliedFilterValues.outstandingOnly === true;
 
@@ -327,8 +236,8 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, itemMast
       onFilterChange={handleFilterChange}
       onFilterApply={handleFilterApply}
       onFilterClear={handleFilterClear}
-      pagination={pagination}
-      onPageChange={pageNumber => setPagination(current => ({ ...current, pageNumber }))}
+      cursorPagination={pagination}
+      onPageChange={changePage}
       sorting={sorting}
       onSort={handleSort}
       getRowKey={(item, index) => item.id || item.invoiceNumber || String(index)}

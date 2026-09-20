@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { eventsModuleConfig } from '../../../config/modules/eventsModuleConfig';
-import type { IPaginationState } from '../../../../../shared/models/IPaginationState';
 import type { ISortState, SortDirection } from '../../../../../shared/models/ISortState';
+import { useCursorPagination } from '../../../../../shared/hooks/useCursorPagination';
 import type { IEventFilters, IEventListItem } from '../../../models/events';
 import { getUserFriendlyError, normalizeError } from '../../../../../shared/api/apiErrorHandler';
 import type { EventService } from '../../../services/events/eventService';
@@ -12,8 +12,6 @@ export interface IEventPageProps {
   eventService: EventService;
   onNavigate: (path: string) => void;
 }
-
-const pageSize = 10;
 
 const toEventFilters = (values: EntityFilterValues): IEventFilters => ({
   searchText: typeof values.searchText === 'string' ? values.searchText : undefined,
@@ -34,11 +32,7 @@ export const EventPage: React.FC<IEventPageProps> = ({ eventService, onNavigate 
   const [items, setItems] = React.useState<readonly IEventListItem[]>([]);
   const [filterValues, setFilterValues] = React.useState<EntityFilterValues>({});
   const [appliedFilterValues, setAppliedFilterValues] = React.useState<EntityFilterValues>({});
-  const [pagination, setPagination] = React.useState<IPaginationState>({
-    pageNumber: 1,
-    pageSize,
-    totalCount: 0
-  });
+  const { pagination, applyResult, changePage, reset } = useCursorPagination();
   const [sorting, setSorting] = React.useState<ISortState | undefined>();
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | undefined>();
@@ -50,19 +44,14 @@ export const EventPage: React.FC<IEventPageProps> = ({ eventService, onNavigate 
     try {
       const result = await eventService.getEvents(toEventFilters(appliedFilterValues), pagination, sorting);
       setItems(result.items);
-      setPagination(current => ({
-        ...current,
-        pageNumber: result.pageNumber || current.pageNumber,
-        pageSize: result.pageSize || current.pageSize,
-        totalCount: result.totalCount || 0
-      }));
+      applyResult(result);
     } catch (loadError) {
       setItems([]);
       setError(getListErrorMessage(loadError));
     } finally {
       setLoading(false);
     }
-  }, [appliedFilterValues, eventService, pagination.pageNumber, pagination.pageSize, sorting]);
+  }, [appliedFilterValues, applyResult, eventService, pagination.currentToken, pagination.pageNumber, pagination.pageSize, sorting]);
 
   React.useEffect(() => {
     loadEvents().catch(() => undefined);
@@ -76,32 +65,23 @@ export const EventPage: React.FC<IEventPageProps> = ({ eventService, onNavigate 
   }, []);
 
   const handleFilterApply = React.useCallback((): void => {
-    setPagination(current => ({
-      ...current,
-      pageNumber: 1
-    }));
+    reset();
     setAppliedFilterValues(filterValues);
-  }, [filterValues]);
+  }, [filterValues, reset]);
 
   const handleFilterClear = React.useCallback((): void => {
     setFilterValues({});
     setAppliedFilterValues({});
-    setPagination(current => ({
-      ...current,
-      pageNumber: 1
-    }));
-  }, []);
+    reset();
+  }, [reset]);
 
   const handleSort = React.useCallback((fieldName: string, direction?: SortDirection): void => {
     setSorting(direction ? {
       fieldName,
       direction
     } : undefined);
-    setPagination(current => ({
-      ...current,
-      pageNumber: 1
-    }));
-  }, []);
+    reset();
+  }, [reset]);
 
   return (
     <EntityDashboard<IEventListItem>
@@ -121,8 +101,8 @@ export const EventPage: React.FC<IEventPageProps> = ({ eventService, onNavigate 
       onFilterChange={handleFilterChange}
       onFilterApply={handleFilterApply}
       onFilterClear={handleFilterClear}
-      pagination={pagination}
-      onPageChange={pageNumber => setPagination(current => ({ ...current, pageNumber }))}
+      cursorPagination={pagination}
+      onPageChange={changePage}
       sorting={sorting}
       onSort={handleSort}
       getRowKey={(item, index) => item.id || item.eventCode || String(index)}

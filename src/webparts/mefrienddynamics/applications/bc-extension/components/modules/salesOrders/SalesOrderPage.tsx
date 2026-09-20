@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { salesOrdersModuleConfig } from '../../../config/modules/salesOrdersModuleConfig';
-import type { IPaginationState } from '../../../../../shared/models/IPaginationState';
 import type { ISortState, SortDirection } from '../../../../../shared/models/ISortState';
+import { useCursorPagination } from '../../../../../shared/hooks/useCursorPagination';
 import type { ISalesOrderFilters, ISalesOrderListItem, SalesOrderStatus } from '../../../models/salesOrders';
 import type { IAppUser } from '../../../models/settings/IAppAccessModels';
 import { getUserFriendlyError, normalizeError } from '../../../../../shared/api/apiErrorHandler';
@@ -19,8 +19,6 @@ export interface ISalesOrderPageProps {
   salespersonService: SalespersonService;
   onNavigate: (path: string) => void;
 }
-
-const pageSize = 10;
 
 const toSalesOrderFilters = (values: EntityFilterValues): ISalesOrderFilters => ({
   searchText: typeof values.searchText === 'string' ? values.searchText : undefined,
@@ -58,11 +56,7 @@ export const SalesOrderPage: React.FC<ISalesOrderPageProps> = ({
   const [items, setItems] = React.useState<readonly ISalesOrderListItem[]>([]);
   const [filterValues, setFilterValues] = React.useState<EntityFilterValues>(initialFilterValues);
   const [appliedFilterValues, setAppliedFilterValues] = React.useState<EntityFilterValues>(initialFilterValues);
-  const [pagination, setPagination] = React.useState<IPaginationState>({
-    pageNumber: 1,
-    pageSize,
-    totalCount: 0
-  });
+  const { pagination, applyResult, changePage, reset } = useCursorPagination();
   const [sorting, setSorting] = React.useState<ISortState | undefined>();
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | undefined>();
@@ -79,19 +73,14 @@ export const SalesOrderPage: React.FC<ISalesOrderPageProps> = ({
         currentUser
       );
       setItems(result.items);
-      setPagination(current => ({
-        ...current,
-        pageNumber: result.pageNumber || current.pageNumber,
-        pageSize: result.pageSize || current.pageSize,
-        totalCount: result.totalCount || 0
-      }));
+      applyResult(result);
     } catch (loadError) {
       setItems([]);
       setError(getListErrorMessage(loadError));
     } finally {
       setLoading(false);
     }
-  }, [appliedFilterValues, currentUser, pagination.pageNumber, pagination.pageSize, salesOrderService, sorting]);
+  }, [appliedFilterValues, applyResult, currentUser, pagination.currentToken, pagination.pageNumber, pagination.pageSize, salesOrderService, sorting]);
 
   React.useEffect(() => {
     loadSalesOrders().catch(() => undefined);
@@ -118,35 +107,26 @@ export const SalesOrderPage: React.FC<ISalesOrderPageProps> = ({
   }, [currentUser?.isSalesperson]);
 
   const handleFilterApply = React.useCallback((): void => {
-    setPagination(current => ({
-      ...current,
-      pageNumber: 1
-    }));
+    reset();
     setAppliedFilterValues(restrictedSalespersonCode
       ? { ...filterValues, salespersonCode: restrictedSalespersonCode }
       : filterValues);
-  }, [filterValues, restrictedSalespersonCode]);
+  }, [filterValues, reset, restrictedSalespersonCode]);
 
   const handleFilterClear = React.useCallback((): void => {
     const clearedValues = restrictedSalespersonCode ? { salespersonCode: restrictedSalespersonCode } : {};
     setFilterValues(clearedValues);
     setAppliedFilterValues(clearedValues);
-    setPagination(current => ({
-      ...current,
-      pageNumber: 1
-    }));
-  }, [restrictedSalespersonCode]);
+    reset();
+  }, [reset, restrictedSalespersonCode]);
 
   const handleSort = React.useCallback((fieldName: string, direction?: SortDirection): void => {
     setSorting(direction ? {
       fieldName,
       direction
     } : undefined);
-    setPagination(current => ({
-      ...current,
-      pageNumber: 1
-    }));
-  }, []);
+    reset();
+  }, [reset]);
 
   return (
     <EntityDashboard<ISalesOrderListItem>
@@ -169,8 +149,8 @@ export const SalesOrderPage: React.FC<ISalesOrderPageProps> = ({
       onFilterChange={handleFilterChange}
       onFilterApply={handleFilterApply}
       onFilterClear={handleFilterClear}
-      pagination={pagination}
-      onPageChange={pageNumber => setPagination(current => ({ ...current, pageNumber }))}
+      cursorPagination={pagination}
+      onPageChange={changePage}
       sorting={sorting}
       onSort={handleSort}
       getRowKey={(item, index) => item.id || item.salesOrderNumber || String(index)}

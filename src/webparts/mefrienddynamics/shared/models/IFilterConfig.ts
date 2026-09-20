@@ -9,6 +9,8 @@ export interface IFilterConfig<TValue = unknown> {
   options?: readonly ILookupOption[];
   defaultValue?: TValue;
   searchable?: boolean;
+  remoteSearch?: boolean;
+  onSearch?: (query: string) => void;
   disabled?: boolean;
   loading?: boolean;
   errorMessage?: string;

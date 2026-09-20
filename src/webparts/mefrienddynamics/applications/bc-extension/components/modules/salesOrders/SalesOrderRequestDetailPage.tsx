@@ -2,8 +2,6 @@ import * as React from 'react';
 import { salesOrdersModuleConfig } from '../../../config/modules/salesOrdersModuleConfig';
 import type { IBCIntegrationQueueItem, ISalesOrderRequestDetailResult } from '../../../models/requests';
 import { getUserFriendlyError } from '../../../../../shared/api/apiErrorHandler';
-import type { ItemMasterService } from '../../../services/itemMasters';
-import type { SalespersonService } from '../../../services/salespersons/salespersonService';
 import type { BCIntegrationQueueService } from '../../../services/sharepoint/bcIntegrationQueueService';
 import type { RequestSubmissionService } from '../../../services/sharepoint/requestSubmissionService';
 import { Button } from '../../../../../shared/components/buttons/Button';
@@ -17,10 +15,8 @@ export interface ISalesOrderRequestDetailPageProps {
   canPostToBC?: boolean;
   currentUserEmail?: string;
   currentUserId?: number;
-  itemMasterService: ItemMasterService;
   requestId: string;
   requestSubmissionService: RequestSubmissionService;
-  salespersonService: SalespersonService;
   onNavigate: (path: string) => void;
 }
 
@@ -34,10 +30,8 @@ export const SalesOrderRequestDetailPage: React.FC<ISalesOrderRequestDetailPageP
   canPostToBC = false,
   currentUserEmail = '',
   currentUserId,
-  itemMasterService,
   requestId,
   requestSubmissionService,
-  salespersonService,
   onNavigate
 }) => {
   const toast = useToast();
@@ -59,19 +53,14 @@ export const SalesOrderRequestDetailPage: React.FC<ISalesOrderRequestDetailPageP
         { sharePointUserId: currentUserId, email: currentUserEmail },
         canManageSalesOrderRequests
       );
-      const [itemMasters, salespersons] = await Promise.all([
-        itemMasterService.getItemMasterLookup().catch(() => []),
-        salespersonService.getSalespersonLookup().catch(() => [])
-      ]);
       setDetail(result);
-      setItemDescriptionByCode(itemMasters.reduce<Record<string, string>>((itemsByCode, item) => {
-        itemsByCode[normalizeLookupKey(item.number)] = item.description;
+      setItemDescriptionByCode(result.lines.reduce<Record<string, string>>((itemsByCode, line) => {
+        itemsByCode[normalizeLookupKey(line.itemCode)] = line.description || line.itemCode;
         return itemsByCode;
       }, {}));
-      setSalespersonNameByCode(salespersons.reduce<Record<string, string>>((salespersonsByCode, salesperson) => {
-        salespersonsByCode[normalizeLookupKey(salesperson.code)] = salesperson.name;
-        return salespersonsByCode;
-      }, {}));
+      setSalespersonNameByCode({
+        [normalizeLookupKey(result.request.salespersonCode)]: result.request.salespersonName || result.request.salespersonCode
+      });
 
       if (bcIntegrationQueueService) {
         setQueueHistory(await bcIntegrationQueueService.getQueueHistory('SalesOrder', result.request.id));
@@ -85,7 +74,7 @@ export const SalesOrderRequestDetailPage: React.FC<ISalesOrderRequestDetailPageP
     } finally {
       setLoading(false);
     }
-  }, [bcIntegrationQueueService, canManageSalesOrderRequests, currentUserEmail, currentUserId, itemMasterService, requestId, requestSubmissionService, salespersonService]);
+  }, [bcIntegrationQueueService, canManageSalesOrderRequests, currentUserEmail, currentUserId, requestId, requestSubmissionService]);
 
   React.useEffect(() => {
     loadDetail().catch(() => undefined);

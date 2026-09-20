@@ -17,6 +17,7 @@ import type { ApprovalProcessingService } from '../../../services/sharepoint/app
 import type { MasterDataService } from '../../../services/sharepoint/masterDataService';
 import type { RequestSubmissionService } from '../../../services/sharepoint/requestSubmissionService';
 import { normalizeBusinessDate } from '../../../../../shared/utilities/formatUtils';
+import { createCursorPaginationState } from '../../../../../shared/utilities/serverPagination';
 import type { EntityFormErrors, EntityFormValue, EntityFormValues } from '../../../../../shared/utilities/validationUtils';
 import { hasValidationErrors, validateFormValues } from '../../../../../shared/utilities/validationUtils';
 import { Button } from '../../../../../shared/components/buttons/Button';
@@ -56,7 +57,6 @@ interface ISalesOrderLineFormItem extends LineItemRecord {
   remarks?: string;
 }
 
-const eventLookupPageSize = 100;
 type InvoiceDiscountMode = 'amount' | 'percent';
 
 const getStringValue = (values: EntityFormValues, key: keyof ISalesOrderCreateFormState): string => {
@@ -284,7 +284,7 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
       try {
         const [customers, events, itemMasters, salespersons, states] = await Promise.all([
           customerService.getCustomerLookup(),
-          eventService.getEvents({}, { pageNumber: 1, pageSize: eventLookupPageSize }),
+          eventService.getEvents({}, createCursorPaginationState()),
           itemMasterService.getItemMasterLookup(),
           salespersonService.getSalespersonLookup(),
           masterDataService.getCodes('stateCodes')
@@ -294,11 +294,11 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
           return;
         }
 
-        setCustomerOptions(toCustomerOptions(customers));
+        setCustomerOptions(toCustomerOptions(customers.items));
         setEventOptions(toEventOptions(events.items));
-        setItemMasters(itemMasters);
-        setItemMasterOptions(toItemMasterOptions(itemMasters));
-        setSalespersonOptions(toSalespersonOptions(salespersons));
+        setItemMasters(itemMasters.items);
+        setItemMasterOptions(toItemMasterOptions(itemMasters.items));
+        setSalespersonOptions(toSalespersonOptions(salespersons.items));
         setStateOptions(toMasterCodeOptions(states));
       } catch (error) {
         if (isMounted) {
@@ -392,18 +392,45 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
     };
   }, [approvalEditRequestId, requestSubmissionService, resubmitRequestId, toast]);
 
+  const searchCustomers = React.useCallback((query: string): void => {
+    customerService.getCustomerLookup(query)
+      .then(result => setCustomerOptions(toCustomerOptions(result.items)))
+      .catch(error => toast.error(getUserFriendlyError(error), { title: 'Unable to search customers' }));
+  }, [customerService, toast]);
+
+  const searchEvents = React.useCallback((query: string): void => {
+    eventService.getEvents({ searchText: query }, createCursorPaginationState())
+      .then(result => setEventOptions(toEventOptions(result.items)))
+      .catch(error => toast.error(getUserFriendlyError(error), { title: 'Unable to search events' }));
+  }, [eventService, toast]);
+
+  const searchItems = React.useCallback((query: string): void => {
+    itemMasterService.getItemMasterLookup(query)
+      .then(result => {
+        setItemMasters(result.items);
+        setItemMasterOptions(toItemMasterOptions(result.items));
+      })
+      .catch(error => toast.error(getUserFriendlyError(error), { title: 'Unable to search items' }));
+  }, [itemMasterService, toast]);
+
+  const searchSalespersons = React.useCallback((query: string): void => {
+    salespersonService.getSalespersonLookup(query)
+      .then(result => setSalespersonOptions(toSalespersonOptions(result.items)))
+      .catch(error => toast.error(getUserFriendlyError(error), { title: 'Unable to search salespersons' }));
+  }, [salespersonService, toast]);
+
   const fields = React.useMemo<readonly IFormFieldConfig[]>(() => {
     return (salesOrdersModuleConfig.formFields || []).map(field => {
       if (field.key === 'customerCode' || field.key === 'billToCustomerCode') {
-        return { ...field, options: customerOptions, disabled: lookupLoading };
+        return { ...field, options: customerOptions, disabled: lookupLoading, remoteSearch: true, onSearch: searchCustomers };
       }
 
       if (field.key === 'eventCode') {
-        return { ...field, options: eventOptions, disabled: lookupLoading };
+        return { ...field, options: eventOptions, disabled: lookupLoading, remoteSearch: true, onSearch: searchEvents };
       }
 
       if (field.key === 'salespersonCode') {
-        return { ...field, options: salespersonOptions, disabled: lookupLoading };
+        return { ...field, options: salespersonOptions, disabled: lookupLoading, remoteSearch: true, onSearch: searchSalespersons };
       }
 
       if (field.key === 'stateCode') {
@@ -412,7 +439,7 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
 
       return field;
     });
-  }, [customerOptions, eventOptions, lookupLoading, salespersonOptions, stateOptions]);
+  }, [customerOptions, eventOptions, lookupLoading, salespersonOptions, searchCustomers, searchEvents, searchSalespersons, stateOptions]);
 
   const lineDirty = lines.length > 0 || hasInvoiceDiscount;
   const isDirty = headerDirty || lineDirty;
@@ -430,15 +457,17 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
     if (changedKey === 'itemCode') {
       const itemPrice = itemMasterPriceByNumber[item.itemCode.trim().toLowerCase()];
       if (typeof itemPrice === 'number') {
+        const selectedItem = itemMasters.find(master => master.number.trim().toLowerCase() === item.itemCode.trim().toLowerCase());
         return calculateLine({
           ...item,
+          description: selectedItem?.description || item.description,
           unitPrice: itemPrice
         });
       }
     }
 
     return calculateLine(item);
-  }, [itemMasterPriceByNumber]);
+  }, [itemMasterPriceByNumber, itemMasters]);
 
   const lineItemFields = React.useMemo<readonly IFormFieldConfig[]>(() => {
     return (salesOrderLineItemFields as readonly IFormFieldConfig[]).map(field => {
@@ -447,13 +476,15 @@ export const SalesOrderCreatePage: React.FC<ISalesOrderCreatePageProps> = ({
           ...field,
           disabled: lookupLoading,
           options: itemMasterOptions,
+          remoteSearch: true,
+          onSearch: searchItems,
           placeholder: lookupLoading ? 'Loading items...' : 'Select item'
         };
       }
 
       return field;
     });
-  }, [itemMasterOptions, lookupLoading]);
+  }, [itemMasterOptions, lookupLoading, searchItems]);
 
   const handleCancel = React.useCallback((): void => {
     if (isDirty) {

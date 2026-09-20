@@ -6,8 +6,6 @@ import type { IInvoiceDetail, IInvoiceLineItem, IInvoicePaymentRecord } from '..
 import type { IAppUser } from '../../../models/settings/IAppAccessModels';
 import { getUserFriendlyError, normalizeError } from '../../../../../shared/api/apiErrorHandler';
 import type { InvoiceService } from '../../../services/invoices/invoiceService';
-import type { IItemMasterLookupItem, ItemMasterService } from '../../../services/itemMasters';
-import type { ISalespersonLookupItem, SalespersonService } from '../../../services/salespersons/salespersonService';
 import type { EntityFormValues } from '../../../../../shared/utilities/validationUtils';
 import { EntityDetailPage, EntityDetailSection } from '../../../../../shared/components/detailPage/EntityDetailPage';
 import { FinancialSummaryCards } from '../../../../../shared/components/financialSummary/FinancialSummaryCards';
@@ -17,52 +15,15 @@ import { RelatedRecordsSection } from '../../../../../shared/components/relatedR
 export interface IInvoiceDetailPageProps {
   currentUser?: IAppUser;
   invoiceId: string;
-  itemMasterService: ItemMasterService;
   invoiceService: InvoiceService;
-  salespersonService: SalespersonService;
   onNavigate: (path: string) => void;
 }
 
-const normalizeLookupKey = (value?: string): string => (value || '').trim().toLowerCase();
-
-const findSalespersonName = (
-  salespersons: readonly ISalespersonLookupItem[],
-  salespersonValue?: string
-): string | undefined => {
-  const normalizedValue = normalizeLookupKey(salespersonValue);
-
-  if (!normalizedValue) {
-    return undefined;
-  }
-
-  const matchingSalesperson = salespersons.find(item => normalizeLookupKey(item.code) === normalizedValue);
-
-  return matchingSalesperson?.name || undefined;
-};
-
-const findItemDescription = (
-  itemMasters: readonly IItemMasterLookupItem[],
-  itemCode?: string
-): string | undefined => {
-  const normalizedCode = normalizeLookupKey(itemCode);
-
-  if (!normalizedCode) {
-    return undefined;
-  }
-
-  const matchingItem = itemMasters.find(item => normalizeLookupKey(item.number) === normalizedCode);
-
-  return matchingItem?.description || undefined;
-};
-
-const enrichInvoiceItemDescriptions = (
-  invoice: IInvoiceDetail,
-  itemMasters: readonly IItemMasterLookupItem[]
-): IInvoiceDetail => ({
+const normalizeInvoiceDescriptions = (invoice: IInvoiceDetail): IInvoiceDetail => ({
   ...invoice,
   lines: invoice.lines.map(line => ({
     ...line,
-    description: line.description || findItemDescription(itemMasters, line.itemCode) || line.itemCode || ''
+    description: line.description || line.itemCode || ''
   }))
 });
 
@@ -120,9 +81,8 @@ const getDetailErrorMessage = (error: unknown): string => {
   return getUserFriendlyError(normalizedError);
 };
 
-export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ currentUser, invoiceId, itemMasterService, invoiceService, salespersonService, onNavigate }) => {
+export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ currentUser, invoiceId, invoiceService, onNavigate }) => {
   const [invoice, setInvoice] = React.useState<IInvoiceDetail | undefined>();
-  const [salespersonDisplayName, setSalespersonDisplayName] = React.useState<string>('');
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | undefined>();
   const handleBack = React.useCallback((): void => {
@@ -136,16 +96,9 @@ export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ currentUs
 
       try {
         const detail = await invoiceService.getInvoiceById(invoiceId, currentUser);
-        const [salespersons, itemMasters] = await Promise.all([
-          salespersonService.getSalespersonLookup().catch(() => []),
-          itemMasterService.getItemMasterLookup().catch(() => [])
-        ]);
-
-        setInvoice(enrichInvoiceItemDescriptions(detail, itemMasters));
-        setSalespersonDisplayName(findSalespersonName(salespersons, detail.salesPerson) || detail.salesPerson || '');
+        setInvoice(normalizeInvoiceDescriptions(detail));
       } catch (loadError) {
         setInvoice(undefined);
-        setSalespersonDisplayName('');
         setError(getDetailErrorMessage(loadError));
       } finally {
         setLoading(false);
@@ -153,7 +106,7 @@ export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ currentUs
     };
 
     loadInvoice().catch(() => undefined);
-  }, [currentUser, invoiceId, itemMasterService, invoiceService, salespersonService]);
+  }, [currentUser, invoiceId, invoiceService]);
 
   const invoiceHeaderValues = React.useMemo<EntityFormValues>(
     () => ({
@@ -176,9 +129,9 @@ export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ currentUs
       clientName: invoice?.clientName || '',
       clientAddress: invoice?.clientAddress || '',
       clientGSTNo: invoice?.clientGSTNo || '',
-      salesPerson: salespersonDisplayName || invoice?.salesPerson || ''
+      salesPerson: invoice?.salesPerson || ''
     }),
-    [invoice, salespersonDisplayName]
+    [invoice]
   );
 
   const invoiceReferenceValues = React.useMemo<EntityFormValues>(

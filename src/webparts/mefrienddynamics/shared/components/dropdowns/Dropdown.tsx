@@ -11,6 +11,7 @@ export interface IDropdownProps<TValue = string> {
   values?: readonly TValue[];
   options: readonly ILookupOption<TValue>[];
   searchable?: boolean;
+  remoteSearch?: boolean;
   multiSelect?: boolean;
   required?: boolean;
   disabled?: boolean;
@@ -18,6 +19,7 @@ export interface IDropdownProps<TValue = string> {
   readOnly?: boolean;
   errorMessage?: string;
   onChange?: (value: TValue | readonly TValue[] | undefined) => void;
+  onSearch?: (query: string) => void;
   placeholder?: string;
   showOptionDetails?: boolean;
   showSelectedDetail?: boolean;
@@ -31,6 +33,7 @@ export const Dropdown = <TValue extends string | number = string>({
   values = [],
   options,
   searchable = false,
+  remoteSearch = false,
   multiSelect = false,
   required = false,
   disabled = false,
@@ -38,6 +41,7 @@ export const Dropdown = <TValue extends string | number = string>({
   readOnly = false,
   errorMessage,
   onChange,
+  onSearch,
   placeholder = 'Select',
   showOptionDetails = false,
   showSelectedDetail = false,
@@ -57,6 +61,8 @@ export const Dropdown = <TValue extends string | number = string>({
   const searchRef = React.useRef<HTMLInputElement | null>(null);
   const optionListRef = React.useRef<HTMLDivElement | null>(null);
   const closeTimerRef = React.useRef<number | undefined>(undefined);
+  const searchTimerRef = React.useRef<number | undefined>(undefined);
+  const lastRemoteQueryRef = React.useRef<string>('');
 
   const getOptionKeyByValue = (optionValue?: TValue): string => {
     const matchingOption = options.filter(option => String(option.value) === String(optionValue))[0];
@@ -75,7 +81,7 @@ export const Dropdown = <TValue extends string | number = string>({
     option.detailText,
     String(option.value)
   ].filter(Boolean).join(' ').toLowerCase();
-  const filteredOptions = searchable && query
+  const filteredOptions = searchable && query && !remoteSearch
     ? options.filter(option => getSearchableOptionText(option).indexOf(query.trim().toLowerCase()) !== -1)
     : options;
   const optionLayoutKey = filteredOptions
@@ -170,7 +176,33 @@ export const Dropdown = <TValue extends string | number = string>({
     if (closeTimerRef.current) {
       window.clearTimeout(closeTimerRef.current);
     }
+    if (searchTimerRef.current) {
+      window.clearTimeout(searchTimerRef.current);
+    }
   }, []);
+
+  React.useEffect(() => {
+    if (!remoteSearch || !onSearch || !isMenuVisible || query === lastRemoteQueryRef.current) {
+      return undefined;
+    }
+
+    if (searchTimerRef.current) {
+      window.clearTimeout(searchTimerRef.current);
+    }
+
+    searchTimerRef.current = window.setTimeout(() => {
+      lastRemoteQueryRef.current = query;
+      onSearch(query);
+      searchTimerRef.current = undefined;
+    }, 300);
+
+    return () => {
+      if (searchTimerRef.current) {
+        window.clearTimeout(searchTimerRef.current);
+        searchTimerRef.current = undefined;
+      }
+    };
+  }, [isMenuVisible, onSearch, query, remoteSearch]);
 
   React.useEffect(() => {
     if (!isMenuVisible) {

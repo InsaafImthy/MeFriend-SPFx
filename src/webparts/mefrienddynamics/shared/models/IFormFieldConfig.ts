@@ -33,6 +33,9 @@ export interface IFormFieldConfig<TValue = unknown> {
   readOnly?: boolean;
   disabled?: boolean;
   searchable?: boolean;
+  remoteSearch?: boolean;
+  loading?: boolean;
+  onSearch?: (query: string) => void;
   hidden?: boolean;
   section?: string;
 }

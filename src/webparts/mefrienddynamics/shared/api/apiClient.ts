@@ -9,13 +9,22 @@ import type {
   RequestOptions
 } from './apiTypes';
 
+export type RequestHeaderProvider = () => Readonly<Record<string, string>> | undefined;
+
+export interface IApiClientOptions {
+  baseUrl?: string;
+  headerProvider?: RequestHeaderProvider;
+}
+
 export class ApiClient {
   private readonly authClient: AuthClient;
   private readonly baseUrl: string;
+  private readonly headerProvider?: RequestHeaderProvider;
 
-  public constructor(authClient: AuthClient, baseUrl?: string) {
+  public constructor(authClient: AuthClient, options?: string | IApiClientOptions) {
     this.authClient = authClient;
-    this.baseUrl = baseUrl || authClient.getBaseUrl();
+    this.baseUrl = (typeof options === 'string' ? options : options?.baseUrl) || authClient.getBaseUrl();
+    this.headerProvider = typeof options === 'string' ? undefined : options?.headerProvider;
   }
 
   public get<TResponse>(url: string, queryParams?: QueryParams): Promise<ApiResponse<TResponse>> {
@@ -102,9 +111,13 @@ export class ApiClient {
   ): Promise<ApiResponse<TResponse>> {
     try {
       const requestUrl = this.buildUrl(url, options.queryParams);
+      const contextualHeaders = this.headerProvider?.();
       const response = await this.authClient.request(requestUrl, {
         method,
-        headers: options.headers,
+        headers: {
+          ...contextualHeaders,
+          ...options.headers
+        },
         body: body === undefined ? undefined : JSON.stringify(body)
       });
 

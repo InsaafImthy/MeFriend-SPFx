@@ -34,6 +34,8 @@ export const EntityFilters: React.FC<IEntityFiltersProps> = ({ filters, values, 
           value={typeof values[filter.key] === 'string' ? String(values[filter.key]) : undefined}
           options={filter.options || []}
           searchable={filter.searchable}
+          remoteSearch={filter.remoteSearch}
+          onSearch={filter.onSearch}
           disabled={loading || filter.disabled}
           loading={filter.loading}
           errorMessage={filter.errorMessage}

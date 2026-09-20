@@ -297,18 +297,17 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
     loadSettings().catch(() => undefined);
   }, [loadSettings]);
 
-  React.useEffect(() => {
+  const loadSalespersonOptions = React.useCallback(async (searchText?: string): Promise<void> => {
     if (!canManageUsers) {
       return;
     }
 
-    const loadSalespersonOptions = async (): Promise<void> => {
       setSalespersonLookupLoading(true);
       setSalespersonLookupError(undefined);
 
       try {
-        const lookupItems = await salespersonService.getSalespersonLookup();
-        setSalespersonOptions(lookupItems.map(item => ({
+        const result = await salespersonService.getSalespersonLookup(searchText);
+        setSalespersonOptions(result.items.map(item => ({
           key: item.code,
           text: item.code,
           value: normalizeSalespersonCode(item.code),
@@ -322,10 +321,11 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
       } finally {
         setSalespersonLookupLoading(false);
       }
-    };
-
-    loadSalespersonOptions().catch(() => undefined);
   }, [canManageUsers, salespersonService]);
+
+  React.useEffect(() => {
+    loadSalespersonOptions().catch(() => undefined);
+  }, [loadSalespersonOptions]);
 
   React.useEffect(() => {
     if (visibleSections.length && !visibleSections.some(section => section.key === activeSectionKey)) {
@@ -1122,10 +1122,12 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
               label="Salesperson Code"
               loading={salespersonLookupLoading}
               onChange={value => setUserForm(current => ({ ...current, salespersonCode: typeof value === 'string' ? value : '' }))}
+              onSearch={query => loadSalespersonOptions(query).catch(() => undefined)}
               options={salespersonOptions}
               placeholder="Select salesperson"
               required
               searchable
+              remoteSearch
               showSelectedDetail
               value={userForm.salespersonCode}
             />

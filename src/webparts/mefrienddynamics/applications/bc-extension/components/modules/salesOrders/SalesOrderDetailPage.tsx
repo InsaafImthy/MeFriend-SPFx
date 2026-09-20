@@ -10,9 +10,7 @@ import type {
 } from '../../../models/salesOrders';
 import type { IAppUser } from '../../../models/settings/IAppAccessModels';
 import { getUserFriendlyError, normalizeError } from '../../../../../shared/api/apiErrorHandler';
-import type { ItemMasterService } from '../../../services/itemMasters';
 import type { SalesOrderService } from '../../../services/salesOrders/salesOrderService';
-import type { ISalespersonLookupItem, SalespersonService } from '../../../services/salespersons/salespersonService';
 import type { EntityFormValues } from '../../../../../shared/utilities/validationUtils';
 import { EntityDetailPage, EntityDetailSection } from '../../../../../shared/components/detailPage/EntityDetailPage';
 import { FinancialSummaryCards } from '../../../../../shared/components/financialSummary/FinancialSummaryCards';
@@ -20,33 +18,15 @@ import { ReadOnlyEntityForm } from '../../../../../shared/components/forms/ReadO
 import { RelatedRecordsSection } from '../../../../../shared/components/relatedRecords/RelatedRecordsSection';
 
 export interface ISalesOrderDetailPageProps {
-  itemMasterService: ItemMasterService;
   salesOrderId: string;
   currentUser?: IAppUser;
   salesOrderService: SalesOrderService;
-  salespersonService: SalespersonService;
   onNavigate: (path: string) => void;
 }
 
 type DescriptionByCode = Readonly<Record<string, string>>;
 
 const normalizeLookupKey = (value?: string): string => (value || '').trim().toLowerCase();
-
-const findSalespersonName = (
-  salespersons: readonly ISalespersonLookupItem[],
-  salespersonCode?: string,
-  fallbackName?: string
-): string => {
-  const normalizedCode = normalizeLookupKey(salespersonCode);
-
-  if (!normalizedCode) {
-    return fallbackName || '';
-  }
-
-  const matchingSalesperson = salespersons.find(item => normalizeLookupKey(item.code) === normalizedCode);
-
-  return matchingSalesperson?.name || fallbackName || salespersonCode || '';
-};
 
 const getItemDescription = (
   item: Pick<ISalesOrderLineItem, 'description' | 'itemCode'>,
@@ -183,11 +163,9 @@ const getRelatedInvoicesErrorMessage = (error: unknown): string => {
 };
 
 export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
-  itemMasterService,
   salesOrderId,
   currentUser,
   salesOrderService,
-  salespersonService,
   onNavigate
 }) => {
   const [salesOrder, setSalesOrder] = React.useState<ISalesOrderDetail | undefined>();
@@ -209,15 +187,11 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
 
       try {
         const detail = await salesOrderService.getSalesOrderById(salesOrderId, currentUser);
-        const [salespersons, itemMasters] = await Promise.all([
-          salespersonService.getSalespersonLookup().catch(() => []),
-          itemMasterService.getItemMasterLookup().catch(() => [])
-        ]);
         setSalesOrder(detail);
         setRelatedInvoices(detail.relatedInvoices || []);
-        setSalespersonDisplayName(findSalespersonName(salespersons, detail.salespersonCode, detail.salespersonName));
-        setItemDescriptionByCode(itemMasters.reduce<Record<string, string>>((itemsByCode, item) => {
-          itemsByCode[normalizeLookupKey(item.number)] = item.description;
+        setSalespersonDisplayName(detail.salespersonName || detail.salespersonCode || '');
+        setItemDescriptionByCode(detail.lines.reduce<Record<string, string>>((itemsByCode, item) => {
+          itemsByCode[normalizeLookupKey(item.itemCode)] = item.description || item.itemCode;
           return itemsByCode;
         }, {}));
       } catch (loadError) {
@@ -232,7 +206,7 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
     };
 
     loadSalesOrder().catch(() => undefined);
-  }, [currentUser, itemMasterService, salesOrderId, salesOrderService, salespersonService]);
+  }, [currentUser, salesOrderId, salesOrderService]);
 
   React.useEffect(() => {
     if (!salesOrder || !salesOrderId) {

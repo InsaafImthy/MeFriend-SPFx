@@ -62,12 +62,14 @@ const renderField = (
         options={field.options || []}
         required={field.required}
         disabled={sharedDisabled}
-        loading={lookupLoading}
+        loading={lookupLoading || field.loading}
         readOnly={sharedReadOnly}
         errorMessage={errorMessage}
         onChange={nextValue => setValue(field.key, typeof nextValue === 'string' || typeof nextValue === 'number' ? nextValue : undefined)}
         placeholder={field.placeholder || 'Select'}
         searchable={field.searchable || field.type === 'lookup'}
+        remoteSearch={field.remoteSearch}
+        onSearch={field.onSearch}
         showOptionDetails={field.type === 'lookup'}
         showSelectedDetail={field.type === 'lookup'}
       />
