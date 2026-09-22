@@ -1,6 +1,5 @@
 import mefriendLogo from '../../../../../shared/assets/unnamed.png';
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import type { PDFFont, PDFImage, PDFPage } from 'pdf-lib';
+import html2pdf from 'html2pdf.js';
 import type { IInvoiceDetail, IInvoiceLineItem } from '../../../models/invoices';
 import { formatAmount, formatDate } from '../../../../../shared/utilities/formatUtils';
 
@@ -27,8 +26,18 @@ interface IInvoicePrintWindow extends Window {
 
 interface IInvoiceHtmlOptions {
   autoPrint?: boolean;
+  downloadMode?: boolean;
   showPreviewBar?: boolean;
 }
+
+const invoicePageMargins = {
+  top: 15,
+  bottom: 8,
+  horizontal: 16.5
+} as const;
+
+const invoicePageWidth = 210;
+const invoiceContentWidth = invoicePageWidth - (invoicePageMargins.horizontal * 2);
 
 let embeddedLogoSrcPromise: Promise<string> | undefined;
 
@@ -204,7 +213,7 @@ const waitForInvoiceAssetsScript = (): string => `
 
 const buildStyles = (): string => `
   @page {
-    margin: 15mm 16.5mm 8mm;
+    margin: ${invoicePageMargins.top}mm ${invoicePageMargins.horizontal}mm ${invoicePageMargins.bottom}mm;
     size: A4 portrait;
   }
 
@@ -622,6 +631,37 @@ const buildStyles = (): string => `
     }
   }
 
+  body.invoiceDownload {
+    background: #ffffff;
+    min-width: 0;
+    overflow: visible;
+    padding: 0;
+    width: ${invoiceContentWidth}mm;
+  }
+
+  body.invoiceDownload .previewBar {
+    display: none;
+  }
+
+  body.invoiceDownload .page {
+    box-shadow: none;
+    margin: 0;
+    min-height: 0;
+    padding: 0;
+    width: ${invoiceContentWidth}mm;
+  }
+
+  body.invoiceDownload tr,
+  body.invoiceDownload .summaryRows,
+  body.invoiceDownload .footerArea {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body.invoiceDownload.multiPage .continuedHeaderRow {
+    display: table-row;
+  }
+
   @media print {
     html,
     body {
@@ -677,6 +717,7 @@ export const buildInvoicePrintHtml = (
   const subTotal = grossAmount - invoiceDiscountAmount;
   const pageModeClass = resolvePageModeClass(invoice);
   const autoPrint = options.autoPrint !== false;
+  const downloadMode = options.downloadMode === true;
   const showPreviewBar = options.showPreviewBar !== false;
 
   return `<!doctype html>
@@ -711,7 +752,7 @@ ${waitForInvoiceAssetsScript()}
     }());
   </script>` : ''}
 </head>
-<body class="${pageModeClass}">
+<body class="${pageModeClass}${downloadMode ? ' invoiceDownload' : ''}">
   ${showPreviewBar ? `<div class="previewBar">
     <button type="button" onclick="window.openSystemPrintDialog()">Print Invoice</button>
   </div>` : ''}
@@ -843,394 +884,143 @@ const sanitizeFileName = (value: string): string => normalizeFileName(value)
 
 const getInvoicePdfFileName = (invoice: IInvoiceDetail): string => `Invoice_${sanitizeFileName(invoice.invoiceNumber)}.pdf`;
 
-interface IPdfSourceImage {
-  bytes: Uint8Array;
-  mimeType: 'image/jpeg' | 'image/png';
-}
+const waitForDocumentAssets = async (invoiceDocument: Document): Promise<void> => {
+  const images = Array.from(invoiceDocument.images || []);
 
-const toPdfText = (value?: string | number): string => String(value ?? '')
-  .replace(/[^\x20-\x7E\r\n]/g, ' ')
-  .replace(/[ \t]+/g, ' ')
-  .trim();
-
-const wrapPdfText = (font: PDFFont, value: string, size: number, maxWidth: number): string[] => {
-  const paragraphs = toPdfText(value).split(/\r?\n/);
-  const lines: string[] = [];
-
-  paragraphs.forEach(paragraph => {
-    const words = paragraph.split(/\s+/).filter(Boolean);
-
-    if (!words.length) {
-      lines.push('');
-      return;
+  await Promise.all(images.map(image => {
+    if (image.complete) {
+      return Promise.resolve();
     }
 
-    let line = '';
-    words.forEach(word => {
-      const candidate = line ? `${line} ${word}` : word;
-
-      if (font.widthOfTextAtSize(candidate, size) <= maxWidth) {
-        line = candidate;
-        return;
-      }
-
-      if (line) {
-        lines.push(line);
-        line = '';
-      }
-
-      let fragment = '';
-      Array.prototype.forEach.call(word, (character: string) => {
-        const nextFragment = `${fragment}${character}`;
-
-        if (fragment && font.widthOfTextAtSize(nextFragment, size) > maxWidth) {
-          lines.push(fragment);
-          fragment = character;
-        } else {
-          fragment = nextFragment;
-        }
-      });
-      line = fragment;
+    return new Promise<void>(resolve => {
+      image.addEventListener('load', () => resolve(), { once: true });
+      image.addEventListener('error', () => resolve(), { once: true });
     });
+  }));
 
-    if (line) {
-      lines.push(line);
+  if (invoiceDocument.fonts) {
+    await invoiceDocument.fonts.ready;
+  }
+
+  const invoiceWindow = invoiceDocument.defaultView;
+  if (invoiceWindow) {
+    await new Promise<void>(resolve => {
+      invoiceWindow.requestAnimationFrame(() => {
+        invoiceWindow.requestAnimationFrame(() => resolve());
+      });
+    });
+  }
+};
+
+const cloneWithComputedStyles = (source: HTMLElement): HTMLElement => {
+  const clone = source.cloneNode(true) as HTMLElement;
+  const sourceWindow = source.ownerDocument.defaultView;
+
+  if (!sourceWindow) {
+    return clone;
+  }
+
+  const sourceElements = [source, ...Array.from(source.querySelectorAll<HTMLElement>('*'))];
+  const clonedElements = [clone, ...Array.from(clone.querySelectorAll<HTMLElement>('*'))];
+
+  sourceElements.forEach((sourceElement, elementIndex) => {
+    const clonedElement = clonedElements[elementIndex];
+    const computedStyle = sourceWindow.getComputedStyle(sourceElement);
+
+    clonedElement.style.cssText = '';
+    for (let propertyIndex = 0; propertyIndex < computedStyle.length; propertyIndex += 1) {
+      const propertyName = computedStyle.item(propertyIndex);
+      clonedElement.style.setProperty(
+        propertyName,
+        computedStyle.getPropertyValue(propertyName),
+        computedStyle.getPropertyPriority(propertyName)
+      );
     }
   });
 
-  return lines.length ? lines : [''];
+  return clone;
 };
 
-const readPdfSourceImage = async (source?: string): Promise<IPdfSourceImage | undefined> => {
-  const normalizedSource = String(source || '').trim();
+const createInvoiceDownloadFrame = async (invoice: IInvoiceDetail): Promise<HTMLIFrameElement> => {
+  const logoSrc = await resolveEmbeddedLogoSrc();
+  const frame = document.createElement('iframe');
 
-  if (!normalizedSource) {
-    return undefined;
+  frame.setAttribute('aria-hidden', 'true');
+  frame.style.cssText = [
+    'border:0',
+    'height:297mm',
+    'left:-10000px',
+    'opacity:0',
+    'pointer-events:none',
+    'position:fixed',
+    'top:0',
+    `width:${invoicePageWidth}mm`
+  ].join(';');
+  document.body.appendChild(frame);
+
+  const invoiceDocument = frame.contentDocument;
+  if (!invoiceDocument) {
+    frame.remove();
+    throw new Error('Unable to create the invoice PDF document.');
   }
 
-  const dataMatch = /^data:(image\/(?:png|jpe?g));base64,(.+)$/i.exec(normalizedSource);
+  invoiceDocument.open();
+  invoiceDocument.write(buildInvoicePrintHtml(invoice, logoSrc, {
+    autoPrint: false,
+    downloadMode: true,
+    showPreviewBar: false
+  }));
+  invoiceDocument.close();
 
-  if (dataMatch) {
-    const binary = window.atob(dataMatch[2]);
-    const bytes = new Uint8Array(binary.length);
+  await waitForDocumentAssets(invoiceDocument);
+  return frame;
+};
 
-    for (let index = 0; index < binary.length; index += 1) {
-      bytes[index] = binary.charCodeAt(index);
-    }
-
-    return {
-      bytes,
-      mimeType: dataMatch[1].toLowerCase() === 'image/png' ? 'image/png' : 'image/jpeg'
-    };
-  }
-
-  if (/^data:/i.test(normalizedSource)) {
-    return undefined;
-  }
+const renderInvoiceHtmlToPdf = async (invoice: IInvoiceDetail): Promise<void> => {
+  const frame = await createInvoiceDownloadFrame(invoice);
 
   try {
-    const response = await fetch(resolveAbsoluteAssetUrl(normalizedSource), { credentials: 'same-origin' });
-
-    if (!response.ok) {
-      return undefined;
+    const invoicePage = frame.contentDocument?.querySelector<HTMLElement>('.page');
+    if (!invoicePage) {
+      throw new Error('Unable to render the invoice PDF document.');
     }
 
-    const blob = await response.blob();
-    const mimeType = blob.type.toLowerCase();
-
-    if (mimeType !== 'image/png' && mimeType !== 'image/jpeg' && mimeType !== 'image/jpg') {
-      return undefined;
-    }
-
-    return {
-      bytes: new Uint8Array(await blob.arrayBuffer()),
-      mimeType: mimeType === 'image/png' ? 'image/png' : 'image/jpeg'
-    };
-  } catch {
-    return undefined;
-  }
-};
-
-const embedPdfImage = async (pdfDocument: PDFDocument, source?: string): Promise<PDFImage | undefined> => {
-  const image = await readPdfSourceImage(source);
-
-  if (!image) {
-    return undefined;
-  }
-
-  try {
-    return image.mimeType === 'image/png'
-      ? await pdfDocument.embedPng(image.bytes)
-      : await pdfDocument.embedJpg(image.bytes);
-  } catch {
-    return undefined;
-  }
-};
-
-const saveBlob = (blob: Blob, fileName: string): void => {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-
-  link.download = fileName;
-  link.href = url;
-  link.style.display = 'none';
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 0);
-};
-
-const buildInvoicePdf = async (invoice: IInvoiceDetail): Promise<Uint8Array> => {
-  const pdfDocument = await PDFDocument.create();
-  pdfDocument.setTitle(getInvoicePdfFileName(invoice));
-  pdfDocument.setCreator(companyName);
-  pdfDocument.setProducer('MeFriend Invoice Portal');
-  const regularFont = await pdfDocument.embedFont(StandardFonts.Helvetica);
-  const boldFont = await pdfDocument.embedFont(StandardFonts.HelveticaBold);
-  const logoImage = await embedPdfImage(pdfDocument, mefriendLogo);
-  const qrCodeData = invoice.qrCodeData || '';
-  const qrImage = /^(data:image\/|https?:\/\/)/i.test(qrCodeData)
-    ? await embedPdfImage(pdfDocument, qrCodeData)
-    : undefined;
-  const pageWidth = 595.28;
-  const pageHeight = 841.89;
-  const margin = 42;
-  const contentWidth = pageWidth - (margin * 2);
-  const borderColor = rgb(0.45, 0.45, 0.45);
-  const grayFill = rgb(0.9, 0.9, 0.9);
-  const black = rgb(0.09, 0.09, 0.09);
-  let page!: PDFPage;
-  let y = pageHeight - margin;
-
-  const drawText = (
-    value: string | number | undefined,
-    x: number,
-    top: number,
-    options: { bold?: boolean; color?: ReturnType<typeof rgb>; maxWidth?: number; size?: number } = {}
-  ): number => {
-    const font = options.bold ? boldFont : regularFont;
-    const size = options.size || 8;
-    const lineHeight = size * 1.22;
-    const lines = options.maxWidth
-      ? wrapPdfText(font, String(value ?? ''), size, options.maxWidth)
-      : [toPdfText(value)];
-
-    lines.forEach((line, index) => {
-      page.drawText(line, {
-        color: options.color || black,
-        font,
-        size,
-        x,
-        y: top - size - (index * lineHeight)
-      });
-    });
-
-    return lines.length * lineHeight;
-  };
-
-  const drawRow = (
-    values: readonly string[],
-    widths: readonly number[],
-    height: number,
-    options: { alignRight?: readonly number[]; bold?: boolean; fill?: ReturnType<typeof rgb>; size?: number; textColor?: ReturnType<typeof rgb> } = {}
-  ): void => {
-    let x = margin;
-    const rowBottom = y - height;
-
-    values.forEach((value, index) => {
-      const width = widths[index];
-      page.drawRectangle({
-        borderColor,
-        borderWidth: 0.6,
-        color: options.fill,
-        height,
-        width,
-        x,
-        y: rowBottom
-      });
-      const font = options.bold ? boldFont : regularFont;
-      const size = options.size || 7;
-      const padding = 4;
-      const maxWidth = width - (padding * 2);
-      const maxLines = Math.max(1, Math.floor((height - (padding * 2)) / (size * 1.18)));
-      const wrapped = wrapPdfText(font, value, size, maxWidth).slice(0, maxLines);
-
-      if (wrapped.length === maxLines && wrapped.join(' ') !== toPdfText(value)) {
-        const lastIndex = wrapped.length - 1;
-        let shortened = wrapped[lastIndex];
-        while (shortened && font.widthOfTextAtSize(`${shortened}...`, size) > maxWidth) {
-          shortened = shortened.slice(0, -1);
-        }
-        wrapped[lastIndex] = `${shortened}...`;
+    const renderedInvoice = cloneWithComputedStyles(invoicePage);
+    const options = {
+      enableLinks: false,
+      filename: getInvoicePdfFileName(invoice),
+      image: {
+        quality: 1,
+        type: 'png' as const
+      },
+      html2canvas: {
+        backgroundColor: '#ffffff',
+        logging: false,
+        scale: 2,
+        useCORS: true
+      },
+      jsPDF: {
+        compress: true,
+        format: 'a4',
+        orientation: 'portrait' as const,
+        unit: 'mm'
+      },
+      margin: [
+        invoicePageMargins.top,
+        invoicePageMargins.horizontal,
+        invoicePageMargins.bottom,
+        invoicePageMargins.horizontal
+      ] as [number, number, number, number],
+      pagebreak: {
+        avoid: ['tr', '.summaryRows', '.footerArea'],
+        mode: ['css', 'legacy']
       }
+    };
 
-      wrapped.forEach((line, lineIndex) => {
-        const rightAligned = options.alignRight?.indexOf(index) !== -1;
-        const textWidth = font.widthOfTextAtSize(line, size);
-        page.drawText(line, {
-          color: options.textColor || black,
-          font,
-          size,
-          x: rightAligned ? x + width - padding - textWidth : x + padding,
-          y: y - padding - size - (lineIndex * size * 1.18)
-        });
-      });
-      x += width;
-    });
-    y = rowBottom;
-  };
-
-  const drawPageHeading = (continued: boolean): void => {
-    page = pdfDocument.addPage([pageWidth, pageHeight]);
-    y = pageHeight - margin;
-    drawText(companyName, margin, y, { bold: true, size: 12 });
-    y -= 18;
-    companyAddress.forEach(line => {
-      drawText(line, margin, y, { size: 7.5 });
-      y -= 10;
-    });
-
-    if (logoImage) {
-      const logoSize = logoImage.scaleToFit(44, 44);
-      page.drawImage(logoImage, {
-        height: logoSize.height,
-        width: logoSize.width,
-        x: pageWidth - margin - logoSize.width,
-        y: pageHeight - margin - logoSize.height
-      });
-    }
-    drawText('mefriend', pageWidth - margin - 70, pageHeight - margin - 49, { bold: true, color: rgb(0.33, 0.26, 0.58), size: 10 });
-    y -= 16;
-    const title = continued ? `TAX INVOICE - CONTINUED (${invoice.invoiceNumber})` : 'TAX INVOICE';
-    const titleWidth = boldFont.widthOfTextAtSize(title, 13);
-    drawText(title, (pageWidth - titleWidth) / 2, y, { bold: true, size: 13 });
-    y -= 24;
-  };
-
-  const lineWidths = [30, 165, 55, 55, 45, 75, 86];
-  const drawLineHeader = (): void => {
-    drawRow(
-      ['Sl. No.', 'Description', 'HSN/SAC', 'GST Rate', 'Quantity', 'Rate', 'Amount (INR)'],
-      lineWidths,
-      27,
-      { bold: true, size: 6.7 }
-    );
-  };
-
-  drawPageHeading(false);
-  drawRow(
-    [`Invoice No : ${invoice.invoiceNumber}`, `Invoice Date : ${formatPrintDate(invoice.invoiceDate)}`],
-    [contentWidth / 2, contentWidth / 2],
-    24,
-    { bold: true, size: 7.5 }
-  );
-  drawRow(['Bill To', 'Ship To'], [contentWidth / 2, contentWidth / 2], 21, { bold: true, fill: grayFill, size: 8 });
-  drawRow([
-    `Name : ${invoice.customerName || ''}\nAddress : ${invoice.customerAddress || ''}\nGSTIN : ${invoice.customerGSTNo || ''}\nGST State : ${invoice.customerGSTState || ''}`,
-    `Name : ${invoice.clientName || ''}\nAddress : ${invoice.clientAddress || ''}\nGSTIN : ${invoice.clientGSTNo || ''}\nGST State : ${invoice.clientGSTState || ''}`
-  ], [contentWidth / 2, contentWidth / 2], 74, { size: 7.2 });
-  drawRow([
-    `Sales Person : ${invoice.salesPerson || ''}`,
-    `Booking Order No : ${invoice.salesOrderNumber || ''}\nBooking Order Date : ${formatPrintDate(invoice.salesOrderDate)}`
-  ], [contentWidth / 2, contentWidth / 2], 34, { bold: true, fill: grayFill, size: 7.2 });
-  y -= 10;
-  drawLineHeader();
-
-  invoice.lines.forEach((line, index) => {
-    const descriptionLines = wrapPdfText(regularFont, line.description, 7, lineWidths[1] - 8).length;
-    const rowHeight = Math.min(180, Math.max(22, 9 + (descriptionLines * 8.3)));
-
-    if (y - rowHeight < 62) {
-      drawPageHeading(true);
-      drawLineHeader();
-    }
-
-    drawRow([
-      String(index + 1),
-      line.description,
-      line.hsnCode || '',
-      line.gstRate || '',
-      formatQty(line.quantity),
-      formatMoney(line.unitPrice),
-      formatMoney(line.lineAmount)
-    ], lineWidths, rowHeight, { alignRight: [5, 6], size: 7 });
-  });
-
-  const grossAmount = invoice.netAmount ?? invoice.lines.reduce((total, line) => total + line.lineAmount, 0);
-  const invoiceDiscountAmount = invoice.invoiceDiscountAmountExclVat ?? invoice.tradeDiscount ?? 0;
-  const summaryRows: Array<[string, string]> = [
-    ['Gross Amount', formatMoney(grossAmount)],
-    [`Invoice Discount${invoice.invoiceDiscountPercent !== undefined ? ` (${invoice.invoiceDiscountPercent}%)` : ''}`, formatMoney(invoiceDiscountAmount)],
-    ['Sub Total', formatMoney(grossAmount - invoiceDiscountAmount)],
-    ['SGST', formatMoney(invoice.sgst)],
-    ['CGST', formatMoney(invoice.cgst)],
-    ['IGST', formatMoney(invoice.igst)],
-    ['Round Off', formatMoney(invoice.roundOffAmount)],
-    ['Grand Total', formatMoney(invoice.totalAmount)]
-  ];
-
-  if (y < 420) {
-    drawPageHeading(true);
+    await html2pdf().set(options).from(renderedInvoice).save();
+  } finally {
+    frame.remove();
   }
-
-  summaryRows.forEach(([label, value], index) => {
-    const isGrandTotal = index === summaryRows.length - 1;
-    drawRow([label, value], [contentWidth - 86, 86], 18, {
-      alignRight: [0, 1],
-      bold: isGrandTotal,
-      fill: isGrandTotal ? black : undefined,
-      size: 7,
-      textColor: isGrandTotal ? rgb(1, 1, 1) : black
-    });
-  });
-
-  y -= 10;
-  const qrSize = 64;
-  const amountBoxWidth = contentWidth - qrSize - 10;
-  page.drawRectangle({ color: grayFill, height: qrSize, width: amountBoxWidth, x: margin, y: y - qrSize });
-  drawText(`Amount in Words: ${resolveAmountInWords(invoice)}`, margin + 6, y - 6, { bold: true, maxWidth: amountBoxWidth - 12, size: 7.5 });
-
-  if (qrImage) {
-    const scaledQr = qrImage.scaleToFit(qrSize, qrSize);
-    page.drawImage(qrImage, {
-      height: scaledQr.height,
-      width: scaledQr.width,
-      x: pageWidth - margin - scaledQr.width,
-      y: y - scaledQr.height
-    });
-  } else if (qrCodeData && !/^(data:image\/|https?:\/\/)/i.test(qrCodeData)) {
-    page.drawRectangle({ borderColor, borderWidth: 0.6, height: qrSize, width: qrSize, x: pageWidth - margin - qrSize, y: y - qrSize });
-    drawText(qrCodeData, pageWidth - margin - qrSize + 4, y - 5, { maxWidth: qrSize - 8, size: 5 });
-  }
-
-  y -= qrSize + 12;
-  drawText('Bank Account Details', margin, y, { bold: true, size: 8.5 });
-  drawText(`IRN : ${invoice.irn || ''}`, margin + 250, y, { bold: true, maxWidth: contentWidth - 250, size: 7 });
-  y -= 13;
-  bankDetails.forEach((detail, index) => {
-    drawText(detail, margin, y - (index * 10), { size: 7.5 });
-  });
-  drawText(`Ack No : ${invoice.acknowledgementNumber || ''}`, margin + 250, y, { bold: true, maxWidth: contentWidth - 250, size: 7 });
-  drawText(`Ack Date : ${formatPrintDate(invoice.acknowledgementDate)}`, margin + 250, y - 14, { bold: true, maxWidth: contentWidth - 250, size: 7 });
-  y -= 58;
-  drawText('Payment Terms: All payments are to be made in favor of Mefriend Business Solutions LLP through Crossed Cheques / Demand Drafts / Direct Bank Transfer.', margin, y, { maxWidth: contentWidth, size: 7.2 });
-  y -= 34;
-  const signatory = 'For Mefriend Business Solutions LLP';
-  drawText(signatory, pageWidth - margin - boldFont.widthOfTextAtSize(signatory, 8), y, { bold: true, size: 8 });
-  drawText('Authorised Signatory', pageWidth - margin - boldFont.widthOfTextAtSize('Authorised Signatory', 8), y - 30, { bold: true, size: 8 });
-
-  pdfDocument.getPages().forEach((pdfPage, index, pages) => {
-    const pageLabel = `Page ${index + 1} of ${pages.length}`;
-    pdfPage.drawText(pageLabel, {
-      color: borderColor,
-      font: regularFont,
-      size: 7,
-      x: pageWidth - margin - regularFont.widthOfTextAtSize(pageLabel, 7),
-      y: 20
-    });
-  });
-
-  return pdfDocument.save();
 };
 
 export const openInvoicePrintPreviewWindow = (): Window => {
@@ -1296,8 +1086,7 @@ export const printInvoice = async (invoice: IInvoiceDetail, preview?: Window): P
 };
 
 export const downloadInvoicePdf = async (invoice: IInvoiceDetail): Promise<void> => {
-  const pdfBytes = await buildInvoicePdf(invoice);
-  saveBlob(new Blob([pdfBytes], { type: 'application/pdf' }), getInvoicePdfFileName(invoice));
+  await renderInvoiceHtmlToPdf(invoice);
 };
 
 export const writeInvoicePrintError = (preview: Window, message: string): void => {
