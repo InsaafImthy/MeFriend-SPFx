@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { bcCompanies, type BcCompany } from '../config/bcCompanies';
+import { isBcCompanyAuthorized } from '../config/companyAccess';
 
 export const bcSelectedCompanyStorageKey = 'mefriend.bc.selectedCompanyId';
 
@@ -34,20 +35,33 @@ const getSessionStorage = (): IBcCompanyStorage | undefined => {
   }
 };
 
-export const restoreBcCompany = (storage: IBcCompanyStorage | undefined = getSessionStorage()): BcCompany | undefined => {
+export const restoreBcCompany = (
+  storage: IBcCompanyStorage | undefined = getSessionStorage(),
+  availableCompanies: readonly BcCompany[] = bcCompanies,
+  selectFallback: boolean = false
+): BcCompany | undefined => {
   if (!storage) {
-    return undefined;
+    return selectFallback && availableCompanies.length === 1 ? availableCompanies[0] : undefined;
   }
 
   try {
     const storedCompanyId = storage.getItem(bcSelectedCompanyStorageKey);
     if (storedCompanyId === undefined) {
-      return undefined;
+      const soleCompany = selectFallback && availableCompanies.length === 1 ? availableCompanies[0] : undefined;
+      if (soleCompany) {
+        storage.setItem(bcSelectedCompanyStorageKey, soleCompany.id);
+      }
+      return soleCompany;
     }
 
-    const company = bcCompanies.filter(item => item.id === storedCompanyId)[0];
+    const company = availableCompanies.filter(item => item.id === storedCompanyId)[0];
     if (!company) {
       storage.removeItem(bcSelectedCompanyStorageKey);
+      const fallbackCompany = selectFallback ? availableCompanies[0] : undefined;
+      if (fallbackCompany) {
+        storage.setItem(bcSelectedCompanyStorageKey, fallbackCompany.id);
+      }
+      return fallbackCompany;
     }
 
     return company;
@@ -77,18 +91,34 @@ export const persistBcCompany = (
 
 const BcCompanyContext = React.createContext<IBcCompanyContextValue | undefined>(undefined);
 
-export const BcCompanyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [selectedCompany, setSelectedCompany] = React.useState<BcCompany | undefined>(restoreBcCompany);
+export interface IBcCompanyProviderProps {
+  authorizedCompanies: readonly BcCompany[];
+  children: React.ReactNode;
+}
+
+export const BcCompanyProvider: React.FC<IBcCompanyProviderProps> = ({ authorizedCompanies, children }) => {
+  const [selectedCompany, setSelectedCompany] = React.useState<BcCompany | undefined>(() =>
+    restoreBcCompany(getSessionStorage(), authorizedCompanies, true)
+  );
 
   const selectCompany = React.useCallback((company: BcCompany): void => {
-    const configuredCompany = bcCompanies.filter(item => item.id === company.id)[0];
+    const configuredCompany = authorizedCompanies.filter(item => item.id === company.id)[0];
     if (!configuredCompany) {
-      throw new Error('The selected Business Central company is not configured.');
+      console.warn(`Rejected unauthorized Business Central company selection: ${company.id}`);
+      return;
     }
 
     persistBcCompany(configuredCompany);
     setSelectedCompany(configuredCompany);
-  }, []);
+  }, [authorizedCompanies]);
+
+  React.useEffect(() => {
+    if (selectedCompany && !isBcCompanyAuthorized(selectedCompany, authorizedCompanies)) {
+      const fallbackCompany = authorizedCompanies[0];
+      persistBcCompany(fallbackCompany);
+      setSelectedCompany(fallbackCompany);
+    }
+  }, [authorizedCompanies, selectedCompany]);
 
   const clearCompany = React.useCallback((): void => {
     persistBcCompany(undefined);

@@ -1,7 +1,8 @@
 import * as React from 'react';
 import type { IPortalApplicationProps } from '../../../../shared/models/IPortalApplicationProps';
 import { appConfig } from '../../config/appConfig';
-import { getBcCompanyLabel, getBcCompanyRequestHeaders, type BcCompany } from '../../config/bcCompanies';
+import { bcCompanies, getBcCompanyLabel, getBcCompanyRequestHeaders, type BcCompany } from '../../config/bcCompanies';
+import { filterAuthorizedBcCompanies } from '../../config/companyAccess';
 import { BcCompanyProvider, useBcCompany } from '../../context/BcCompanyContext';
 import { ErrorBoundary } from '../../../../shared/components/errorState/ErrorBoundary';
 import { AccessDenied } from '../../../../shared/components/errorState/AccessDenied';
@@ -34,16 +35,18 @@ import { BCIntegrationQueueService } from '../../services/sharepoint/bcIntegrati
 import { CustomerRequestService } from '../../services/sharepoint/customerRequestService';
 import { RequestSubmissionService } from '../../services/sharepoint/requestSubmissionService';
 import { SalesOrderRequestService } from '../../services/sharepoint/salesOrderRequestService';
-import { useAppAccess } from '../../hooks/useAppAccess';
+import { useAppAccess, type IUseAppAccessResult } from '../../hooks/useAppAccess';
 import { buildHashHref, resolveRoute } from '../../utils/routeUtils';
 import styles from './App.module.scss';
 
 interface IAppWorkspaceProps extends IPortalApplicationProps {
+  access: IUseAppAccessResult;
+  appAccessService: AppAccessService;
   selectedCompany: BcCompany;
   onChangeCompany: () => void;
 }
 
-const AppWorkspace: React.FC<IAppWorkspaceProps> = ({ aadHttpClientFactory, httpClient, onChangeCompany, onPortalNavigate, onPortalReady, pageContext, routePath, selectedCompany, spHttpClient, userDisplayName }) => {
+const AppWorkspace: React.FC<IAppWorkspaceProps> = ({ aadHttpClientFactory, access, appAccessService, httpClient, onChangeCompany, onPortalNavigate, pageContext, routePath, selectedCompany, spHttpClient, userDisplayName }) => {
   const [isLoading] = React.useState<boolean>(false);
   const sharePointWebAbsoluteUrl = appConfig.sharePointSettings.masterDataWebUrl;
   const apiClient = React.useMemo(() => {
@@ -71,15 +74,6 @@ const AppWorkspace: React.FC<IAppWorkspaceProps> = ({ aadHttpClientFactory, http
   const masterDataService = React.useMemo(
     () =>
       new MasterDataService({
-        pageContext,
-        spHttpClient,
-        webAbsoluteUrl: sharePointWebAbsoluteUrl
-      }),
-    [pageContext, sharePointWebAbsoluteUrl, spHttpClient]
-  );
-  const appAccessService = React.useMemo(
-    () =>
-      new AppAccessService({
         pageContext,
         spHttpClient,
         webAbsoluteUrl: sharePointWebAbsoluteUrl
@@ -151,19 +145,11 @@ const AppWorkspace: React.FC<IAppWorkspaceProps> = ({ aadHttpClientFactory, http
       }),
     [customerService, pageContext, salesOrderService, sharePointWebAbsoluteUrl, spHttpClient]
   );
-  const access = useAppAccess(appAccessService);
-
-  React.useEffect(() => {
-    if (!access.loading) {
-      onPortalReady?.();
-    }
-  }, [access.loading, onPortalReady]);
-
   const route = resolveRoute(routePath);
 
   const canAccessModule = React.useCallback((moduleKey: string): boolean => {
-    if (moduleKey === 'approvals') {
-      return access.canView('approvals') || access.canApprove('approvals') || access.canApprove('customers') || access.canApprove('salesOrders');
+    if (moduleKey === 'settings') {
+      return access.canView('settings') || access.canView('appUsers') || access.canView('approvalManagement');
     }
 
     return access.canView(moduleKey);
@@ -474,15 +460,15 @@ const AppWorkspace: React.FC<IAppWorkspaceProps> = ({ aadHttpClientFactory, http
   );
 };
 
-const BcCompanyGate: React.FC<IPortalApplicationProps> = props => {
+interface IBcCompanyGateProps extends IPortalApplicationProps {
+  access: IUseAppAccessResult;
+  appAccessService: AppAccessService;
+  authorizedCompanies: readonly BcCompany[];
+}
+
+const BcCompanyGate: React.FC<IBcCompanyGateProps> = props => {
   const { clearCompany, selectCompany, selectedCompany } = useBcCompany();
   const [isChangingCompany, setIsChangingCompany] = React.useState<boolean>(false);
-
-  React.useEffect(() => {
-    if (!selectedCompany) {
-      props.onPortalReady?.();
-    }
-  }, [props.onPortalReady, selectedCompany]);
 
   React.useEffect(() => {
     if (isChangingCompany && selectedCompany && props.routePath === appConfig.defaultRoutePath) {
@@ -507,6 +493,7 @@ const BcCompanyGate: React.FC<IPortalApplicationProps> = props => {
     return (
       <div className={styles.app}>
         <BcCompanySelector
+          companies={props.authorizedCompanies}
           onBack={props.onPortalNavigate ? () => props.onPortalNavigate?.('apps') : undefined}
           onEnter={handleEnterCompany}
         />
@@ -517,6 +504,8 @@ const BcCompanyGate: React.FC<IPortalApplicationProps> = props => {
   return (
     <AppWorkspace
       {...props}
+      access={props.access}
+      appAccessService={props.appAccessService}
       key={selectedCompany.id}
       onChangeCompany={handleChangeCompany}
       routePath={isChangingCompany ? appConfig.defaultRoutePath : props.routePath}
@@ -525,8 +514,70 @@ const BcCompanyGate: React.FC<IPortalApplicationProps> = props => {
   );
 };
 
-export const App: React.FC<IPortalApplicationProps> = props => (
-  <BcCompanyProvider>
-    <BcCompanyGate {...props} />
-  </BcCompanyProvider>
-);
+const AppAccessGate: React.FC<IPortalApplicationProps> = props => {
+  const appAccessService = React.useMemo(() => new AppAccessService({
+    pageContext: props.pageContext,
+    spHttpClient: props.spHttpClient,
+    webAbsoluteUrl: appConfig.sharePointSettings.masterDataWebUrl
+  }), [props.pageContext, props.spHttpClient]);
+  const access = useAppAccess(appAccessService);
+  const companyAccess = React.useMemo(() => filterAuthorizedBcCompanies(
+    access.currentAppUser?.companies || [],
+    bcCompanies
+  ), [access.currentAppUser?.companies]);
+
+  React.useEffect(() => {
+    if (!access.loading) {
+      props.onPortalReady?.();
+    }
+  }, [access.loading, props.onPortalReady]);
+
+  React.useEffect(() => {
+    companyAccess.unmappedSharePointCompanies.forEach(company => {
+      console.error(`Company access configuration error: no BC mapping exists for '${company}'.`);
+    });
+    companyAccess.unavailableBcCompanyNames.forEach(company => {
+      console.error(`Company access configuration error: mapped BC company '${company}' is unavailable.`);
+    });
+  }, [companyAccess]);
+
+  if (access.loading) {
+    return <div className={styles.app}><AppLoader label="Verifying application access" /></div>;
+  }
+
+  if (!access.isAuthorized) {
+    return (
+      <div className={styles.app}>
+        <AccessDenied message={access.accessError || 'You are not allowed to access this application.'} />
+      </div>
+    );
+  }
+
+  if (!companyAccess.companies.length) {
+    let message = 'No company access has been assigned to your account. Please contact the administrator.';
+
+    if (companyAccess.unmappedSharePointCompanies.length) {
+      message = 'Company access configuration is incomplete. Please contact the administrator.';
+    } else if (companyAccess.unavailableBcCompanyNames.length) {
+      message = 'An assigned company is not available in Business Central. Please contact the administrator.';
+    }
+
+    return <div className={styles.app}><AccessDenied title="Company access unavailable" message={message} /></div>;
+  }
+
+  return (
+    <BcCompanyProvider
+      authorizedCompanies={companyAccess.companies}
+      key={`${access.signedInEmail}:${companyAccess.companies.map(company => company.id).join('|')}`}
+    >
+      <BcCompanyGate
+        {...props}
+        access={access}
+        appAccessService={appAccessService}
+        authorizedCompanies={companyAccess.companies}
+      />
+    </BcCompanyProvider>
+  );
+};
+
+export const App: React.FC<IPortalApplicationProps> = props => <AppAccessGate {...props} />;

@@ -195,6 +195,94 @@
   min-width: 280px;
 }
 
+.moduleAccessPanel {
+  background: #ffffff;
+  border: 1px solid #dfe3ea;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.moduleAccessToolbar {
+  align-items: flex-end;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 16px;
+}
+
+.moduleAccessFieldset {
+  border: 0;
+  margin: 0;
+  min-width: 0;
+  padding: 18px 16px 20px;
+}
+
+.moduleAccessFieldset legend {
+  color: #111827;
+  font-size: 15px;
+  font-weight: 800;
+  padding: 0;
+}
+
+.moduleAccessGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin-top: 14px;
+}
+
+.moduleAccessCard {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #dfe3ea;
+  border-radius: 8px;
+  color: #111827;
+  cursor: pointer;
+  display: flex;
+  font-size: 14px;
+  font-weight: 700;
+  gap: 10px;
+  min-height: 50px;
+  padding: 0 14px;
+}
+
+.moduleAccessCard:hover {
+  background: #f8f7ff;
+  border-color: #b9a8e8;
+}
+
+.moduleAccessCard input {
+  accent-color: #5b35d5;
+  height: 18px;
+  margin: 0;
+  width: 18px;
+}
+
+.moduleAccessFieldset:disabled .moduleAccessCard {
+  background: #f8fafc;
+  color: #667085;
+  cursor: default;
+}
+
+.moduleAccessMessage {
+  color: #667085;
+  margin: 0;
+  padding: 24px 16px;
+}
+
+.administratorNotice {
+  align-items: center;
+  background: #f4f1ff;
+  border-bottom: 1px solid #ded6f6;
+  color: #321185;
+  display: flex;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 9px;
+  padding: 12px 16px;
+}
+
 .workflowEntityDropdown {
   flex: 0 1 260px;
   min-width: 220px;
@@ -278,37 +366,6 @@
   min-height: 38px;
   min-width: 180px;
   padding: 0 10px;
-}
-
-.matrix {
-  display: flex;
-  flex-direction: column;
-  min-width: 760px;
-}
-
-.matrixRow {
-  align-items: center;
-  border-bottom: 1px solid #edf0f3;
-  display: grid;
-  gap: 10px;
-  grid-template-columns: minmax(180px, 1fr) repeat(6, 72px);
-  min-height: 48px;
-  padding: 8px 12px;
-}
-
-.matrixRow:last-child {
-  border-bottom: 0;
-}
-
-.checkCell {
-  align-items: center;
-  display: inline-flex;
-  justify-content: center;
-}
-
-.checkCell input {
-  height: 16px;
-  width: 16px;
 }
 
 .workflowGrid {
@@ -431,6 +488,13 @@
   flex-direction: column;
   gap: 3px;
   min-width: 0;
+}
+
+.companyCell {
+  display: block;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .recordTitle strong {
@@ -659,6 +723,7 @@
   }
 
   .toolbarControls,
+  .moduleAccessToolbar,
   .levelToolbar,
   .formActions {
     align-items: stretch;

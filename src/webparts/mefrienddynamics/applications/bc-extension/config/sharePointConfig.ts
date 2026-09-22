@@ -18,6 +18,7 @@ export const mefriendFields = {
     userId: 'UserId',
     email: 'Email',
     role: 'Role',
+    company: 'Company',
     canAccessApp: 'CanAccessApp',
     isActive: 'IsActive',
     isSalesperson: 'IsSalesperson',
@@ -231,6 +232,29 @@ export const mefriendModuleLabels: Readonly<Record<MefriendModuleKey, string>> =
   approvalManagement: 'Approval Management',
   appUsers: 'App Users',
   settings: 'Settings'
+};
+
+export interface IMefriendModuleCapabilities {
+  readonly canApprove: boolean;
+  readonly canPostToBC: boolean;
+}
+
+/**
+ * Capabilities that are meaningful for each module in the legacy permission
+ * columns. Module access itself is configured separately as a single on/off
+ * decision.
+ */
+export const mefriendModuleCapabilities: Readonly<Record<MefriendModuleKey, IMefriendModuleCapabilities>> = {
+  customers: { canApprove: true, canPostToBC: true },
+  salesOrders: { canApprove: true, canPostToBC: true },
+  invoices: { canApprove: false, canPostToBC: false },
+  events: { canApprove: false, canPostToBC: false },
+  salespersons: { canApprove: false, canPostToBC: false },
+  itemMasters: { canApprove: false, canPostToBC: false },
+  approvals: { canApprove: true, canPostToBC: false },
+  approvalManagement: { canApprove: true, canPostToBC: false },
+  appUsers: { canApprove: false, canPostToBC: false },
+  settings: { canApprove: false, canPostToBC: false }
 };
 
 export const mefriendEntityTypes = ['Customer', 'SalesOrder'] as const;

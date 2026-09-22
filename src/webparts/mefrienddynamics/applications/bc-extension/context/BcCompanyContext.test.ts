@@ -35,6 +35,18 @@ describe('BC company selection storage', () => {
     expect(storage.values.has(bcSelectedCompanyStorageKey)).toBe(false);
   });
 
+  it('rejects a configured but unauthorized stored company and uses an authorized fallback', () => {
+    const authorizedCompanies = [bcCompanies[1], bcCompanies[5]];
+    const storage = createStorage(bcCompanies[6].id);
+
+    expect(restoreBcCompany(storage, authorizedCompanies, true)).toBe(authorizedCompanies[0]);
+    expect(storage.values.get(bcSelectedCompanyStorageKey)).toBe(authorizedCompanies[0].id);
+  });
+
+  it('automatically selects the sole authorized company when no selection is stored', () => {
+    expect(restoreBcCompany(createStorage(), [bcCompanies[5]], true)).toBe(bcCompanies[5]);
+  });
+
   it('removes an empty stored company ID', () => {
     const storage = createStorage();
     storage.values.set(bcSelectedCompanyStorageKey, '');

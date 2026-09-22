@@ -4,26 +4,26 @@ import { Button } from '../../../../shared/components/buttons';
 import { Dropdown } from '../../../../shared/components/dropdowns';
 import type { ILookupOption } from '../../../../shared/models/ILookupOption';
 import { buildPortalHref } from '../../../../shared/routing/hashPaths';
-import { bcCompanies, getBcCompanyLabel, type BcCompany } from '../../config/bcCompanies';
+import { getBcCompanyLabel, type BcCompany } from '../../config/bcCompanies';
 import styles from './BcCompanySelector.module.scss';
 
 export interface IBcCompanySelectorProps {
+  companies: readonly BcCompany[];
   onBack?: () => void;
   onEnter: (company: BcCompany) => void;
 }
 
-const companyOptions: readonly ILookupOption<string>[] = bcCompanies.map(company => ({
-  key: company.id,
-  value: company.id,
-  text: getBcCompanyLabel(company),
-  detailText: company.displayName.trim() && company.displayName.trim() !== company.name
-    ? company.name
-    : undefined
-}));
-
-export const BcCompanySelector: React.FC<IBcCompanySelectorProps> = ({ onBack, onEnter }) => {
+export const BcCompanySelector: React.FC<IBcCompanySelectorProps> = ({ companies, onBack, onEnter }) => {
   const [companyId, setCompanyId] = React.useState<string | undefined>(undefined);
-  const selectedCompany = bcCompanies.filter(company => company.id === companyId)[0];
+  const selectedCompany = companies.filter(company => company.id === companyId)[0];
+  const companyOptions = React.useMemo<readonly ILookupOption<string>[]>(() => companies.map(company => ({
+    key: company.id,
+    value: company.id,
+    text: getBcCompanyLabel(company),
+    detailText: company.displayName.trim() && company.displayName.trim() !== company.name
+      ? company.name
+      : undefined
+  })), [companies]);
 
   const handleBack = (event: React.MouseEvent<HTMLAnchorElement>): void => {
     if (onBack && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
@@ -65,4 +65,3 @@ export const BcCompanySelector: React.FC<IBcCompanySelectorProps> = ({ onBack, o
     </main>
   );
 };
-

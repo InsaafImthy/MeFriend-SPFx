@@ -12,6 +12,7 @@ export interface IAppUser {
   title: string;
   email: string;
   role: string;
+  companies: readonly string[];
   canAccessApp: boolean;
   isActive: boolean;
   isSalesperson: boolean;
@@ -26,6 +27,7 @@ export interface IAppUserInput {
   title: string;
   email: string;
   role: string;
+  companies: readonly string[];
   canAccessApp: boolean;
   isActive: boolean;
   isSalesperson: boolean;
@@ -46,6 +48,11 @@ export interface IAppUserPermission {
   canPostToBC: boolean;
   canManage: boolean;
   isActive: boolean;
+}
+
+export interface IModuleAccessAssignment {
+  moduleKey: MefriendModuleKey;
+  hasAccess: boolean;
 }
 
 export interface IModuleAccess {

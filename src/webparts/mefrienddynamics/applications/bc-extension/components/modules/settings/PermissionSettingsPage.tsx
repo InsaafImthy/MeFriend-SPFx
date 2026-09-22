@@ -3,6 +3,7 @@ import { Icon } from '@fluentui/react';
 import {
   mefriendApprovalModes,
   mefriendEntityTypes,
+  mefriendModuleKeys,
   mefriendModuleLabels,
   mefriendWorkflowFinalActions,
   normalizeEmail,
@@ -15,8 +16,8 @@ import type { ITableColumn } from '../../../../../shared/models/ITableColumn';
 import type {
   IAppUser,
   IAppUserInput,
-  IAppUserPermission,
   IApprovalWorkflow,
+  IModuleAccessAssignment,
   IWorkflowLevel
 } from '../../../models/settings/IAppAccessModels';
 import type { IMasterCodeItem, MasterDataListKey } from '../../../models/settings/IMasterDataModels';
@@ -81,6 +82,7 @@ const emptyUserForm: IAppUserInput = {
   title: '',
   email: '',
   role: '',
+  companies: [],
   canAccessApp: true,
   isActive: true,
   isSalesperson: false,
@@ -119,11 +121,6 @@ const isMasterSection = (key: SettingsSectionKey): key is MasterDataListKey =>
   masterListKeys.indexOf(key as MasterDataListKey) !== -1;
 
 const getMasterNameLabel = (listKey: MasterDataListKey): string => (listKey === 'stateCodes' ? 'Description' : 'Name');
-
-const canApproveModule = (moduleKey: MefriendModuleKey): boolean =>
-  moduleKey === 'customers' || moduleKey === 'salesOrders' || moduleKey === 'approvals' || moduleKey === 'approvalManagement';
-
-const canPostModule = (moduleKey: MefriendModuleKey): boolean => moduleKey === 'customers' || moduleKey === 'salesOrders';
 
 const userFilterOptions: readonly ILookupOption<'active' | 'inactive' | 'all'>[] = [
   { key: 'active', text: 'Active', value: 'active' },
@@ -176,7 +173,7 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
     {
       key: 'userPermissions',
       title: 'User Permissions',
-      description: 'Configure module permissions per app user.',
+      description: 'Choose which modules each app user can access.',
       iconName: 'Permissions',
       group: 'Access',
       visible: canViewUsers
@@ -210,8 +207,10 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
   const [activeSectionKey, setActiveSectionKey] = React.useState<SettingsSectionKey>(visibleSections[0] ? visibleSections[0].key : 'stateCodes');
   const [users, setUsers] = React.useState<readonly IAppUser[]>([]);
   const [roleOptions, setRoleOptions] = React.useState<readonly ILookupOption<string>[]>([]);
+  const [companyOptions, setCompanyOptions] = React.useState<readonly ILookupOption<string>[]>([]);
   const [selectedUserId, setSelectedUserId] = React.useState<number | undefined>();
-  const [userPermissions, setUserPermissions] = React.useState<readonly IAppUserPermission[]>([]);
+  const [moduleAccessAssignments, setModuleAccessAssignments] = React.useState<readonly IModuleAccessAssignment[]>([]);
+  const [moduleAccessLoading, setModuleAccessLoading] = React.useState<boolean>(false);
   const [workflows, setWorkflows] = React.useState<readonly IApprovalWorkflow[]>([]);
   const [selectedWorkflowId, setSelectedWorkflowId] = React.useState<number | undefined>();
   const [workflowForm, setWorkflowForm] = React.useState<IApprovalWorkflow>(newWorkflow('Customer'));
@@ -252,6 +251,8 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
     !saving &&
     !!userForm.title.trim() &&
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(userForm.email)) &&
+    userForm.companies.length > 0 &&
+    userForm.companies.every(company => companyOptions.some(option => option.value === company)) &&
     hasValidSalespersonSelection;
 
   const loadSettings = React.useCallback(async (): Promise<void> => {
@@ -259,17 +260,19 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
     setError(undefined);
 
     try {
-      const [loadedUsers, loadedWorkflows, stateCodes, countryCodes, loadedRoleOptions] = await Promise.all([
+      const [loadedUsers, loadedWorkflows, stateCodes, countryCodes, loadedRoleOptions, loadedCompanyOptions] = await Promise.all([
         canViewUsers ? appAccessService.getUsers() : Promise.resolve([]),
         canViewWorkflows ? approvalWorkflowService.getWorkflows() : Promise.resolve([]),
         canViewSettings ? masterDataService.getCodes('stateCodes') : Promise.resolve([]),
         canViewSettings ? masterDataService.getCodes('countryCodes') : Promise.resolve([]),
-        canViewUsers ? appAccessService.getRoleOptions() : Promise.resolve([])
+        canViewUsers ? appAccessService.getRoleOptions() : Promise.resolve([]),
+        canViewUsers ? appAccessService.getCompanyOptions() : Promise.resolve([])
       ]);
 
       setUsers(loadedUsers);
       setWorkflows(loadedWorkflows);
       setRoleOptions(loadedRoleOptions);
+      setCompanyOptions(loadedCompanyOptions);
       setMasterData({ stateCodes, countryCodes });
       setSelectedUserId(current => current || (loadedUsers[0] ? loadedUsers[0].id : undefined));
       setSelectedWorkflowId(current => {
@@ -335,14 +338,37 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
 
   React.useEffect(() => {
     if (!selectedUser) {
-      setUserPermissions([]);
-      return;
+      setModuleAccessAssignments([]);
+      setModuleAccessLoading(false);
+      return undefined;
     }
 
+    let isCurrent = true;
+    setModuleAccessAssignments([]);
+    setModuleAccessLoading(true);
+
     appAccessService
-      .getPermissionsForUser(selectedUser.id)
-      .then(permissions => setUserPermissions(appAccessService.toPermissionMatrix(selectedUser, permissions)))
-      .catch(errorValue => toast.error(errorValue instanceof Error ? errorValue.message : 'Unable to load user permissions.'));
+      .getModuleAccessForUser(selectedUser)
+      .then(assignments => {
+        if (isCurrent) {
+          setModuleAccessAssignments(assignments);
+        }
+      })
+      .catch(errorValue => {
+        if (isCurrent) {
+          toast.error(errorValue instanceof Error ? errorValue.message : 'Unable to load module access.');
+        }
+      })
+      .then(() => {
+        if (isCurrent) {
+          setModuleAccessLoading(false);
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      isCurrent = false;
+    };
   }, [appAccessService, selectedUser, toast]);
 
   React.useEffect(() => {
@@ -421,7 +447,8 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
 
   const filteredUsers = users.filter(user => {
     const normalizedSearch = searchText.trim().toLowerCase();
-    const matchesSearch = !normalizedSearch || user.title.toLowerCase().indexOf(normalizedSearch) !== -1 || user.email.indexOf(normalizedSearch) !== -1;
+    const searchableUserText = `${user.title} ${user.email} ${user.role} ${user.companies.join(' ')} ${user.salespersonCode || ''}`.toLowerCase();
+    const matchesSearch = !normalizedSearch || searchableUserText.indexOf(normalizedSearch) !== -1;
     const matchesStatus = userFilter === 'all' || (userFilter === 'active' ? user.isActive : !user.isActive);
     return matchesSearch && matchesStatus;
   });
@@ -467,8 +494,10 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
     </div>
   );
 
-  const updatePermission = (moduleKey: MefriendModuleKey, updater: (permission: IAppUserPermission) => IAppUserPermission): void => {
-    setUserPermissions(current => current.map(permission => (permission.moduleKey === moduleKey ? updater(permission) : permission)));
+  const updateModuleAccess = (moduleKey: MefriendModuleKey, hasAccess: boolean): void => {
+    setModuleAccessAssignments(current => current.map(assignment => (
+      assignment.moduleKey === moduleKey ? { ...assignment, hasAccess } : assignment
+    )));
   };
 
   const openUserDialog = (user?: IAppUser): void => {
@@ -562,19 +591,19 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
     }
   };
 
-  const saveUserPermissions = async (): Promise<void> => {
-    if (!selectedUser || !canManageUsers || saving) {
+  const saveUserModuleAccess = async (): Promise<void> => {
+    if (!selectedUser || appAccessService.isAdministrator(selectedUser) || !canManageUsers || saving) {
       return;
     }
 
     setSaving(true);
 
     try {
-      await appAccessService.savePermissions(selectedUser, userPermissions);
-      toast.success('User permissions saved.');
+      await appAccessService.saveModuleAccess(selectedUser, moduleAccessAssignments);
+      toast.success('Module access saved.');
       await onPermissionsChanged();
     } catch (saveError) {
-      toast.error(saveError instanceof Error ? saveError.message : 'Unable to save user permissions.');
+      toast.error(saveError instanceof Error ? saveError.message : 'Unable to save module access.');
     } finally {
       setSaving(false);
     }
@@ -676,6 +705,19 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
         },
         { key: 'role', header: 'Role', fieldName: 'role', sortable: false, renderType: 'text', minWidth: 150 },
         {
+          key: 'companies',
+          header: 'Company',
+          fieldName: 'companies',
+          sortable: false,
+          renderType: 'custom',
+          minWidth: 220,
+          customRender: user => (
+            <span className={styles.companyCell} title={user.companies.join(', ')}>
+              {user.companies.length ? user.companies.join(', ') : 'Not assigned'}
+            </span>
+          )
+        },
+        {
           key: 'salesperson',
           header: 'Salesperson',
           fieldName: 'salespersonCode',
@@ -735,60 +777,16 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
     />
   );
 
-  const renderPermissionCheckbox = (permission: IAppUserPermission, flag: keyof Pick<IAppUserPermission, 'isActive' | 'canView' | 'canCreate' | 'canApprove' | 'canPostToBC' | 'canManage'>): React.ReactNode => {
-    const disabled =
-      !canManageUsers ||
-      (flag === 'canCreate' && !permission.canView) ||
-      (flag === 'canApprove' && !canApproveModule(permission.moduleKey)) ||
-      (flag === 'canPostToBC' && !canPostModule(permission.moduleKey));
+  const renderModuleAccess = (): React.ReactNode => {
+    const isAdministrator = !!selectedUser && appAccessService.isAdministrator(selectedUser);
+    const assignmentsByModule = moduleAccessAssignments.reduce<Partial<Record<MefriendModuleKey, boolean>>>((result, assignment) => {
+      result[assignment.moduleKey] = assignment.hasAccess;
+      return result;
+    }, {});
 
     return (
-      <label className={styles.checkCell}>
-        <input
-          aria-label={`${mefriendModuleLabels[permission.moduleKey]} ${flag}`}
-          checked={permission[flag]}
-          disabled={disabled}
-          onChange={event => {
-            const checked = event.currentTarget.checked;
-            updatePermission(permission.moduleKey, current => ({
-              ...current,
-              [flag]: checked,
-              canView: flag === 'canManage' && checked ? true : current.canView
-            }));
-          }}
-          type="checkbox"
-        />
-      </label>
-    );
-  };
-
-  const permissionColumns: readonly ITableColumn<IAppUserPermission>[] = [
-    {
-      key: 'module',
-      header: 'Module',
-      fieldName: 'moduleKey',
-      sortable: false,
-      renderType: 'custom',
-      minWidth: 220,
-      customRender: permission => mefriendModuleLabels[permission.moduleKey]
-    },
-    { key: 'active', header: 'Active', fieldName: 'isActive', sortable: false, renderType: 'custom', align: 'center', width: 92, customRender: permission => renderPermissionCheckbox(permission, 'isActive') },
-    { key: 'view', header: 'View', fieldName: 'canView', sortable: false, renderType: 'custom', align: 'center', width: 92, customRender: permission => renderPermissionCheckbox(permission, 'canView') },
-    { key: 'create', header: 'Create', fieldName: 'canCreate', sortable: false, renderType: 'custom', align: 'center', width: 92, customRender: permission => renderPermissionCheckbox(permission, 'canCreate') },
-    { key: 'approve', header: 'Approve', fieldName: 'canApprove', sortable: false, renderType: 'custom', align: 'center', width: 92, customRender: permission => renderPermissionCheckbox(permission, 'canApprove') },
-    { key: 'postBc', header: 'Post BC', fieldName: 'canPostToBC', sortable: false, renderType: 'custom', align: 'center', width: 92, customRender: permission => renderPermissionCheckbox(permission, 'canPostToBC') },
-    { key: 'manage', header: 'Manage', fieldName: 'canManage', sortable: false, renderType: 'custom', align: 'center', width: 92, customRender: permission => renderPermissionCheckbox(permission, 'canManage') }
-  ];
-
-  const renderPermissionMatrix = (): React.ReactNode => (
-    <EntityTable
-      columns={permissionColumns}
-      emptyMessage={selectedUser ? 'No module permissions are configured for this user.' : 'Select an app user to configure module permissions.'}
-      emptyTitle="No permissions found"
-      getRowKey={permission => permission.moduleKey}
-      items={userPermissions}
-      actions={(
-        <div className={styles.toolbarControls}>
+      <section className={styles.moduleAccessPanel} aria-label="User module access">
+        <div className={styles.moduleAccessToolbar}>
           <div className={styles.userPermissionDropdown}>
             <Dropdown
               label="App user"
@@ -799,11 +797,41 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
               value={selectedUserId}
             />
           </div>
-          <Button disabled={!selectedUser || !canManageUsers} label="Save Permissions" loading={saving} onClick={() => saveUserPermissions().catch(() => undefined)} />
+          <Button
+            disabled={!selectedUser || isAdministrator || moduleAccessLoading || !canManageUsers}
+            label="Save Access"
+            loading={saving}
+            onClick={() => saveUserModuleAccess().catch(() => undefined)}
+          />
         </div>
-      )}
-    />
-  );
+        {!selectedUser ? <p className={styles.moduleAccessMessage}>Select an app user to configure module access.</p> : null}
+        {selectedUser && isAdministrator ? (
+          <div className={styles.administratorNotice} role="status">
+            <Icon iconName="Shield" aria-hidden="true" />
+            <span>Administrators have full access to all modules.</span>
+          </div>
+        ) : null}
+        {selectedUser && moduleAccessLoading ? <AppLoader label="Loading module access" /> : null}
+        {selectedUser && !moduleAccessLoading ? (
+          <fieldset className={styles.moduleAccessFieldset} disabled={!canManageUsers || isAdministrator}>
+            <legend>Module Access</legend>
+            <div className={styles.moduleAccessGrid}>
+              {mefriendModuleKeys.map(moduleKey => (
+                <label className={styles.moduleAccessCard} key={moduleKey}>
+                  <input
+                    checked={assignmentsByModule[moduleKey] === true}
+                    onChange={event => updateModuleAccess(moduleKey, event.currentTarget.checked)}
+                    type="checkbox"
+                  />
+                  <span>{mefriendModuleLabels[moduleKey]}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        ) : null}
+      </section>
+    );
+  };
 
   const renderWorkflowEditor = (): React.ReactNode => (
     <div className={styles.workflowEditor}>
@@ -1035,7 +1063,7 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
           <div><h2>{activeSection.title}</h2><p>{activeSection.description}</p></div>
         </section>
         {activeSectionKey === 'appUsers' ? renderUserManagement() : null}
-        {activeSectionKey === 'userPermissions' ? renderPermissionMatrix() : null}
+        {activeSectionKey === 'userPermissions' ? renderModuleAccess() : null}
         {activeSectionKey === 'approvalManagement' ? renderWorkflowManagement() : null}
         {isMasterSection(activeSectionKey) ? renderMasterTable(activeSectionKey) : null}
       </div>
@@ -1111,6 +1139,21 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
             placeholder="Select role"
             value={userForm.role || undefined}
           />
+          <Dropdown
+            disabled={saving}
+            errorMessage={!userForm.companies.length ? 'Select at least one Company.' : undefined}
+            label="Company"
+            multiSelect
+            onChange={value => setUserForm(current => ({
+              ...current,
+              companies: Array.isArray(value) ? value.filter((company): company is string => typeof company === 'string') : []
+            }))}
+            options={companyOptions}
+            placeholder="Select one or more companies"
+            required
+            searchable
+            values={userForm.companies}
+          />
           <label className={styles.toggle}><input checked={userForm.isSalesperson} disabled={saving} onChange={event => {
             const checked = event.currentTarget.checked;
             setUserForm(current => ({ ...current, isSalesperson: checked, salespersonCode: checked ? current.salespersonCode : '' }));
@@ -1151,11 +1194,16 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
       <ConfirmationDialog isOpen={!!confirmUserToggle} title={confirmUserToggle && confirmUserToggle.isActive ? 'Deactivate user?' : 'Activate user?'} message={confirmUserToggle ? `${confirmUserToggle.isActive ? 'Deactivate' : 'Activate'} ${confirmUserToggle.title}?` : ''} confirmLabel={confirmUserToggle && confirmUserToggle.isActive ? 'Deactivate' : 'Activate'} loading={saving} onCancel={() => setConfirmUserToggle(undefined)} onConfirm={async () => {
         if (!confirmUserToggle) { return; }
         setSaving(true);
-        await appAccessService.setUserActive(confirmUserToggle.id, !confirmUserToggle.isActive);
-        setSaving(false);
-        setConfirmUserToggle(undefined);
-        await loadSettings();
-        await onPermissionsChanged();
+        try {
+          await appAccessService.setUserActive(confirmUserToggle.id, !confirmUserToggle.isActive);
+          setConfirmUserToggle(undefined);
+          await loadSettings();
+          await onPermissionsChanged();
+        } catch (toggleError) {
+          toast.error(toggleError instanceof Error ? toggleError.message : 'Unable to update app user status.');
+        } finally {
+          setSaving(false);
+        }
       }} />
       <ConfirmationDialog isOpen={!!deleteTarget} title="Delete master record?" message={deleteTarget ? `Delete ${deleteTarget.item.code}? Sales order forms will no longer show this option.` : ''} confirmLabel="Delete" variant="danger" loading={saving} onCancel={() => setDeleteTarget(undefined)} onConfirm={async () => {
         if (!deleteTarget || !deleteTarget.item.id) { return; }

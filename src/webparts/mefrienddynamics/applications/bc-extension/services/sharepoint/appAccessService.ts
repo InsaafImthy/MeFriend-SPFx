@@ -13,10 +13,12 @@ import type {
   IAppUserInput,
   IAppUserPermission,
   ICurrentAppAccess,
-  IModuleAccess
+  IModuleAccess,
+  IModuleAccessAssignment
 } from '../../models/settings/IAppAccessModels';
 import { SharePointRestClient, type ISharePointPeoplePickerUser } from '../../../../shared/services/sharepoint/sharePointRestClient';
 import { normalizeSalespersonCode } from '../../utils/salespersonDataScope';
+import { hasStoredModuleAccess, isAdministratorRole, toModuleAccess } from './moduleAccessPolicy';
 
 interface IAppUserListItem {
   Id?: number;
@@ -30,6 +32,7 @@ interface IAppUserListItem {
   };
   Email?: string;
   Role?: string;
+  Company?: readonly string[] | { results?: readonly string[] };
   CanAccessApp?: boolean;
   IsActive?: boolean;
   IsSalesperson?: boolean;
@@ -65,6 +68,7 @@ const appUserSelect = [
   'User/EMail',
   'Email',
   'Role',
+  mefriendFields.appUsers.company,
   'CanAccessApp',
   'IsActive',
   'IsSalesperson',
@@ -85,42 +89,9 @@ const permissionSelect = [
   'IsActive'
 ];
 
-const emptyModuleAccess = (moduleKey: MefriendModuleKey): IModuleAccess => ({
-  moduleKey,
-  canView: false,
-  canCreate: false,
-  canApprove: false,
-  canPostToBC: false,
-  canManage: false,
-  isActive: false
-});
+const emptyModuleAccess = (moduleKey: MefriendModuleKey): IModuleAccess => toModuleAccess(moduleKey, false);
 
-const fullModuleAccess = (moduleKey: MefriendModuleKey): IModuleAccess => ({
-  moduleKey,
-  canView: true,
-  canCreate: true,
-  canApprove: true,
-  canPostToBC: true,
-  canManage: true,
-  isActive: true
-});
-
-const isAdministratorRole = (role: string): boolean => role.trim().toLowerCase() === 'administrator';
-
-const normalizePermission = (permission: IAppUserPermission): IModuleAccess => {
-  const canView = permission.isActive && permission.canView;
-  const canManage = canView && permission.canManage;
-
-  return {
-    moduleKey: permission.moduleKey,
-    canView,
-    canCreate: canView && permission.canCreate,
-    canApprove: canView && permission.canApprove,
-    canPostToBC: canView && permission.canPostToBC,
-    canManage,
-    isActive: permission.isActive
-  };
-};
+const fullModuleAccess = (moduleKey: MefriendModuleKey): IModuleAccess => toModuleAccess(moduleKey, true);
 
 export class AppAccessService {
   private readonly pageContext?: PageContext;
@@ -181,11 +152,10 @@ export class AppAccessService {
     const permissions = await this.getPermissionsForUser(appUser.id);
     const accessMap = this.getEmptyAccessMap();
 
-    permissions
-      .filter(permission => permission.isActive)
-      .forEach(permission => {
-        accessMap[permission.moduleKey] = normalizePermission(permission);
-      });
+    mefriendModuleKeys.forEach(moduleKey => {
+      const hasAccess = permissions.some(permission => permission.moduleKey === moduleKey && hasStoredModuleAccess(permission));
+      accessMap[moduleKey] = toModuleAccess(moduleKey, hasAccess);
+    });
 
     return this.setCache({
       currentAppUser: appUser,
@@ -197,6 +167,10 @@ export class AppAccessService {
 
   public clearCache(): void {
     this.cachedAccess = undefined;
+  }
+
+  public isAdministrator(appUser: IAppUser): boolean {
+    return isAdministratorRole(appUser.role);
   }
 
   public async getUsers(): Promise<readonly IAppUser[]> {
@@ -223,6 +197,16 @@ export class AppAccessService {
     return this.restClient.searchPeople(query);
   }
 
+  public async getCompanyOptions(): Promise<readonly ILookupOption<string>[]> {
+    const choices = await this.restClient.getChoiceFieldValues(mefriendListTitles.appUsers, mefriendFields.appUsers.company);
+
+    return choices.map(choice => ({
+      key: choice,
+      text: choice,
+      value: choice
+    }));
+  }
+
   public async saveUser(input: IAppUserInput): Promise<IAppUser> {
     const email = normalizeEmail(input.email);
 
@@ -240,6 +224,19 @@ export class AppAccessService {
     const isSalesperson = input.isSalesperson === true;
     const salespersonCode = normalizeSalespersonCode(input.salespersonCode);
 
+    const companyChoices = await this.getCompanyOptions();
+    const validCompanyNames = companyChoices.map(option => option.value);
+    const companies = (input.companies || []).filter((company, index, values) => values.indexOf(company) === index);
+
+    if (!companies.length) {
+      throw new Error('Select at least one Company.');
+    }
+
+    const invalidCompany = companies.filter(company => validCompanyNames.indexOf(company) === -1)[0];
+    if (invalidCompany) {
+      throw new Error(`Select a valid Company value. '${invalidCompany}' is not configured in SharePoint.`);
+    }
+
     if (isSalesperson && !salespersonCode) {
       throw new Error('Salesperson Code is required when Is Salesperson is selected.');
     }
@@ -249,6 +246,7 @@ export class AppAccessService {
       [mefriendFields.appUsers.title]: input.title.trim() || ensuredUser.title,
       [mefriendFields.appUsers.email]: email,
       [mefriendFields.appUsers.role]: input.role.trim(),
+      [mefriendFields.appUsers.company]: { results: companies },
       [mefriendFields.appUsers.canAccessApp]: input.canAccessApp,
       [mefriendFields.appUsers.isActive]: input.isActive,
       [mefriendFields.appUsers.isSalesperson]: isSalesperson,
@@ -263,6 +261,7 @@ export class AppAccessService {
         title: String(payload.Title),
         email,
         role: String(payload.Role),
+        companies,
         canAccessApp: Boolean(payload.CanAccessApp),
         isActive: Boolean(payload.IsActive),
         isSalesperson: Boolean(payload.IsSalesperson),
@@ -274,10 +273,17 @@ export class AppAccessService {
     }
 
     const created = await this.restClient.createItem<typeof payload, IAppUserListItem>(mefriendListTitles.appUsers, payload);
-    return this.mapAppUser(created);
+    return this.mapAppUser({ ...created, Company: companies });
   }
 
   public async setUserActive(id: number, isActive: boolean): Promise<void> {
+    if (isActive) {
+      const user = (await this.getUsers()).filter(candidate => candidate.id === id)[0];
+      if (!user || !user.companies.length) {
+        throw new Error('Assign at least one Company before activating this user.');
+      }
+    }
+
     await this.restClient.updateItem(mefriendListTitles.appUsers, id, { [mefriendFields.appUsers.isActive]: isActive });
     this.clearCache();
   }
@@ -294,22 +300,47 @@ export class AppAccessService {
       .filter((permission): permission is IAppUserPermission => !!permission);
   }
 
-  public async savePermissions(appUser: IAppUser, permissions: readonly IAppUserPermission[]): Promise<void> {
-    const existingPermissions = await this.getPermissionsForUser(appUser.id);
+  public async getModuleAccessForUser(appUser: IAppUser): Promise<readonly IModuleAccessAssignment[]> {
+    if (isAdministratorRole(appUser.role)) {
+      return mefriendModuleKeys.map(moduleKey => ({ moduleKey, hasAccess: true }));
+    }
 
-    for (const permission of permissions) {
-      const normalizedPermission = this.applyPermissionRules(permission);
-      const existing = existingPermissions.filter(item => item.moduleKey === normalizedPermission.moduleKey)[0];
+    const permissions = await this.getPermissionsForUser(appUser.id);
+
+    return mefriendModuleKeys.map(moduleKey => ({
+      moduleKey,
+      hasAccess: permissions.some(permission => permission.moduleKey === moduleKey && hasStoredModuleAccess(permission))
+    }));
+  }
+
+  public async saveModuleAccess(appUser: IAppUser, assignments: readonly IModuleAccessAssignment[]): Promise<void> {
+    if (isAdministratorRole(appUser.role)) {
+      this.clearCache();
+      return;
+    }
+
+    const existingPermissions = await this.getPermissionsForUser(appUser.id);
+    const accessByModule = assignments.reduce<Partial<Record<MefriendModuleKey, boolean>>>((result, assignment) => {
+      if (mefriendModuleKeys.indexOf(assignment.moduleKey) !== -1) {
+        result[assignment.moduleKey] = assignment.hasAccess;
+      }
+
+      return result;
+    }, {});
+
+    for (const moduleKey of mefriendModuleKeys) {
+      const normalizedAccess = toModuleAccess(moduleKey, accessByModule[moduleKey] === true);
+      const existing = existingPermissions.filter(item => item.moduleKey === moduleKey)[0];
       const payload = {
-        Title: `${appUser.email}-${normalizedPermission.moduleKey}`,
+        Title: `${appUser.email}-${moduleKey}`,
         AppUserId: appUser.id,
-        ModuleKey: normalizedPermission.moduleKey,
-        CanView: normalizedPermission.canView,
-        CanCreate: normalizedPermission.canCreate,
-        CanApprove: normalizedPermission.canApprove,
-        CanPostToBC: normalizedPermission.canPostToBC,
-        CanManage: normalizedPermission.canManage,
-        IsActive: normalizedPermission.isActive
+        ModuleKey: moduleKey,
+        CanView: normalizedAccess.canView,
+        CanCreate: normalizedAccess.canCreate,
+        CanApprove: normalizedAccess.canApprove,
+        CanPostToBC: normalizedAccess.canPostToBC,
+        CanManage: normalizedAccess.canManage,
+        IsActive: normalizedAccess.isActive
       };
 
       if (existing && existing.id) {
@@ -322,37 +353,6 @@ export class AppAccessService {
     this.clearCache();
   }
 
-  public toPermissionMatrix(appUser: IAppUser, permissions: readonly IAppUserPermission[]): readonly IAppUserPermission[] {
-    return mefriendModuleKeys.map(moduleKey => {
-      if (isAdministratorRole(appUser.role)) {
-        return {
-          title: `${appUser.email}-${moduleKey}`,
-          appUserId: appUser.id,
-          moduleKey,
-          canView: true,
-          canCreate: true,
-          canApprove: true,
-          canPostToBC: true,
-          canManage: true,
-          isActive: true
-        };
-      }
-
-      const existing = permissions.filter(permission => permission.moduleKey === moduleKey)[0];
-      return existing || {
-        title: `${appUser.email}-${moduleKey}`,
-        appUserId: appUser.id,
-        moduleKey,
-        canView: false,
-        canCreate: false,
-        canApprove: false,
-        canPostToBC: false,
-        canManage: false,
-        isActive: true
-      };
-    });
-  }
-
   private async getActiveUserByEmail(email: string): Promise<IAppUser | undefined> {
     const escapedEmail = this.restClient.escapeODataString(email);
     const items = await this.restClient.readItems<IAppUserListItem>(mefriendListTitles.appUsers, {
@@ -363,19 +363,6 @@ export class AppAccessService {
     });
 
     return items.map(this.mapAppUser).filter(user => user.email === email)[0];
-  }
-
-  private applyPermissionRules(permission: IAppUserPermission): IAppUserPermission {
-    const canView = permission.canView || permission.canManage;
-
-    return {
-      ...permission,
-      canView,
-      canCreate: canView && permission.canCreate,
-      canApprove: canView && permission.canApprove,
-      canPostToBC: canView && permission.canPostToBC,
-      canManage: canView && permission.canManage
-    };
   }
 
   private getEmptyAccessMap(): Record<string, IModuleAccess> {
@@ -398,11 +385,15 @@ export class AppAccessService {
   }
 
   private mapAppUser(item: IAppUserListItem): IAppUser {
+    const companyResult = item.Company as { results?: readonly string[] } | undefined;
+    const rawCompanies: readonly unknown[] = Array.isArray(item.Company) ? item.Company : companyResult?.results || [];
+
     return {
       id: item.Id || item.ID || 0,
       title: item.Title || '',
       email: normalizeEmail(item.Email),
       role: item.Role || '',
+      companies: rawCompanies.filter((company): company is string => typeof company === 'string'),
       canAccessApp: item.CanAccessApp === true,
       isActive: item.IsActive !== false,
       isSalesperson: item.IsSalesperson === true,
