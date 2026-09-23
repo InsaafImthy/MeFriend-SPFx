@@ -246,7 +246,7 @@ export class AppAccessService {
       [mefriendFields.appUsers.title]: input.title.trim() || ensuredUser.title,
       [mefriendFields.appUsers.email]: email,
       [mefriendFields.appUsers.role]: input.role.trim(),
-      [mefriendFields.appUsers.company]: { results: companies },
+      [mefriendFields.appUsers.company]: companies,
       [mefriendFields.appUsers.canAccessApp]: input.canAccessApp,
       [mefriendFields.appUsers.isActive]: input.isActive,
       [mefriendFields.appUsers.isSalesperson]: isSalesperson,
