@@ -279,8 +279,10 @@ const AppWorkspace: React.FC<IAppWorkspaceProps> = ({ aadHttpClientFactory, acce
       return (
         <InvoicePage
           currentUser={access.currentAppUser}
+          itemMasterService={itemMasterService}
           invoiceService={invoiceService}
           salesOrderRequestService={salesOrderRequestService}
+          selectedCompany={selectedCompany}
           salespersonService={salespersonService}
           onNavigate={handleNavigate}
         />

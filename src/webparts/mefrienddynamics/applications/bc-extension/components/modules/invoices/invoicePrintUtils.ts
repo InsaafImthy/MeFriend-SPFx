@@ -5,12 +5,29 @@ export interface IRequestLineRemarksSource {
   remarks?: string;
 }
 
+export interface IItemMasterDescriptionSource {
+  number?: string;
+  description?: string;
+}
+
 interface IIndexedRequestLine {
   index: number;
   line: IRequestLineRemarksSource;
 }
 
 const normalizeItemCode = (value?: string): string => (value || '').trim().toLowerCase();
+
+const findItemDescription = (
+  itemMasters: readonly IItemMasterDescriptionSource[],
+  itemCode?: string
+): string | undefined => {
+  const normalizedCode = normalizeItemCode(itemCode);
+  if (!normalizedCode) {
+    return undefined;
+  }
+
+  return itemMasters.find(item => normalizeItemCode(item.number) === normalizedCode)?.description?.trim() || undefined;
+};
 
 const canUseIndexFallback = (
   invoiceLine: IInvoiceLineItem,
@@ -76,13 +93,28 @@ export const enrichInvoiceLinesWithRequestRemarks = (
   }));
 };
 
+export const enrichInvoiceLinesForPrint = (
+  invoiceLines: readonly IInvoiceLineItem[],
+  requestLines: readonly IRequestLineRemarksSource[],
+  itemMasters: readonly IItemMasterDescriptionSource[]
+): readonly IInvoiceLineItem[] => enrichInvoiceLinesWithRequestRemarks(invoiceLines, requestLines).map(line => ({
+  ...line,
+  itemDescription: findItemDescription(itemMasters, line.itemCode)
+}));
+
 export const getPrintableLineDescription = (line: IInvoiceLineItem): string => {
-  const itemCode = (line.itemCode || '').trim();
-  const remarks = (line.remarks || '').trim();
+  const parts = [line.itemCode, line.itemDescription, line.remarks || line.description];
+  const seen = new Set<string>();
 
-  if (itemCode && remarks) {
-    return `${itemCode} - ${remarks}`;
-  }
+  return parts.reduce<string[]>((result, value) => {
+    const part = (value || '').trim();
+    const normalizedPart = part.toLowerCase();
 
-  return itemCode || remarks;
+    if (part && !seen.has(normalizedPart)) {
+      seen.add(normalizedPart);
+      result.push(part);
+    }
+
+    return result;
+  }, []).join(' - ');
 };

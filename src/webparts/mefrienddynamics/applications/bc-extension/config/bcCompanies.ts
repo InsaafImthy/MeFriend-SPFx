@@ -4,6 +4,8 @@ export interface BcCompany {
   displayName: string;
 }
 
+const mefriendBusinessSolutionsCompanyId = 'cde40340-e0af-f011-bbd0-6045bd7340ea';
+
 export const bcCompanies: readonly BcCompany[] = [
   {
     id: 'fa94e309-c06d-f011-b47a-6045bde9c9cc',
@@ -36,7 +38,7 @@ export const bcCompanies: readonly BcCompany[] = [
     displayName: 'Madhyamam Printing and Publishing LLP'
   },
   {
-    id: 'cde40340-e0af-f011-bbd0-6045bd7340ea',
+    id: mefriendBusinessSolutionsCompanyId,
     name: 'Mefriend Business Sol LLP',
     displayName: 'Mefriend Business Solutions LLP'
   },
@@ -49,6 +51,9 @@ export const bcCompanies: readonly BcCompany[] = [
 
 export const getBcCompanyLabel = (company: BcCompany): string =>
   company.displayName.trim() || company.name;
+
+export const isMefriendBusinessSolutionsCompany = (company?: BcCompany): boolean =>
+  (company?.id || '').trim().toLowerCase() === mefriendBusinessSolutionsCompanyId;
 
 export const getBcCompanyRequestHeaders = (company: BcCompany | undefined): Readonly<Record<string, string>> => {
   if (!company) {

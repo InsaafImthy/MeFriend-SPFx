@@ -144,6 +144,63 @@ describe('Business Central server paging services', () => {
     expect(result).toMatchObject({ pageSize: 20, hasNext: true, nextToken: 'invoice-next' });
   });
 
+  it('sends normalized invoice date ranges through the backend filter contract', async () => {
+    const { apiClient, get } = createApiClient({ items: [], pageSize: 20, hasNext: false });
+    const service = new InvoiceService(apiClient);
+    const pagination = createCursorPaginationState();
+
+    await service.getInvoices({ invoiceDateFrom: '2026/9/2' }, pagination);
+    await service.getInvoices({ invoiceDateTo: '30/09/2026' }, pagination);
+    await service.getInvoices({ invoiceDateFrom: '2026-09-02', invoiceDateTo: '2026-09-30' }, pagination);
+    await service.getInvoices({}, pagination);
+
+    expect(get.mock.calls[0][1]).toMatchObject({
+      'Filters[invoiceDateFrom]': '2026-09-02'
+    });
+    expect(get.mock.calls[0][1]['Filters[invoiceDateTo]']).toBeUndefined();
+    expect(get.mock.calls[1][1]).toMatchObject({
+      'Filters[invoiceDateTo]': '2026-09-30'
+    });
+    expect(get.mock.calls[1][1]['Filters[invoiceDateFrom]']).toBeUndefined();
+    expect(get.mock.calls[2][1]).toMatchObject({
+      'Filters[invoiceDateFrom]': '2026-09-02',
+      'Filters[invoiceDateTo]': '2026-09-30'
+    });
+    expect(get.mock.calls[3][1]['Filters[invoiceDateFrom]']).toBeUndefined();
+    expect(get.mock.calls[3][1]['Filters[invoiceDateTo]']).toBeUndefined();
+    expect(get.mock.calls[2][1].invoiceDateFrom).toBeUndefined();
+    expect(get.mock.calls[2][1].invoiceDateTo).toBeUndefined();
+  });
+
+  it('keeps inclusive client-side invoice date filtering for legacy array responses', async () => {
+    const { apiClient } = createApiClient([
+      { invoiceNumber: 'BEFORE', postingDate: '2026-09-01' },
+      { invoiceNumber: 'FROM', postingDate: '2026-09-02' },
+      { invoiceNumber: 'MIDDLE', postingDate: '2026-09-15' },
+      { invoiceNumber: 'TO', postingDate: '2026-09-30' },
+      { invoiceNumber: 'AFTER', postingDate: '2026-10-01' }
+    ]);
+
+    const service = new InvoiceService(apiClient);
+    const result = await service.getInvoices(
+      { invoiceDateFrom: '2026-09-02', invoiceDateTo: '2026-09-30' },
+      createCursorPaginationState()
+    );
+    const fromOnly = await service.getInvoices(
+      { invoiceDateFrom: '2026-09-02' },
+      createCursorPaginationState()
+    );
+    const toOnly = await service.getInvoices(
+      { invoiceDateTo: '2026-09-30' },
+      createCursorPaginationState()
+    );
+
+    expect(result.items.map(item => item.invoiceNumber)).toEqual(['FROM', 'MIDDLE', 'TO']);
+    expect(fromOnly.items.map(item => item.invoiceNumber)).toEqual(['FROM', 'MIDDLE', 'TO', 'AFTER']);
+    expect(toOnly.items.map(item => item.invoiceNumber)).toEqual(['BEFORE', 'FROM', 'MIDDLE', 'TO']);
+    expect(result.hasNext).toBe(false);
+  });
+
   it('fails closed before requesting invoices or sales orders for a salesperson without a code', async () => {
     const invoice = createApiClient({ items: [], pageSize: 20, hasNext: false });
     const order = createApiClient({ items: [], pageSize: 20, hasNext: false });

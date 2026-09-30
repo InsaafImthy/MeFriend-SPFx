@@ -1,4 +1,9 @@
-import { bcCompanies, getBcCompanyLabel, getBcCompanyRequestHeaders } from './bcCompanies';
+import {
+  bcCompanies,
+  getBcCompanyLabel,
+  getBcCompanyRequestHeaders,
+  isMefriendBusinessSolutionsCompany
+} from './bcCompanies';
 
 describe('BC company configuration', () => {
   it('uses displayName only for the UI label', () => {
@@ -13,6 +18,15 @@ describe('BC company configuration', () => {
 
   it('does not provide backend headers without a selection', () => {
     expect(() => getBcCompanyRequestHeaders(undefined)).toThrow('Select a Business Central company');
+  });
+
+  it('identifies only the canonical MeFriend Business Solutions company', () => {
+    expect(isMefriendBusinessSolutionsCompany({
+      ...bcCompanies[6],
+      id: ` ${bcCompanies[6].id.toUpperCase()} `
+    })).toBe(true);
+    expect(isMefriendBusinessSolutionsCompany(bcCompanies[5])).toBe(false);
+    expect(isMefriendBusinessSolutionsCompany(undefined)).toBe(false);
   });
 });
 

@@ -138,7 +138,7 @@ interface IInvoicePaymentRecordApiModel {
   currencyCode?: string;
 }
 
-type InvoiceListApiResponse = IServerPagedResult<IInvoiceApiModel>;
+type InvoiceListApiResponse = IServerPagedResult<IInvoiceApiModel> | readonly IInvoiceApiModel[];
 
 export class InvoiceService {
   public constructor(private readonly apiClient: ApiClient) {}
@@ -152,9 +152,11 @@ export class InvoiceService {
     const mandatorySalespersonCode = getCurrentSalespersonCode(currentUser);
     const selectedSalespersonCode = normalizeSalespersonCode(filters.salespersonCode) || undefined;
     const salespersonCode = mandatorySalespersonCode || selectedSalespersonCode;
+    const invoiceDateFrom = normalizeBusinessDate(filters.invoiceDateFrom);
+    const invoiceDateTo = normalizeBusinessDate(filters.invoiceDateTo);
     const effectiveFilters = mandatorySalespersonCode
-      ? { ...filters, salespersonCode: mandatorySalespersonCode }
-      : filters;
+      ? { ...filters, salespersonCode: mandatorySalespersonCode, invoiceDateFrom, invoiceDateTo }
+      : { ...filters, invoiceDateFrom, invoiceDateTo };
     const response = await this.apiClient.get<InvoiceListApiResponse>('/api/SalesInvoices', buildServerPageQuery({
       searchText: filters.searchText,
       customerCode: filters.customerCode,
@@ -162,8 +164,8 @@ export class InvoiceService {
       salesOrderNumber: filters.salesOrderNumber,
       invoiceStatus: filters.invoiceStatus,
       paymentStatus: filters.paymentStatus,
-      invoiceDateFrom: filters.invoiceDateFrom,
-      invoiceDateTo: filters.invoiceDateTo,
+      'Filters[invoiceDateFrom]': invoiceDateFrom,
+      'Filters[invoiceDateTo]': invoiceDateTo,
       dueDateFrom: filters.dueDateFrom,
       dueDateTo: filters.dueDateTo,
       outstandingOnly: filters.outstandingOnly
@@ -299,16 +301,21 @@ export class InvoiceService {
     sorting: ISortState | undefined,
     currentUser: IAppUser | undefined
   ): IServerPagedResult<IInvoiceListItem> {
-    const mappedItems = (api?.items || []).map(item => this.mapInvoiceApiToUiModel(item));
+    const legacyItems = Array.isArray(api) ? api : undefined;
+    const pagedResponse = legacyItems ? undefined : api as IServerPagedResult<IInvoiceApiModel> | undefined;
+    const mappedItems = (legacyItems || pagedResponse?.items || []).map(item => this.mapInvoiceApiToUiModel(item));
     const scopedItems = filterByCurrentSalesperson(mappedItems, currentUser);
-    const filteredItems = this.filterInvoices(scopedItems, filters);
+    const clientFilters = legacyItems
+      ? filters
+      : { ...filters, invoiceDateFrom: undefined, invoiceDateTo: undefined };
+    const filteredItems = this.filterInvoices(scopedItems, clientFilters);
     const sortedItems = this.sortInvoices(filteredItems, sorting);
 
     return {
       items: sortedItems,
-      pageSize: api?.pageSize || requestedPageSize,
-      hasNext: Boolean(api?.hasNext),
-      nextToken: api?.nextToken
+      pageSize: pagedResponse?.pageSize || requestedPageSize,
+      hasNext: Boolean(pagedResponse?.hasNext),
+      nextToken: pagedResponse?.nextToken
     };
   }
 

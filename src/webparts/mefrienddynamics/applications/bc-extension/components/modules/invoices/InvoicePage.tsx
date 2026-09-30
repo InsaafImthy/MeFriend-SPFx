@@ -4,8 +4,10 @@ import type { ISortState, SortDirection } from '../../../../../shared/models/ISo
 import { useCursorPagination } from '../../../../../shared/hooks/useCursorPagination';
 import type { IInvoiceDetail, IInvoiceFilters, IInvoiceListItem, PaymentStatus } from '../../../models/invoices';
 import type { IAppUser } from '../../../models/settings/IAppAccessModels';
+import { isMefriendBusinessSolutionsCompany, type BcCompany } from '../../../config/bcCompanies';
 import { getUserFriendlyError, normalizeError } from '../../../../../shared/api/apiErrorHandler';
 import type { InvoiceService } from '../../../services/invoices/invoiceService';
+import type { IItemMasterLookupItem, ItemMasterService } from '../../../services/itemMasters';
 import type { SalespersonService } from '../../../services/salespersons/salespersonService';
 import type { SalesOrderRequestService } from '../../../services/sharepoint/salesOrderRequestService';
 import { useSalespersonFilter } from '../../../hooks/useSalespersonFilter';
@@ -20,12 +22,14 @@ import {
   writeInvoicePrintError,
   writeInvoicePrintPreview
 } from './invoicePrintTemplate';
-import { enrichInvoiceLinesWithRequestRemarks } from './invoicePrintUtils';
+import { enrichInvoiceLinesForPrint } from './invoicePrintUtils';
 
 export interface IInvoicePageProps {
   currentUser?: IAppUser;
+  itemMasterService: ItemMasterService;
   invoiceService: InvoiceService;
   salesOrderRequestService: SalesOrderRequestService;
+  selectedCompany?: BcCompany;
   salespersonService: SalespersonService;
   onNavigate: (path: string) => void;
 }
@@ -60,8 +64,10 @@ const getListErrorMessage = (error: unknown): string => {
 
 export const InvoicePage: React.FC<IInvoicePageProps> = ({
   currentUser,
+  itemMasterService,
   invoiceService,
   salesOrderRequestService,
+  selectedCompany,
   salespersonService,
   onNavigate
 }) => {
@@ -81,6 +87,16 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
   const [error, setError] = React.useState<string | undefined>();
   const [documentAction, setDocumentAction] = React.useState<IInvoiceDocumentAction | undefined>();
   const documentActionsInProgress = React.useRef<Set<string>>(new Set());
+  const itemMasterLookupPromiseRef = React.useRef<Promise<readonly IItemMasterLookupItem[]> | undefined>();
+
+  const getItemMasterLookup = React.useCallback((): Promise<readonly IItemMasterLookupItem[]> => {
+    if (!itemMasterLookupPromiseRef.current) {
+      itemMasterLookupPromiseRef.current = itemMasterService.getItemMasterLookup().then(result => result.items);
+    }
+
+    return itemMasterLookupPromiseRef.current;
+  }, [itemMasterService]);
+
   const loadInvoices = React.useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(undefined);
@@ -114,13 +130,16 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
 
   const loadPrintableInvoice = React.useCallback(async (invoiceNumber: string): Promise<IInvoiceDetail> => {
     const invoice = await invoiceService.getInvoiceByNumber(invoiceNumber, currentUser);
-    const requestLines = await salesOrderRequestService.getRequestLinesByBcSalesOrderNumber(invoice.salesOrderNumber);
+    const [requestLines, itemMasters] = await Promise.all([
+      salesOrderRequestService.getRequestLinesByBcSalesOrderNumber(invoice.salesOrderNumber),
+      getItemMasterLookup().catch(() => [])
+    ]);
 
     return {
       ...invoice,
-      lines: enrichInvoiceLinesWithRequestRemarks(invoice.lines, requestLines)
+      lines: enrichInvoiceLinesForPrint(invoice.lines, requestLines, itemMasters)
     };
-  }, [currentUser, invoiceService, salesOrderRequestService]);
+  }, [currentUser, getItemMasterLookup, invoiceService, salesOrderRequestService]);
 
   const handleFilterChange = React.useCallback((key: string, value: FilterValue): void => {
     if (key === 'salespersonCode' && currentUser?.isSalesperson === true) {
@@ -230,6 +249,7 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
   }, [onNavigate, toast]);
 
   const outstandingOnlyActive = appliedFilterValues.outstandingOnly === true;
+  const showDocumentActions = isMefriendBusinessSolutionsCompany(selectedCompany);
 
   return (
     <EntityDashboard<IInvoiceListItem>
@@ -246,7 +266,7 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
           ? handleRowClick
           : undefined
       }
-      rowActions={[
+      rowActions={showDocumentActions ? [
         {
           key: 'print',
           label: documentAction?.type === 'print' ? 'Preparing print...' : 'Print',
@@ -265,7 +285,7 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
             handleDownload(item).catch(() => undefined);
           }
         }
-      ]}
+      ] : undefined}
       onFilterChange={handleFilterChange}
       onFilterApply={handleFilterApply}
       onFilterClear={handleFilterClear}
