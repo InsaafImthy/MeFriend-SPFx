@@ -207,6 +207,9 @@ export class SalesOrderService {
     const mandatorySalespersonCode = getCurrentSalespersonCode(currentUser);
     const selectedSalespersonCode = normalizeSalespersonCode(filters.salespersonCode) || undefined;
     const salespersonCode = mandatorySalespersonCode || selectedSalespersonCode;
+    const effectiveFilters = mandatorySalespersonCode
+      ? { ...filters, salespersonCode: mandatorySalespersonCode }
+      : filters;
     const response = await this.apiClient.get<SalesOrderListApiResponse>('/api/SalesOrders', buildServerPageQuery({
       searchText: filters.searchText,
       customerCode: filters.customerCode,
@@ -217,7 +220,7 @@ export class SalesOrderService {
       orderDateTo: filters.orderDateTo
     }, pagination, sorting));
 
-    return this.mapPagedResult(response.data, pagination.pageSize);
+    return this.mapPagedResult(response.data, pagination.pageSize, effectiveFilters, sorting, currentUser);
   }
 
   public async getSalesOrderById(id: string, currentUser?: IAppUser): Promise<ISalesOrderDetail> {
@@ -459,14 +462,154 @@ export class SalesOrderService {
 
   private mapPagedResult(
     api: SalesOrderListApiResponse | undefined,
-    requestedPageSize: number
+    requestedPageSize: number,
+    filters: ISalesOrderFilters,
+    sorting: ISortState | undefined,
+    currentUser: IAppUser | undefined
   ): IServerPagedResult<ISalesOrderListItem> {
+    const mappedItems = (api?.items || []).map(item => this.mapSalesOrderApiToUiModel(item));
+    const scopedItems = filterByCurrentSalesperson(mappedItems, currentUser);
+    const filteredItems = this.filterSalesOrders(scopedItems, filters);
+    const sortedItems = this.sortSalesOrders(filteredItems, sorting);
+
     return {
-      items: (api?.items || []).map(item => this.mapSalesOrderApiToUiModel(item)),
+      items: sortedItems,
       pageSize: api?.pageSize || requestedPageSize,
       hasNext: Boolean(api?.hasNext),
       nextToken: api?.nextToken
     };
+  }
+
+  private filterSalesOrders(
+    items: readonly ISalesOrderListItem[],
+    filters: ISalesOrderFilters
+  ): readonly ISalesOrderListItem[] {
+    const searchText = (filters.searchText || '').trim().toLowerCase();
+    const customerCode = (filters.customerCode || '').trim().toLowerCase();
+    const salespersonCode = normalizeSalespersonCode(filters.salespersonCode);
+    const eventCode = (filters.eventCode || '').trim().toLowerCase();
+    const status = (filters.status || '').trim().toLowerCase();
+
+    return items.filter(item => {
+      const searchableText = [
+        item.salesOrderNumber,
+        item.customerCode,
+        item.customerName,
+        item.clientCode,
+        item.clientName,
+        item.salespersonCode,
+        item.salespersonName,
+        item.eventCode,
+        item.eventName,
+        item.status
+      ].join(' ').toLowerCase();
+
+      if (searchText && searchableText.indexOf(searchText) === -1) {
+        return false;
+      }
+
+      if (customerCode && `${item.customerCode} ${item.customerName}`.toLowerCase().indexOf(customerCode) === -1) {
+        return false;
+      }
+
+      if (salespersonCode && normalizeSalespersonCode(item.salespersonCode) !== salespersonCode) {
+        return false;
+      }
+
+      if (eventCode && `${item.eventCode} ${item.eventName}`.toLowerCase().indexOf(eventCode) === -1) {
+        return false;
+      }
+
+      if (status && String(item.status || '').toLowerCase() !== status) {
+        return false;
+      }
+
+      if (filters.orderDateFrom && (!item.orderDate || item.orderDate < filters.orderDateFrom)) {
+        return false;
+      }
+
+      if (filters.orderDateTo && (!item.orderDate || item.orderDate > filters.orderDateTo)) {
+        return false;
+      }
+
+      return true;
+    });
+  }
+
+  private sortSalesOrders(
+    items: readonly ISalesOrderListItem[],
+    sorting?: ISortState
+  ): readonly ISalesOrderListItem[] {
+    if (!sorting) {
+      return items;
+    }
+
+    return items.slice().sort((left, right) => {
+      const leftValue = this.getSortableValue(left, sorting.fieldName);
+      const rightValue = this.getSortableValue(right, sorting.fieldName);
+      const comparison = this.compareValues(leftValue, rightValue);
+
+      return sorting.direction === 'desc' ? comparison * -1 : comparison;
+    });
+  }
+
+  private getSortableValue(item: ISalesOrderListItem, fieldName: string): string | number | undefined {
+    switch (fieldName) {
+      case 'salesOrderNumber':
+        return item.salesOrderNumber;
+      case 'customerCode':
+        return item.customerCode;
+      case 'customerName':
+        return item.customerName;
+      case 'clientCode':
+        return item.clientCode;
+      case 'clientName':
+        return item.clientName;
+      case 'salespersonCode':
+        return item.salespersonCode;
+      case 'salespersonName':
+        return item.salespersonName;
+      case 'eventCode':
+        return item.eventCode;
+      case 'eventName':
+        return item.eventName;
+      case 'postingDate':
+        return item.postingDate;
+      case 'orderDate':
+        return item.orderDate;
+      case 'status':
+        return item.status;
+      case 'totalAmount':
+        return item.totalAmount;
+      case 'amountIncludingVAT':
+        return item.amountIncludingVAT;
+      case 'invoiceDiscountAmountExclVat':
+        return item.invoiceDiscountAmountExclVat;
+      case 'currencyCode':
+        return item.currencyCode;
+      default:
+        return undefined;
+    }
+  }
+
+  private compareValues(leftValue: string | number | undefined, rightValue: string | number | undefined): number {
+    if (leftValue === rightValue) {
+      return 0;
+    }
+
+    if (leftValue === undefined || leftValue === '') {
+      return 1;
+    }
+
+    if (rightValue === undefined || rightValue === '') {
+      return -1;
+    }
+
+    if (typeof leftValue === 'number' && typeof rightValue === 'number') {
+      return leftValue - rightValue;
+    }
+
+    return String(leftValue).localeCompare(String(rightValue), undefined, { sensitivity: 'base' });
   }
 
   private mapSalesOrderLineApiToUiModel(api: ISalesOrderLineItemApiModel): ISalesOrderLineItem {

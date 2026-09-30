@@ -13,6 +13,7 @@ import type { IAppUser } from '../../models/settings/IAppAccessModels';
 import { calculateOutstandingAmount, calculatePaymentStatus } from '../../utils/financialUtils';
 import { normalizeBusinessDate } from '../../../../shared/utilities/formatUtils';
 import {
+  filterByCurrentSalesperson,
   getCurrentSalespersonCode,
   normalizeSalespersonCode
 } from '../../utils/salespersonDataScope';
@@ -151,6 +152,9 @@ export class InvoiceService {
     const mandatorySalespersonCode = getCurrentSalespersonCode(currentUser);
     const selectedSalespersonCode = normalizeSalespersonCode(filters.salespersonCode) || undefined;
     const salespersonCode = mandatorySalespersonCode || selectedSalespersonCode;
+    const effectiveFilters = mandatorySalespersonCode
+      ? { ...filters, salespersonCode: mandatorySalespersonCode }
+      : filters;
     const response = await this.apiClient.get<InvoiceListApiResponse>('/api/SalesInvoices', buildServerPageQuery({
       searchText: filters.searchText,
       customerCode: filters.customerCode,
@@ -165,7 +169,7 @@ export class InvoiceService {
       outstandingOnly: filters.outstandingOnly
     }, pagination, sorting));
 
-    return this.mapPagedResult(response.data, pagination.pageSize);
+    return this.mapPagedResult(response.data, pagination.pageSize, effectiveFilters, sorting, currentUser);
   }
 
   public async getInvoiceByNumber(invoiceNumber: string, currentUser?: IAppUser): Promise<IInvoiceDetail> {
@@ -290,14 +294,173 @@ export class InvoiceService {
 
   private mapPagedResult(
     api: InvoiceListApiResponse | undefined,
-    requestedPageSize: number
+    requestedPageSize: number,
+    filters: IInvoiceFilters,
+    sorting: ISortState | undefined,
+    currentUser: IAppUser | undefined
   ): IServerPagedResult<IInvoiceListItem> {
+    const mappedItems = (api?.items || []).map(item => this.mapInvoiceApiToUiModel(item));
+    const scopedItems = filterByCurrentSalesperson(mappedItems, currentUser);
+    const filteredItems = this.filterInvoices(scopedItems, filters);
+    const sortedItems = this.sortInvoices(filteredItems, sorting);
+
     return {
-      items: (api?.items || []).map(item => this.mapInvoiceApiToUiModel(item)),
+      items: sortedItems,
       pageSize: api?.pageSize || requestedPageSize,
       hasNext: Boolean(api?.hasNext),
       nextToken: api?.nextToken
     };
+  }
+
+  private filterInvoices(
+    items: readonly IInvoiceListItem[],
+    filters: IInvoiceFilters
+  ): readonly IInvoiceListItem[] {
+    const searchText = this.normalizeFilterText(filters.searchText);
+    const customerCode = this.normalizeFilterText(filters.customerCode);
+    const salespersonCode = normalizeSalespersonCode(filters.salespersonCode);
+    const salesOrderNumber = this.normalizeFilterText(filters.salesOrderNumber);
+    const invoiceStatus = this.normalizeFilterText(filters.invoiceStatus);
+    const paymentStatus = this.normalizeFilterText(filters.paymentStatus);
+
+    return items.filter(item => {
+      const searchableText = [
+        item.invoiceNumber,
+        item.customerCode,
+        item.customerName,
+        item.clientCode,
+        item.clientName,
+        item.salespersonCode,
+        item.salesPerson,
+        item.salesOrderNumber,
+        item.invoiceStatus,
+        item.paymentStatus
+      ].map(value => this.normalizeFilterText(value)).join(' ');
+
+      if (searchText && searchableText.indexOf(searchText) === -1) {
+        return false;
+      }
+
+      if (customerCode && `${item.customerCode} ${item.customerName}`.toLowerCase().indexOf(customerCode) === -1) {
+        return false;
+      }
+
+      if (salespersonCode && normalizeSalespersonCode(item.salespersonCode) !== salespersonCode) {
+        return false;
+      }
+
+      if (salesOrderNumber && this.normalizeFilterText(item.salesOrderNumber).indexOf(salesOrderNumber) === -1) {
+        return false;
+      }
+
+      if (invoiceStatus && this.normalizeFilterText(item.invoiceStatus) !== invoiceStatus) {
+        return false;
+      }
+
+      if (paymentStatus && this.normalizeFilterText(item.paymentStatus) !== paymentStatus) {
+        return false;
+      }
+
+      if (filters.invoiceDateFrom && (!item.invoiceDate || item.invoiceDate < filters.invoiceDateFrom)) {
+        return false;
+      }
+
+      if (filters.invoiceDateTo && (!item.invoiceDate || item.invoiceDate > filters.invoiceDateTo)) {
+        return false;
+      }
+
+      if (filters.dueDateFrom && (!item.dueDate || item.dueDate < filters.dueDateFrom)) {
+        return false;
+      }
+
+      if (filters.dueDateTo && (!item.dueDate || item.dueDate > filters.dueDateTo)) {
+        return false;
+      }
+
+      if (filters.outstandingOnly && !this.isOutstandingInvoice(item)) {
+        return false;
+      }
+
+      return true;
+    });
+  }
+
+  private sortInvoices(items: readonly IInvoiceListItem[], sorting?: ISortState): readonly IInvoiceListItem[] {
+    if (!sorting) {
+      return items;
+    }
+
+    return items.slice().sort((left, right) => {
+      const leftValue = this.getSortableValue(left, sorting.fieldName);
+      const rightValue = this.getSortableValue(right, sorting.fieldName);
+      const comparison = this.compareValues(leftValue, rightValue);
+
+      return sorting.direction === 'desc' ? comparison * -1 : comparison;
+    });
+  }
+
+  private isOutstandingInvoice(invoice: IInvoiceListItem): boolean {
+    const status = this.normalizeFilterText(invoice.paymentStatus);
+
+    return (
+      (typeof invoice.outstandingAmount === 'number' && invoice.outstandingAmount > 0) ||
+      status === 'unpaid' ||
+      status === 'partially paid' ||
+      status === 'overdue'
+    );
+  }
+
+  private getSortableValue(item: IInvoiceListItem, fieldName: string): string | number | undefined {
+    switch (fieldName) {
+      case 'invoiceNumber':
+        return item.invoiceNumber;
+      case 'customerCode':
+        return item.customerCode;
+      case 'customerName':
+        return item.customerName;
+      case 'salesOrderNumber':
+        return item.salesOrderNumber;
+      case 'invoiceDate':
+        return item.invoiceDate;
+      case 'dueDate':
+        return item.dueDate;
+      case 'totalAmount':
+        return item.totalAmount;
+      case 'paidAmount':
+        return item.paidAmount;
+      case 'outstandingAmount':
+        return item.outstandingAmount;
+      case 'paymentStatus':
+        return item.paymentStatus;
+      case 'invoiceStatus':
+        return item.invoiceStatus;
+      default:
+        return undefined;
+    }
+  }
+
+  private compareValues(leftValue: string | number | undefined, rightValue: string | number | undefined): number {
+    if (leftValue === rightValue) {
+      return 0;
+    }
+
+    if (leftValue === undefined || leftValue === '') {
+      return 1;
+    }
+
+    if (rightValue === undefined || rightValue === '') {
+      return -1;
+    }
+
+    if (typeof leftValue === 'number' && typeof rightValue === 'number') {
+      return leftValue - rightValue;
+    }
+
+    return String(leftValue).localeCompare(String(rightValue), undefined, { sensitivity: 'base' });
+  }
+
+  private normalizeFilterText(value: string | undefined): string {
+    return (value || '').trim().toLowerCase();
   }
 
   private mapInvoiceLineApiToUiModel(api: IInvoiceLineItemApiModel, currencyCode?: string): IInvoiceLineItem {

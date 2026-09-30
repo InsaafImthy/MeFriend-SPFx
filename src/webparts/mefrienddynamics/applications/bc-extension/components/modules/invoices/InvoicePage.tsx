@@ -7,6 +7,7 @@ import type { IAppUser } from '../../../models/settings/IAppAccessModels';
 import { getUserFriendlyError, normalizeError } from '../../../../../shared/api/apiErrorHandler';
 import type { InvoiceService } from '../../../services/invoices/invoiceService';
 import type { SalespersonService } from '../../../services/salespersons/salespersonService';
+import type { SalesOrderRequestService } from '../../../services/sharepoint/salesOrderRequestService';
 import { useSalespersonFilter } from '../../../hooks/useSalespersonFilter';
 import { buildInvoiceDetailPath, requireInvoiceNumber } from '../../../utils/invoiceReference';
 import { EntityDashboard } from '../../../../../shared/components/dashboard/EntityDashboard';
@@ -19,10 +20,12 @@ import {
   writeInvoicePrintError,
   writeInvoicePrintPreview
 } from './invoicePrintTemplate';
+import { enrichInvoiceLinesWithRequestRemarks } from './invoicePrintUtils';
 
 export interface IInvoicePageProps {
   currentUser?: IAppUser;
   invoiceService: InvoiceService;
+  salesOrderRequestService: SalesOrderRequestService;
   salespersonService: SalespersonService;
   onNavigate: (path: string) => void;
 }
@@ -55,15 +58,13 @@ const getListErrorMessage = (error: unknown): string => {
   return getUserFriendlyError(normalizedError);
 };
 
-const normalizeInvoiceDescriptions = (invoice: IInvoiceDetail): IInvoiceDetail => ({
-  ...invoice,
-  lines: invoice.lines.map(line => ({
-    ...line,
-    description: line.description || line.itemCode || ''
-  }))
-});
-
-export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, invoiceService, salespersonService, onNavigate }) => {
+export const InvoicePage: React.FC<IInvoicePageProps> = ({
+  currentUser,
+  invoiceService,
+  salesOrderRequestService,
+  salespersonService,
+  onNavigate
+}) => {
   const toast = useToast();
   const { filters, restrictedSalespersonCode } = useSalespersonFilter(
     invoicesModuleConfig.filters || [],
@@ -110,6 +111,16 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, invoiceS
     setFilterValues(current => ({ ...current, salespersonCode: restrictedSalespersonCode }));
     setAppliedFilterValues(current => ({ ...current, salespersonCode: restrictedSalespersonCode }));
   }, [restrictedSalespersonCode]);
+
+  const loadPrintableInvoice = React.useCallback(async (invoiceNumber: string): Promise<IInvoiceDetail> => {
+    const invoice = await invoiceService.getInvoiceByNumber(invoiceNumber, currentUser);
+    const requestLines = await salesOrderRequestService.getRequestLinesByBcSalesOrderNumber(invoice.salesOrderNumber);
+
+    return {
+      ...invoice,
+      lines: enrichInvoiceLinesWithRequestRemarks(invoice.lines, requestLines)
+    };
+  }, [currentUser, invoiceService, salesOrderRequestService]);
 
   const handleFilterChange = React.useCallback((key: string, value: FilterValue): void => {
     if (key === 'salespersonCode' && currentUser?.isSalesperson === true) {
@@ -164,9 +175,7 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, invoiceS
 
     try {
       preview = openInvoicePrintPreviewWindow();
-      const printableInvoice = normalizeInvoiceDescriptions(
-        await invoiceService.getInvoiceByNumber(invoiceNumber, currentUser)
-      );
+      const printableInvoice = await loadPrintableInvoice(invoiceNumber);
 
       await writeInvoicePrintPreview(preview, printableInvoice);
       await printInvoice(printableInvoice, preview);
@@ -180,7 +189,7 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, invoiceS
       documentActionsInProgress.current.delete(invoiceNumber);
       setDocumentAction(undefined);
     }
-  }, [currentUser, invoiceService, toast]);
+  }, [loadPrintableInvoice, toast]);
 
   const handleDownload = React.useCallback(async (item: IInvoiceListItem): Promise<void> => {
     let invoiceNumber: string;
@@ -200,18 +209,17 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({ currentUser, invoiceS
     setDocumentAction({ type: 'download' });
 
     try {
-      const invoice = await invoiceService.getInvoiceByNumber(invoiceNumber, currentUser);
-      const downloadableInvoice = normalizeInvoiceDescriptions(invoice);
+      const downloadableInvoice = await loadPrintableInvoice(invoiceNumber);
 
       await downloadInvoicePdf(downloadableInvoice);
-      toast.success('Invoice PDF download started.', { title: invoice.invoiceNumber || 'Invoice' });
+      toast.success('Invoice PDF download started.', { title: downloadableInvoice.invoiceNumber || 'Invoice' });
     } catch (downloadError) {
       toast.error(getUserFriendlyError(normalizeError(downloadError)), { title: 'Unable to download invoice' });
     } finally {
       documentActionsInProgress.current.delete(invoiceNumber);
       setDocumentAction(undefined);
     }
-  }, [currentUser, invoiceService, toast]);
+  }, [loadPrintableInvoice, toast]);
 
   const handleRowClick = React.useCallback((item: IInvoiceListItem): void => {
     try {

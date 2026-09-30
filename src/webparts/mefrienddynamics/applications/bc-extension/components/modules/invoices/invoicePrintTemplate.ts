@@ -2,6 +2,7 @@ import mefriendLogo from '../../../../../shared/assets/unnamed.png';
 import html2pdf from 'html2pdf.js';
 import type { IInvoiceDetail, IInvoiceLineItem } from '../../../models/invoices';
 import { formatAmount, formatDate } from '../../../../../shared/utilities/formatUtils';
+import { getPrintableLineDescription } from './invoicePrintUtils';
 
 const companyName = 'MEFRIEND BUSINESS SOLUTIONS LLP';
 const companyAddress = [
@@ -157,7 +158,7 @@ const getQrMarkup = (invoice: IInvoiceDetail): string => {
 const renderLine = (line: IInvoiceLineItem, index: number): string => `
   <tr class="itemRow">
     <td class="center">${index + 1}</td>
-    <td>${escapeHtml(line.description)}</td>
+    <td class="descriptionCell">${escapeHtml(getPrintableLineDescription(line))}</td>
     <td class="center">${escapeHtml(line.hsnCode)}</td>
     <td class="center">${escapeHtml(line.gstRate)}</td>
     <td class="center">${escapeHtml(formatQty(line.quantity))}</td>
@@ -440,6 +441,12 @@ const buildStyles = (): string => `
   .items .lineBody td {
     height: auto;
     min-height: 5.8mm;
+  }
+
+  .items .descriptionCell {
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    word-break: normal;
   }
 
   .items .blankLine td {

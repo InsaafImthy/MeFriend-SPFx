@@ -80,7 +80,7 @@ export class CustomerService {
       status: filters.status
     }, pagination, sorting));
 
-    return this.mapPagedResult(response.data, pagination.pageSize);
+    return this.mapPagedResult(response.data, pagination.pageSize, filters, sorting);
   }
 
   public async getCustomerLookup(
@@ -182,13 +182,116 @@ export class CustomerService {
 
   private mapPagedResult(
     api: CustomerListApiResponse | undefined,
-    requestedPageSize: number
+    requestedPageSize: number,
+    filters: ICustomerFilters,
+    sorting?: ISortState
   ): IServerPagedResult<ICustomerListItem> {
+    const mappedItems = (api?.items || []).map(item => this.mapCustomerApiToUiModel(item));
+    const filteredItems = this.filterCustomers(mappedItems, filters);
+    const sortedItems = this.sortCustomers(filteredItems, sorting);
+
     return {
-      items: (api?.items || []).map(item => this.mapCustomerApiToUiModel(item)),
+      items: sortedItems,
       pageSize: api?.pageSize || requestedPageSize,
       hasNext: Boolean(api?.hasNext),
       nextToken: api?.nextToken
     };
+  }
+
+  private filterCustomers(
+    customers: readonly ICustomerListItem[],
+    filters: ICustomerFilters
+  ): readonly ICustomerListItem[] {
+    const searchText = this.normalizeFilterText(filters.searchText);
+    const branch = this.normalizeFilterText(filters.branch);
+    const department = this.normalizeFilterText(filters.department);
+    const city = this.normalizeFilterText(filters.city);
+    const stateCode = this.normalizeFilterText(filters.stateCode);
+    const status = this.normalizeFilterText(filters.status);
+
+    return customers.filter(customer => {
+      if (searchText && !this.customerMatchesSearch(customer, searchText)) {
+        return false;
+      }
+
+      if (branch && this.normalizeFilterText(customer.branch).indexOf(branch) === -1) {
+        return false;
+      }
+
+      if (department && this.normalizeFilterText(customer.department).indexOf(department) === -1) {
+        return false;
+      }
+
+      if (city && this.normalizeFilterText(customer.city).indexOf(city) === -1) {
+        return false;
+      }
+
+      if (stateCode && this.normalizeFilterText(customer.stateCode).indexOf(stateCode) === -1) {
+        return false;
+      }
+
+      if (status && this.normalizeFilterText(customer.status).indexOf(status) === -1) {
+        return false;
+      }
+
+      return true;
+    });
+  }
+
+  private customerMatchesSearch(customer: ICustomerListItem, searchText: string): boolean {
+    const searchableText = [
+      customer.customerCode,
+      customer.customerName,
+      customer.city,
+      customer.stateCode,
+      customer.countryCode,
+      customer.locationCode,
+      customer.phoneNumber,
+      customer.status
+    ].map(value => this.normalizeFilterText(value)).join(' ');
+
+    return searchableText.indexOf(searchText) !== -1;
+  }
+
+  private sortCustomers(
+    customers: readonly ICustomerListItem[],
+    sorting?: ISortState
+  ): readonly ICustomerListItem[] {
+    if (!sorting) {
+      return customers;
+    }
+
+    const directionMultiplier = sorting.direction === 'desc' ? -1 : 1;
+
+    return customers.slice().sort((left, right) => {
+      const leftValue = this.normalizeSortValue(this.getCustomerFieldValue(left, sorting.fieldName));
+      const rightValue = this.normalizeSortValue(this.getCustomerFieldValue(right, sorting.fieldName));
+
+      if (leftValue < rightValue) {
+        return -1 * directionMultiplier;
+      }
+
+      if (leftValue > rightValue) {
+        return directionMultiplier;
+      }
+
+      return 0;
+    });
+  }
+
+  private getCustomerFieldValue(customer: ICustomerListItem, fieldName: string): unknown {
+    return (customer as unknown as Record<string, unknown>)[fieldName];
+  }
+
+  private normalizeFilterText(value: string | undefined): string {
+    return (value || '').trim().toLowerCase();
+  }
+
+  private normalizeSortValue(value: unknown): string {
+    if (value === undefined || value === null) {
+      return '';
+    }
+
+    return String(value).trim().toLowerCase();
   }
 }

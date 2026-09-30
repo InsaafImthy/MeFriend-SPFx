@@ -8,6 +8,7 @@ export interface IInvoiceLineItem {
   hsnCode?: string;
   gstRate?: string;
   description: string;
+  remarks?: string;
   quantity: number;
   unitPrice: number;
   lineDiscountPercentage?: number;

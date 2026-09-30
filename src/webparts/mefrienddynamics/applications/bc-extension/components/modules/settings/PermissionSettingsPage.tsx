@@ -310,12 +310,16 @@ export const PermissionSettingsPage: React.FC<IPermissionSettingsPageProps> = ({
 
       try {
         const result = await salespersonService.getSalespersonLookup(searchText);
-        setSalespersonOptions(result.items.map(item => ({
-          key: item.code,
-          text: item.code,
-          value: normalizeSalespersonCode(item.code),
-          description: item.name
-        })));
+        setSalespersonOptions(result.items.map(item => {
+          const code = normalizeSalespersonCode(item.code);
+
+          return {
+            key: code,
+            text: code,
+            value: code,
+            description: item.name
+          };
+        }));
       } catch (lookupError) {
         setSalespersonOptions([]);
         setSalespersonLookupError(

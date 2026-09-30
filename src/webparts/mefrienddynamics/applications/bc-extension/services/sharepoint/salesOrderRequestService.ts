@@ -458,6 +458,30 @@ export class SalesOrderRequestService {
     return items.length ? this.mapRequest(items[0]) : undefined;
   }
 
+  public async getRequestByBcSalesOrderNumber(bcSalesOrderNumber: string): Promise<ISalesOrderRequest | undefined> {
+    const trimmedSalesOrderNumber = bcSalesOrderNumber.trim();
+    if (!trimmedSalesOrderNumber) {
+      return undefined;
+    }
+
+    const escapedSalesOrderNumber = this.restClient.escapeODataString(trimmedSalesOrderNumber);
+    const items = await this.restClient.readItems<ISalesOrderRequestListItem>(mefriendListTitles.salesOrderRequests, {
+      select: salesOrderRequestSelect,
+      expand: ['Workflow', 'SubmittedBy', 'LastActionBy'],
+      filter: `BCSalesOrderNumber eq '${escapedSalesOrderNumber}'`,
+      top: 1
+    });
+
+    return items.length ? this.mapRequest(items[0]) : undefined;
+  }
+
+  public async getRequestLinesByBcSalesOrderNumber(
+    bcSalesOrderNumber: string
+  ): Promise<readonly ISalesOrderRequestLine[]> {
+    const request = await this.getRequestByBcSalesOrderNumber(bcSalesOrderNumber);
+    return request ? this.getRequestLines(request.id) : [];
+  }
+
   public async getRequestLines(requestId: number): Promise<readonly ISalesOrderRequestLine[]> {
     const items = await this.restClient.readItems<ISalesOrderRequestLineListItem>(mefriendListTitles.salesOrderRequestLines, {
       select: salesOrderRequestLineSelect,

@@ -5,6 +5,8 @@ import { EventService } from './events/eventService';
 import { InvoiceService } from './invoices/invoiceService';
 import { SalesOrderService } from './salesOrders/salesOrderService';
 import { SalespersonService } from './salespersons/salespersonService';
+import type { IAppUser } from '../models/settings/IAppAccessModels';
+import { missingSalespersonCodeMessage } from '../utils/salespersonDataScope';
 
 const createApiClient = (data: unknown): { apiClient: ApiClient; get: jest.Mock } => {
   const get = jest.fn().mockResolvedValue({ success: true, data });
@@ -15,10 +17,22 @@ const createApiClient = (data: unknown): { apiClient: ApiClient; get: jest.Mock 
   };
 };
 
+const createAppUser = (overrides: Partial<IAppUser> = {}): IAppUser => ({
+  id: 1,
+  title: 'App User',
+  email: 'user@example.com',
+  role: 'User',
+  companies: ['My Company'],
+  canAccessApp: true,
+  isActive: true,
+  isSalesperson: false,
+  ...overrides
+});
+
 describe('Business Central server paging services', () => {
   it('requests only the current customer page with remote filters and sorting', async () => {
     const { apiClient, get } = createApiClient({
-      items: [{ id: '1', number: 'C-1', name: 'Customer 1' }],
+      items: [{ id: '1', number: 'C-1', name: 'Customer 1', city: 'Kochi' }],
       pageSize: 20,
       hasNext: true,
       nextToken: 'next-customer-page'
@@ -38,6 +52,148 @@ describe('Business Central server paging services', () => {
       sortBy: 'customerName',
       sortDirection: 'asc'
     }));
+  });
+
+  it('filters and sorts only the returned customer page while preserving cursor metadata', async () => {
+    const { apiClient } = createApiClient({
+      items: [
+        { id: '2', number: 'C-2', name: 'Zulu', city: 'Kochi', stateCode: 'KL', gstCustomerType: 'Registered' },
+        { id: '1', number: 'C-1', name: 'Alpha', city: 'Kochi', stateCode: 'KL', gstCustomerType: 'Registered' },
+        { id: '3', number: 'C-3', name: 'Other', city: 'Chennai', stateCode: 'TN', gstCustomerType: 'Unregistered' }
+      ],
+      pageSize: 20,
+      hasNext: true,
+      nextToken: 'customer-next'
+    });
+
+    const result = await new CustomerService(apiClient).getCustomers(
+      { city: 'kochi', stateCode: 'kl', status: 'registered' },
+      createCursorPaginationState(),
+      { fieldName: 'customerName', direction: 'asc' }
+    );
+
+    expect(result.items.map(item => item.customerCode)).toEqual(['C-1', 'C-2']);
+    expect(result).toMatchObject({ pageSize: 20, hasNext: true, nextToken: 'customer-next' });
+  });
+
+  it('restores sales order filters and normal-user salesperson filtering on the returned page', async () => {
+    const { apiClient } = createApiClient({
+      items: [
+        { id: '1', no: 'SO-1', customerCode: 'C-1', status: 'Released', salespersonCode: 'SP002', orderDate: '2026-09-01' },
+        { id: '2', no: 'SO-2', customerCode: 'C-2', status: 'Open', salespersonCode: 'SP002', orderDate: '2026-09-01' },
+        { id: '3', no: 'SO-3', customerCode: 'C-3', status: 'Released', salespersonCode: 'SP003', orderDate: '2026-09-01' }
+      ],
+      pageSize: 20,
+      hasNext: false
+    });
+
+    const result = await new SalesOrderService(apiClient).getSalesOrders(
+      { status: 'Released', salespersonCode: 'sp002' },
+      createCursorPaginationState(),
+      undefined,
+      createAppUser()
+    );
+
+    expect(result.items.map(item => item.salesOrderNumber)).toEqual(['SO-1']);
+  });
+
+  it('applies the restricted salesperson after sales order mapping on every returned page', async () => {
+    const { apiClient, get } = createApiClient({
+      items: [
+        { id: '1', no: 'SO-1', SalespersonCode: ' sp001 ' },
+        { id: '2', no: 'SO-2', salesPerson: 'SP002' }
+      ],
+      pageSize: 20,
+      hasNext: true,
+      nextToken: 'sales-order-next'
+    });
+    const currentUser = createAppUser({ isSalesperson: true, salespersonCode: ' sp001 ' });
+
+    const result = await new SalesOrderService(apiClient).getSalesOrders(
+      {},
+      createCursorPaginationState(),
+      undefined,
+      currentUser
+    );
+
+    expect(result.items.map(item => item.salesOrderNumber)).toEqual(['SO-1']);
+    expect(result.nextToken).toBe('sales-order-next');
+    expect(get).toHaveBeenCalledWith('/api/SalesOrders', expect.objectContaining({ salesperson: 'SP001' }));
+  });
+
+  it('restores invoice filters, outstanding-only behavior, and restricted salesperson scope', async () => {
+    const { apiClient } = createApiClient({
+      items: [
+        { invoiceNumber: 'INV-1', salesperson: 'SP001', totalAmount: 100, paidAmount: 20, invoiceStatus: 'Posted' },
+        { invoiceNumber: 'INV-2', salespersonCode: 'SP001', totalAmount: 100, paidAmount: 100, invoiceStatus: 'Posted' },
+        { invoiceNumber: 'INV-3', salesPersonCode: 'SP002', totalAmount: 100, paidAmount: 0, invoiceStatus: 'Posted' }
+      ],
+      pageSize: 20,
+      hasNext: true,
+      nextToken: 'invoice-next'
+    });
+
+    const result = await new InvoiceService(apiClient).getInvoices(
+      { outstandingOnly: true },
+      createCursorPaginationState(),
+      undefined,
+      createAppUser({ isSalesperson: true, salespersonCode: 'SP001' })
+    );
+
+    expect(result.items.map(item => item.invoiceNumber)).toEqual(['INV-1']);
+    expect(result).toMatchObject({ pageSize: 20, hasNext: true, nextToken: 'invoice-next' });
+  });
+
+  it('fails closed before requesting invoices or sales orders for a salesperson without a code', async () => {
+    const invoice = createApiClient({ items: [], pageSize: 20, hasNext: false });
+    const order = createApiClient({ items: [], pageSize: 20, hasNext: false });
+    const currentUser = createAppUser({ isSalesperson: true, salespersonCode: '' });
+
+    await expect(new InvoiceService(invoice.apiClient).getInvoices(
+      {},
+      createCursorPaginationState(),
+      undefined,
+      currentUser
+    )).rejects.toThrow(missingSalespersonCodeMessage);
+    await expect(new SalesOrderService(order.apiClient).getSalesOrders(
+      {},
+      createCursorPaginationState(),
+      undefined,
+      currentUser
+    )).rejects.toThrow(missingSalespersonCodeMessage);
+    expect(invoice.get).not.toHaveBeenCalled();
+    expect(order.get).not.toHaveBeenCalled();
+  });
+
+  it('filters Event and Salesperson paged responses with their existing frontend rules', async () => {
+    const events = createApiClient({
+      items: [
+        { eventCode: 'E-1', eventName: 'Launch', status: 'Active' },
+        { eventCode: 'E-2', eventName: 'Closed event', status: 'Closed' }
+      ],
+      pageSize: 20,
+      hasNext: false
+    });
+    const salespersons = createApiClient({
+      items: [
+        { code: 'SP001', name: 'Alice', email: 'alice@example.com' },
+        { code: 'SP002', name: 'Bob', email: 'bob@example.com' }
+      ],
+      pageSize: 20,
+      hasNext: false
+    });
+
+    const eventResult = await new EventService(events.apiClient).getEvents(
+      { status: 'Active' },
+      createCursorPaginationState()
+    );
+    const salespersonResult = await new SalespersonService(salespersons.apiClient).getSalespersons(
+      { searchText: 'bob' },
+      createCursorPaginationState()
+    );
+
+    expect(eventResult.items.map(item => item.eventCode)).toEqual(['E-1']);
+    expect(salespersonResult.items.map(item => item.salespersonCode)).toEqual(['SP002']);
   });
 
   it('uses the paged Events endpoint instead of expanded Dimensions', async () => {

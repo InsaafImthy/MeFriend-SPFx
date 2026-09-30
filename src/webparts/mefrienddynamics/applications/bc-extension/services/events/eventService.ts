@@ -30,9 +30,12 @@ export class EventService {
       status: filters.status
     }, pagination, sorting));
     const result = response.data;
+    const mappedItems = (result?.items || []).map(item => this.mapEventApiToUiModel(item));
+    const filteredItems = this.filterEvents(mappedItems, filters);
+    const sortedItems = this.sortEvents(filteredItems, sorting);
 
     return {
-      items: (result?.items || []).map(item => this.mapEventApiToUiModel(item)),
+      items: sortedItems,
       pageSize: result?.pageSize || pagination.pageSize,
       hasNext: Boolean(result?.hasNext),
       nextToken: result?.nextToken
@@ -63,5 +66,67 @@ export class EventService {
       description: api?.description || eventName,
       venue: api?.venue || ''
     };
+  }
+
+  private filterEvents(items: readonly IEventListItem[], filters: IEventFilters): readonly IEventListItem[] {
+    const searchText = (filters.searchText || '').trim().toLowerCase();
+    const status = (filters.status || '').trim().toLowerCase();
+
+    return items.filter(item => {
+      const searchableText = [item.eventCode, item.eventName, item.status].join(' ').toLowerCase();
+
+      if (searchText && searchableText.indexOf(searchText) === -1) {
+        return false;
+      }
+
+      if (status && item.status.toLowerCase() !== status) {
+        return false;
+      }
+
+      return true;
+    });
+  }
+
+  private sortEvents(items: readonly IEventListItem[], sorting?: ISortState): readonly IEventListItem[] {
+    if (!sorting) {
+      return items;
+    }
+
+    return items.slice().sort((left, right) => {
+      const leftValue = this.getSortableValue(left, sorting.fieldName);
+      const rightValue = this.getSortableValue(right, sorting.fieldName);
+      const comparison = this.compareValues(leftValue, rightValue);
+
+      return sorting.direction === 'desc' ? comparison * -1 : comparison;
+    });
+  }
+
+  private getSortableValue(item: IEventListItem, fieldName: string): string | undefined {
+    switch (fieldName) {
+      case 'eventCode':
+        return item.eventCode;
+      case 'eventName':
+        return item.eventName;
+      case 'status':
+        return item.status;
+      default:
+        return undefined;
+    }
+  }
+
+  private compareValues(leftValue?: string, rightValue?: string): number {
+    if (leftValue === rightValue) {
+      return 0;
+    }
+
+    if (leftValue === undefined) {
+      return -1;
+    }
+
+    if (rightValue === undefined) {
+      return 1;
+    }
+
+    return leftValue.localeCompare(rightValue);
   }
 }
