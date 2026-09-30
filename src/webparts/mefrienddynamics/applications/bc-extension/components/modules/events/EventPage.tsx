@@ -14,8 +14,7 @@ export interface IEventPageProps {
 }
 
 const toEventFilters = (values: EntityFilterValues): IEventFilters => ({
-  searchText: typeof values.searchText === 'string' ? values.searchText : undefined,
-  status: typeof values.status === 'string' ? values.status : undefined
+  searchText: typeof values.searchText === 'string' ? values.searchText : undefined
 });
 
 const getListErrorMessage = (error: unknown): string => {

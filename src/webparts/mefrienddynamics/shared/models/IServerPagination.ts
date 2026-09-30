@@ -1,11 +1,11 @@
 export const DEFAULT_SERVER_PAGE_SIZE = 20;
 
-export interface IServerPageRequest {
+export interface IBcPageRequest {
   pageSize: number;
   continuationToken?: string;
 }
 
-export interface IServerPagedResult<TItem> {
+export interface IBcPagedResult<TItem> {
   items: readonly TItem[];
   pageSize: number;
   hasNext: boolean;

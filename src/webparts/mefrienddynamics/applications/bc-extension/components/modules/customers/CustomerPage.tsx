@@ -21,7 +21,7 @@ const toCustomerFilters = (values: EntityFilterValues): ICustomerFilters => ({
   department: typeof values.department === 'string' ? values.department : undefined,
   city: typeof values.city === 'string' ? values.city : undefined,
   stateCode: typeof values.stateCode === 'string' ? values.stateCode : undefined,
-  status: typeof values.status === 'string' ? values.status : undefined
+  gstCustomerType: typeof values.gstCustomerType === 'string' ? values.gstCustomerType : undefined
 });
 
 const getListErrorMessage = (error: unknown): string => {

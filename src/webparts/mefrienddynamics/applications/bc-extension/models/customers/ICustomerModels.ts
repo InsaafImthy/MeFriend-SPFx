@@ -13,6 +13,7 @@ export interface ICustomerListItem {
   locationCode?: string;
   phoneNumber?: string;
   status?: string;
+  gstCustomerType?: string;
 }
 
 export interface ICustomerDetail extends ICustomerListItem {
@@ -56,5 +57,5 @@ export interface ICustomerFilters {
   department?: string;
   city?: string;
   stateCode?: string;
-  status?: string;
+  gstCustomerType?: string;
 }

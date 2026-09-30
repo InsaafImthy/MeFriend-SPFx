@@ -143,7 +143,7 @@ export const SalesOrderPage: React.FC<ISalesOrderPageProps> = ({
       onCreate={() => onNavigate(`${salesOrdersModuleConfig.route}/create`)}
       onRowClick={
         salesOrdersModuleConfig.detailEnabled
-          ? item => onNavigate(`${salesOrdersModuleConfig.route}/detail/${encodeURIComponent(item.id || item.salesOrderNumber)}`)
+          ? item => onNavigate(`${salesOrdersModuleConfig.route}/detail/${encodeURIComponent(item.salesOrderNumber)}`)
           : undefined
       }
       onFilterChange={handleFilterChange}

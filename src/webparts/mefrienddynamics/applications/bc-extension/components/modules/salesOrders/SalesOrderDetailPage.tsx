@@ -220,7 +220,7 @@ export const SalesOrderDetailPage: React.FC<ISalesOrderDetailPageProps> = ({
       setRelatedInvoicesError(undefined);
 
       try {
-        const invoices = await salesOrderService.getInvoicesForSalesOrder(salesOrderId, currentUser);
+        const invoices = await salesOrderService.getInvoicesForSalesOrder(salesOrder.salesOrderNumber, currentUser);
         setRelatedInvoices(invoices);
       } catch (loadError) {
         setRelatedInvoicesError(getRelatedInvoicesErrorMessage(loadError));

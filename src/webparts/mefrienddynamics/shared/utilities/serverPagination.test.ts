@@ -1,8 +1,9 @@
 import {
   applyCursorPageResult,
-  buildServerPageQuery,
+  buildBcPageQuery,
   createCursorPaginationState,
-  moveToCursorPage
+  moveToCursorPage,
+  resetCursorPaginationState
 } from './serverPagination';
 
 describe('cursor server pagination', () => {
@@ -27,9 +28,9 @@ describe('cursor server pagination', () => {
     const secondPageRequest = moveToCursorPage(firstPage, 2);
 
     expect(secondPageRequest.currentToken).toBe('page-2-token');
-    expect(buildServerPageQuery({}, secondPageRequest)).toMatchObject({
-      pageSize: 20,
-      continuationToken: 'page-2-token'
+    expect(buildBcPageQuery({}, secondPageRequest)).toMatchObject({
+      PageSize: 20,
+      ContinuationToken: 'page-2-token'
     });
 
     const secondPage = applyCursorPageResult(secondPageRequest, {
@@ -51,18 +52,30 @@ describe('cursor server pagination', () => {
     expect(moveToCursorPage(lastPage, 2)).toBe(lastPage);
   });
 
+  it('discards token history when a filter or sort changes', () => {
+    const firstPage = applyCursorPageResult(createCursorPaginationState(), {
+      items: [{ id: 1 }],
+      pageSize: 20,
+      hasNext: true,
+      nextToken: 'page-2-token'
+    });
+    const secondPage = moveToCursorPage(firstPage, 2);
+
+    expect(resetCursorPaginationState(secondPage.pageSize)).toEqual(createCursorPaginationState(20));
+  });
+
   it('builds remote filter and sort parameters', () => {
-    expect(buildServerPageQuery(
-      { searchText: 'ABC', status: 'Open' },
+    expect(buildBcPageQuery(
+      { search: 'ABC', filters: { status: 'Open' } },
       createCursorPaginationState(),
       { fieldName: 'name', direction: 'asc' }
     )).toEqual({
-      searchText: 'ABC',
-      status: 'Open',
-      pageSize: 20,
-      continuationToken: undefined,
-      sortBy: 'name',
-      sortDirection: 'asc'
+      PageSize: 20,
+      ContinuationToken: undefined,
+      Search: 'ABC',
+      SortField: 'name',
+      SortDirection: 'asc',
+      'Filters[status]': 'Open'
     });
   });
 });

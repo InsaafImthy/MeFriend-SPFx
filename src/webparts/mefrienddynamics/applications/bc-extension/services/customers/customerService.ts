@@ -6,9 +6,10 @@ import type {
   ICustomerFilters,
   ICustomerListItem
 } from '../../models/customers';
-import { DEFAULT_SERVER_PAGE_SIZE, type ICursorPaginationState, type IServerPagedResult } from '../../../../shared/models/IServerPagination';
+import { type IBcPagedResult, type ICursorPaginationState } from '../../../../shared/models/IServerPagination';
 import type { ISortState } from '../../../../shared/models/ISortState';
-import { buildServerPageQuery } from '../../../../shared/utilities/serverPagination';
+import { fetchAllBcLookupItems, MAX_BC_LOOKUP_PAGE_SIZE } from '../../../../shared/utilities/bcLookupPagination';
+import { buildBcPageQuery } from '../../../../shared/utilities/serverPagination';
 
 interface ICustomerApiModel {
   id?: string;
@@ -56,8 +57,8 @@ export interface ICustomerLookupItem {
   name: string;
 }
 
-type CustomerListApiResponse = IServerPagedResult<ICustomerApiModel>;
-type CustomerLookupApiResponse = IServerPagedResult<ICustomerLookupItem>;
+type CustomerListApiResponse = IBcPagedResult<ICustomerApiModel>;
+type CustomerLookupApiResponse = IBcPagedResult<ICustomerLookupItem>;
 
 const indiaCountryCode = 'IN';
 const normalizeText = (value: string): string => value.trim();
@@ -70,38 +71,42 @@ export class CustomerService {
     filters: ICustomerFilters = {},
     pagination: ICursorPaginationState,
     sorting?: ISortState
-  ): Promise<IServerPagedResult<ICustomerListItem>> {
-    const response = await this.apiClient.get<CustomerListApiResponse>('/api/Customers', buildServerPageQuery({
-      searchText: filters.searchText,
-      branch: filters.branch,
-      department: filters.department,
-      city: filters.city,
-      stateCode: filters.stateCode,
-      status: filters.status
+  ): Promise<IBcPagedResult<ICustomerListItem>> {
+    const response = await this.apiClient.get<CustomerListApiResponse>('/api/Customers', buildBcPageQuery({
+      search: filters.searchText,
+      filters: {
+        city: filters.city,
+        stateCode: filters.stateCode,
+        gstCustomerType: filters.gstCustomerType
+      }
     }, pagination, sorting));
+    const result = response.data;
 
-    return this.mapPagedResult(response.data, pagination.pageSize, filters, sorting);
+    return {
+      items: (result?.items || []).map(item => this.mapCustomerApiToUiModel(item)),
+      pageSize: result?.pageSize || pagination.pageSize,
+      hasNext: Boolean(result?.hasNext),
+      nextToken: result?.nextToken
+    };
   }
 
   public async getCustomerLookup(
     searchText?: string,
-    pageSize: number = DEFAULT_SERVER_PAGE_SIZE
-  ): Promise<IServerPagedResult<ICustomerLookupItem>> {
-    const response = await this.apiClient.get<CustomerLookupApiResponse>('/api/Customers/lookup', {
-      searchText,
-      pageSize
-    });
-    const result = response.data;
+    pageSize: number = MAX_BC_LOOKUP_PAGE_SIZE
+  ): Promise<IBcPagedResult<ICustomerLookupItem>> {
+    const items = await fetchAllBcLookupItems<ICustomerLookupItem>(async query => {
+      const response = await this.apiClient.get<CustomerLookupApiResponse>('/api/Customers/lookup', query);
+      return response.data;
+    }, searchText, pageSize);
 
     return {
-      items: (result?.items || []).map(item => ({
+      items: items.map(item => ({
         number: normalizeText(item.number || item.no || ''),
         no: normalizeText(item.no || item.number || ''),
         name: normalizeText(item.name || '')
       })).filter(item => item.no),
-      pageSize: result?.pageSize || pageSize,
-      hasNext: Boolean(result?.hasNext),
-      nextToken: result?.nextToken
+      pageSize,
+      hasNext: false
     };
   }
 
@@ -180,118 +185,4 @@ export class CustomerService {
     };
   }
 
-  private mapPagedResult(
-    api: CustomerListApiResponse | undefined,
-    requestedPageSize: number,
-    filters: ICustomerFilters,
-    sorting?: ISortState
-  ): IServerPagedResult<ICustomerListItem> {
-    const mappedItems = (api?.items || []).map(item => this.mapCustomerApiToUiModel(item));
-    const filteredItems = this.filterCustomers(mappedItems, filters);
-    const sortedItems = this.sortCustomers(filteredItems, sorting);
-
-    return {
-      items: sortedItems,
-      pageSize: api?.pageSize || requestedPageSize,
-      hasNext: Boolean(api?.hasNext),
-      nextToken: api?.nextToken
-    };
-  }
-
-  private filterCustomers(
-    customers: readonly ICustomerListItem[],
-    filters: ICustomerFilters
-  ): readonly ICustomerListItem[] {
-    const searchText = this.normalizeFilterText(filters.searchText);
-    const branch = this.normalizeFilterText(filters.branch);
-    const department = this.normalizeFilterText(filters.department);
-    const city = this.normalizeFilterText(filters.city);
-    const stateCode = this.normalizeFilterText(filters.stateCode);
-    const status = this.normalizeFilterText(filters.status);
-
-    return customers.filter(customer => {
-      if (searchText && !this.customerMatchesSearch(customer, searchText)) {
-        return false;
-      }
-
-      if (branch && this.normalizeFilterText(customer.branch).indexOf(branch) === -1) {
-        return false;
-      }
-
-      if (department && this.normalizeFilterText(customer.department).indexOf(department) === -1) {
-        return false;
-      }
-
-      if (city && this.normalizeFilterText(customer.city).indexOf(city) === -1) {
-        return false;
-      }
-
-      if (stateCode && this.normalizeFilterText(customer.stateCode).indexOf(stateCode) === -1) {
-        return false;
-      }
-
-      if (status && this.normalizeFilterText(customer.status).indexOf(status) === -1) {
-        return false;
-      }
-
-      return true;
-    });
-  }
-
-  private customerMatchesSearch(customer: ICustomerListItem, searchText: string): boolean {
-    const searchableText = [
-      customer.customerCode,
-      customer.customerName,
-      customer.city,
-      customer.stateCode,
-      customer.countryCode,
-      customer.locationCode,
-      customer.phoneNumber,
-      customer.status
-    ].map(value => this.normalizeFilterText(value)).join(' ');
-
-    return searchableText.indexOf(searchText) !== -1;
-  }
-
-  private sortCustomers(
-    customers: readonly ICustomerListItem[],
-    sorting?: ISortState
-  ): readonly ICustomerListItem[] {
-    if (!sorting) {
-      return customers;
-    }
-
-    const directionMultiplier = sorting.direction === 'desc' ? -1 : 1;
-
-    return customers.slice().sort((left, right) => {
-      const leftValue = this.normalizeSortValue(this.getCustomerFieldValue(left, sorting.fieldName));
-      const rightValue = this.normalizeSortValue(this.getCustomerFieldValue(right, sorting.fieldName));
-
-      if (leftValue < rightValue) {
-        return -1 * directionMultiplier;
-      }
-
-      if (leftValue > rightValue) {
-        return directionMultiplier;
-      }
-
-      return 0;
-    });
-  }
-
-  private getCustomerFieldValue(customer: ICustomerListItem, fieldName: string): unknown {
-    return (customer as unknown as Record<string, unknown>)[fieldName];
-  }
-
-  private normalizeFilterText(value: string | undefined): string {
-    return (value || '').trim().toLowerCase();
-  }
-
-  private normalizeSortValue(value: unknown): string {
-    if (value === undefined || value === null) {
-      return '';
-    }
-
-    return String(value).trim().toLowerCase();
-  }
 }

@@ -4,9 +4,9 @@ export const appConfig = {
   defaultCountryCode: 'IN',
   defaultRoutePath: 'customers',
   environmentLabel: 'Local',
-  backendApiBaseUrl: 'https://bc.mefriend.com',
+  backendApiBaseUrl: 'https://localhost:5044',
   backendApi: {
-    baseUrl: 'https://bc.mefriend.com',
+    baseUrl: 'https://localhost:5044',
     anonymous: true,
     useAadHttpClient: false,
     aadResourceUrl: ''

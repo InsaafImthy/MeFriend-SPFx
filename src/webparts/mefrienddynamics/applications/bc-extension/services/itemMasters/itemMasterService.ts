@@ -1,5 +1,6 @@
 import type { ApiClient } from '../../../../shared/api/apiClient';
-import { DEFAULT_SERVER_PAGE_SIZE, type IServerPagedResult } from '../../../../shared/models/IServerPagination';
+import type { IBcPagedResult } from '../../../../shared/models/IServerPagination';
+import { fetchAllBcLookupItems, MAX_BC_LOOKUP_PAGE_SIZE } from '../../../../shared/utilities/bcLookupPagination';
 
 export interface IItemMasterLookupItem {
   number: string;
@@ -7,7 +8,7 @@ export interface IItemMasterLookupItem {
   unitPrice?: number;
 }
 
-type ItemMasterLookupApiResponse = IServerPagedResult<IItemMasterLookupItem>;
+type ItemMasterLookupApiResponse = IBcPagedResult<IItemMasterLookupItem>;
 
 const normalizeText = (value: string): string => value.trim();
 const normalizeNumber = (value: number | undefined): number | undefined => {
@@ -19,23 +20,21 @@ export class ItemMasterService {
 
   public async getItemMasterLookup(
     searchText?: string,
-    pageSize: number = DEFAULT_SERVER_PAGE_SIZE
-  ): Promise<IServerPagedResult<IItemMasterLookupItem>> {
-    const response = await this.apiClient.get<ItemMasterLookupApiResponse>('/api/ItemMasters/lookup', {
-      searchText,
-      pageSize
-    });
-    const result = response.data;
+    pageSize: number = MAX_BC_LOOKUP_PAGE_SIZE
+  ): Promise<IBcPagedResult<IItemMasterLookupItem>> {
+    const items = await fetchAllBcLookupItems<IItemMasterLookupItem>(async query => {
+      const response = await this.apiClient.get<ItemMasterLookupApiResponse>('/api/ItemMasters/lookup', query);
+      return response.data;
+    }, searchText, pageSize);
 
     return {
-      items: (result?.items || []).map(item => ({
+      items: items.map(item => ({
         number: normalizeText(item.number || ''),
         description: normalizeText(item.description || ''),
         unitPrice: normalizeNumber(item.unitPrice)
       })).filter(item => item.number),
-      pageSize: result?.pageSize || pageSize,
-      hasNext: Boolean(result?.hasNext),
-      nextToken: result?.nextToken
+      pageSize,
+      hasNext: false
     };
   }
 }

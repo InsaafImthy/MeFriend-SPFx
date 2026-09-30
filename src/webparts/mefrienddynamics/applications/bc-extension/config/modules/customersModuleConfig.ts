@@ -390,13 +390,13 @@ export const customersModuleConfig: IModuleConfig<ICustomerListItem> = {
     { key: 'stateCode', header: 'State', fieldName: 'stateCode', sortable: true, renderType: 'text' },
     { key: 'countryCode', header: 'Country', fieldName: 'countryCode', sortable: true, renderType: 'text' },
     { key: 'phoneNumber', header: 'Phone', fieldName: 'phoneNumber', sortable: true, renderType: 'text' },
-    { key: 'gstCustomerType', header: 'GST Type', fieldName: 'status', sortable: true, renderType: 'status' }
+    { key: 'gstCustomerType', header: 'GST Type', fieldName: 'gstCustomerType', sortable: true, renderType: 'status' }
   ],
   filters: [
     { key: 'searchText', label: 'Search', type: 'text' },
     { key: 'city', label: 'City', type: 'text' },
     { key: 'stateCode', label: 'State', type: 'text' },
-    { key: 'status', label: 'GST Type', type: 'text' }
+    { key: 'gstCustomerType', label: 'GST Type', type: 'text' }
   ],
   formFields: getCustomerFormFields(indiaCountryCode)
 };

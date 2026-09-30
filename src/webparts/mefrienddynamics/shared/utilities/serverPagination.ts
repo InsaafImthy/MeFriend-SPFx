@@ -2,8 +2,8 @@ import type { QueryParams, QueryParamValue } from '../api/apiTypes';
 import type { ISortState } from '../models/ISortState';
 import {
   DEFAULT_SERVER_PAGE_SIZE,
+  type IBcPagedResult,
   type ICursorPaginationState,
-  type IServerPagedResult
 } from '../models/IServerPagination';
 
 export type ServerFilterValues = Readonly<Record<string, QueryParamValue | readonly QueryParamValue[]>>;
@@ -19,9 +19,13 @@ export const createCursorPaginationState = (
   pageTokens: { 1: undefined }
 });
 
+export const resetCursorPaginationState = (
+  pageSize: number = DEFAULT_SERVER_PAGE_SIZE
+): ICursorPaginationState => createCursorPaginationState(pageSize);
+
 export const applyCursorPageResult = <TItem,>(
   state: ICursorPaginationState,
-  result: IServerPagedResult<TItem>
+  result: IBcPagedResult<TItem>
 ): ICursorPaginationState => {
   const nextToken = result.hasNext ? result.nextToken : undefined;
   const pageTokens: Record<number, string | undefined> = {
@@ -78,14 +82,27 @@ export const moveToCursorPage = (
   };
 };
 
-export const buildServerPageQuery = (
-  filters: ServerFilterValues,
+export interface IBcPageQueryOptions {
+  search?: string;
+  filters?: ServerFilterValues;
+}
+
+export const buildBcPageQuery = (
+  options: IBcPageQueryOptions,
   pagination: Pick<ICursorPaginationState, 'pageSize' | 'currentToken'>,
   sorting?: ISortState
-): QueryParams => ({
-  ...filters,
-  pageSize: pagination.pageSize,
-  continuationToken: pagination.currentToken,
-  sortBy: sorting?.fieldName,
-  sortDirection: sorting?.direction
-});
+): QueryParams => {
+  const query: Record<string, QueryParamValue | readonly QueryParamValue[]> = {
+    PageSize: pagination.pageSize,
+    ContinuationToken: pagination.currentToken,
+    Search: options.search,
+    SortField: sorting?.fieldName,
+    SortDirection: sorting?.direction
+  };
+
+  Object.keys(options.filters || {}).forEach(key => {
+    query[`Filters[${key}]`] = options.filters?.[key];
+  });
+
+  return query;
+};

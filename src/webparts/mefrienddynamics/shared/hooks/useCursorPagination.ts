@@ -1,14 +1,15 @@
 import * as React from 'react';
-import type { ICursorPaginationState, IServerPagedResult } from '../models/IServerPagination';
+import type { IBcPagedResult, ICursorPaginationState } from '../models/IServerPagination';
 import {
   applyCursorPageResult,
   createCursorPaginationState,
-  moveToCursorPage
+  moveToCursorPage,
+  resetCursorPaginationState
 } from '../utilities/serverPagination';
 
 export interface IUseCursorPaginationResult {
   pagination: ICursorPaginationState;
-  applyResult: <TItem>(result: IServerPagedResult<TItem>) => void;
+  applyResult: <TItem>(result: IBcPagedResult<TItem>) => void;
   changePage: (pageNumber: number) => void;
   reset: () => void;
 }
@@ -18,7 +19,7 @@ export const useCursorPagination = (pageSize?: number): IUseCursorPaginationResu
     createCursorPaginationState(pageSize)
   );
 
-  const applyResult = React.useCallback(<TItem,>(result: IServerPagedResult<TItem>): void => {
+  const applyResult = React.useCallback(<TItem,>(result: IBcPagedResult<TItem>): void => {
     setPagination(current => applyCursorPageResult(current, result));
   }, []);
 
@@ -27,7 +28,7 @@ export const useCursorPagination = (pageSize?: number): IUseCursorPaginationResu
   }, []);
 
   const reset = React.useCallback((): void => {
-    setPagination(createCursorPaginationState(pageSize));
+    setPagination(resetCursorPaginationState(pageSize));
   }, [pageSize]);
 
   return { pagination, applyResult, changePage, reset };

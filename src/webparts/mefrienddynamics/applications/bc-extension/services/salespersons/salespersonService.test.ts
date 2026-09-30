@@ -46,19 +46,19 @@ describe('SalespersonService.getSalespersonLookup', () => {
 
     expect(get).toHaveBeenCalledTimes(3);
     expect(get).toHaveBeenNthCalledWith(1, '/api/Salespersons/lookup', {
-      SearchText: undefined,
       PageSize: 100,
-      ContinuationToken: undefined
+      ContinuationToken: undefined,
+      Search: undefined
     });
     expect(get).toHaveBeenNthCalledWith(2, '/api/Salespersons/lookup', {
-      SearchText: undefined,
       PageSize: 100,
-      ContinuationToken: 'page-2'
+      ContinuationToken: 'page-2',
+      Search: undefined
     });
     expect(get).toHaveBeenNthCalledWith(3, '/api/Salespersons/lookup', {
-      SearchText: undefined,
       PageSize: 100,
-      ContinuationToken: 'page-3'
+      ContinuationToken: 'page-3',
+      Search: undefined
     });
     expect(result).toEqual({
       items: [
@@ -72,22 +72,26 @@ describe('SalespersonService.getSalespersonLookup', () => {
     });
   });
 
-  it('supports the legacy array response and forwards search text', async () => {
+  it('forwards search text through the canonical lookup contract', async () => {
     const get = jest.fn().mockResolvedValue({
       success: true,
-      data: [
-        { code: ' s8 ', name: ' Sajithi ' },
-        { code: 'S8', name: 'Duplicate' }
-      ]
+      data: {
+        items: [
+          { code: ' s8 ', name: ' Sajithi ' },
+          { code: 'S8', name: 'Duplicate' }
+        ],
+        pageSize: 100,
+        hasNext: false
+      }
     });
     const service = new SalespersonService({ get } as unknown as ApiClient);
 
     const result = await service.getSalespersonLookup('Sajithi');
 
     expect(get).toHaveBeenCalledWith('/api/Salespersons/lookup', {
-      SearchText: 'Sajithi',
       PageSize: 100,
-      ContinuationToken: undefined
+      ContinuationToken: undefined,
+      Search: 'Sajithi'
     });
     expect(result.items).toEqual([{ code: 'S8', name: 'Sajithi' }]);
   });
@@ -105,7 +109,7 @@ describe('SalespersonService.getSalespersonLookup', () => {
     const service = new SalespersonService({ get } as unknown as ApiClient);
 
     await expect(service.getSalespersonLookup()).rejects.toThrow(
-      'Salesperson lookup pagination returned a repeated continuation token.'
+      'Business Central lookup pagination returned a repeated continuation token.'
     );
     expect(get).toHaveBeenCalledTimes(2);
   });
