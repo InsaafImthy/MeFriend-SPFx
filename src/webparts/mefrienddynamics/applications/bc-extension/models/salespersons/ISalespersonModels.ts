@@ -4,16 +4,11 @@ export interface ISalespersonListItem {
   salespersonName: string;
   email: string;
   phoneNumber: string;
-  status: string;
-  branch?: string;
-  department?: string;
+  mdmCode: string;
 }
 
 export type ISalespersonDetail = ISalespersonListItem;
 
 export interface ISalespersonFilters {
   searchText?: string;
-  status?: string;
-  branch?: string;
-  department?: string;
 }

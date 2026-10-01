@@ -94,7 +94,7 @@ export const EventPage: React.FC<IEventPageProps> = ({ eventService, onNavigate 
       error={error}
       onRowClick={
         eventsModuleConfig.detailEnabled
-          ? item => onNavigate(`${eventsModuleConfig.route}/detail/${encodeURIComponent(item.id || item.eventCode)}`)
+          ? item => onNavigate(`${eventsModuleConfig.route}/detail/${encodeURIComponent(item.eventCode)}`)
           : undefined
       }
       onFilterChange={handleFilterChange}
@@ -104,7 +104,7 @@ export const EventPage: React.FC<IEventPageProps> = ({ eventService, onNavigate 
       onPageChange={changePage}
       sorting={sorting}
       onSort={handleSort}
-      getRowKey={(item, index) => item.id || item.eventCode || String(index)}
+      getRowKey={item => item.eventCode}
       emptyTitle="No events found"
       emptyMessage="No event records are available from the configured service."
     />

@@ -12,48 +12,30 @@ import { fetchAllBcLookupItems, MAX_BC_LOOKUP_PAGE_SIZE } from '../../../../shar
 import { buildBcPageQuery } from '../../../../shared/utilities/serverPagination';
 
 interface ICustomerApiModel {
-  id?: string;
-  number?: string;
-  no?: string;
-  name?: string;
-  name2?: string;
-  customerCode?: string;
-  customerName?: string;
-  branch?: string;
-  department?: string;
-  city?: string;
-  stateCode?: string;
-  countryCode?: string;
-  countryRegionCode?: string;
-  locationCode?: string;
-  status?: string;
-  address?: string;
-  address2?: string;
-  postCode?: string;
-  phoneNumber?: string;
-  panNo?: string;
-  PAN?: string;
-  gstNo?: string;
-  gstRegistrationNo?: string;
-  genPostingGroup?: string;
-  customerPostingGroup?: string;
-  gstCustomerType?: string;
-}
-
-interface ICustomerCreateApiResponse {
-  id?: string;
-  number?: string;
-  name?: string;
-  customerCode?: string;
-  customerName?: string;
-  businessCentralDocumentNumber?: string;
-  rawReference?: string;
-  createdAt?: string;
+  '@odata.etag': string;
+  id: string;
+  number: string;
+  name: string;
+  name2: string;
+  address: string;
+  address2: string;
+  stateCode: string;
+  countryRegionCode: string;
+  city: string;
+  postCode: string;
+  locationCode: string;
+  phoneNumber: string;
+  PAN: string;
+  gstRegistrationNo: string;
+  genPostingGroup: string;
+  customerPostingGroup: string;
+  gstCustomerType: string;
+  createdDateTime: string;
+  modifiedDateTime: string;
 }
 
 export interface ICustomerLookupItem {
-  number?: string;
-  no: string;
+  number: string;
   name: string;
 }
 
@@ -76,7 +58,6 @@ export class CustomerService {
       search: filters.searchText,
       filters: {
         city: filters.city,
-        stateCode: filters.stateCode,
         gstCustomerType: filters.gstCustomerType
       }
     }, pagination, sorting));
@@ -101,10 +82,9 @@ export class CustomerService {
 
     return {
       items: items.map(item => ({
-        number: normalizeText(item.number || item.no || ''),
-        no: normalizeText(item.no || item.number || ''),
-        name: normalizeText(item.name || '')
-      })).filter(item => item.no),
+        number: normalizeText(item.number),
+        name: normalizeText(item.name)
+      })).filter(item => item.number),
       pageSize,
       hasNext: false
     };
@@ -123,42 +103,41 @@ export class CustomerService {
     return this.mapCustomerApiToUiModel(customer);
   }
 
-  public async postCustomerToBusinessCentral(payload: ICustomerCreateFormState): Promise<ICustomerCreateApiResponse> {
-    const response = await this.apiClient.post<ICustomerCreateRequest, ICustomerCreateApiResponse>('/api/customers', payload);
+  public async postCustomerToBusinessCentral(payload: ICustomerCreateFormState): Promise<ICustomerApiModel> {
+    const response = await this.apiClient.post<ICustomerCreateRequest, ICustomerApiModel>('/api/customers', payload);
 
-    return response.data || {};
+    if (!response.data) {
+      throw new Error('Business Central did not return the customer contract.');
+    }
+
+    return response.data;
   }
 
-  public async createCustomer(payload: ICustomerCreateFormState): Promise<ICustomerCreateApiResponse> {
+  public async createCustomer(payload: ICustomerCreateFormState): Promise<ICustomerApiModel> {
     return this.postCustomerToBusinessCentral(payload);
   }
 
-  public mapCustomerApiToUiModel(api?: ICustomerApiModel): ICustomerDetail {
-    const customerCode = api?.customerCode || api?.number || api?.no || '';
-
+  public mapCustomerApiToUiModel(api: ICustomerApiModel): ICustomerDetail {
     return {
-      id: api?.id || api?.number || api?.no || api?.customerCode || '',
-      customerCode,
-      customerName: api?.customerName || api?.name || '',
-      branch: api?.branch || '',
-      department: api?.department || '',
-      name: api?.name || '',
-      name2: api?.name2 || '',
-      city: api?.city || '',
-      stateCode: api?.stateCode || '',
-      countryCode: api?.countryCode || api?.countryRegionCode || '',
-      countryRegionCode: api?.countryRegionCode || api?.countryCode || '',
-      locationCode: api?.locationCode || '',
-      status: api?.status || api?.gstCustomerType || api?.customerPostingGroup || '',
-      address: api?.address || '',
-      address2: api?.address2 || '',
-      postCode: api?.postCode || '',
-      phoneNumber: api?.phoneNumber || '',
-      PAN: api?.PAN || api?.panNo || '',
-      gstRegistrationNo: api?.gstRegistrationNo || api?.gstNo || '',
-      genPostingGroup: api?.genPostingGroup || '',
-      customerPostingGroup: api?.customerPostingGroup || '',
-      gstCustomerType: api?.gstCustomerType || ''
+      id: api.id,
+      customerCode: api.number,
+      customerName: api.name,
+      name: api.name,
+      name2: api.name2,
+      city: api.city,
+      stateCode: api.stateCode,
+      countryCode: api.countryRegionCode,
+      countryRegionCode: api.countryRegionCode,
+      locationCode: api.locationCode,
+      address: api.address,
+      address2: api.address2,
+      postCode: api.postCode,
+      phoneNumber: api.phoneNumber,
+      PAN: api.PAN,
+      gstRegistrationNo: api.gstRegistrationNo,
+      genPostingGroup: api.genPostingGroup,
+      customerPostingGroup: api.customerPostingGroup,
+      gstCustomerType: api.gstCustomerType
     };
   }
 

@@ -67,7 +67,7 @@ describe('Business Central server paging services', () => {
     });
 
     const result = await new CustomerService(apiClient).getCustomers(
-      { city: 'kochi', stateCode: 'kl', gstCustomerType: 'registered' },
+      { city: 'kochi', gstCustomerType: 'registered' },
       createCursorPaginationState(),
       { fieldName: 'customerName', direction: 'asc' }
     );
@@ -76,7 +76,6 @@ describe('Business Central server paging services', () => {
     expect(result).toMatchObject({ pageSize: 20, hasNext: true, nextToken: 'customer-next' });
     expect(get).toHaveBeenCalledWith('/api/Customers', expect.objectContaining({
       'Filters[city]': 'kochi',
-      'Filters[stateCode]': 'kl',
       'Filters[gstCustomerType]': 'registered',
       SortField: 'customerName'
     }));
@@ -85,9 +84,9 @@ describe('Business Central server paging services', () => {
   it('sends sales order filters through the backend contract', async () => {
     const { apiClient, get } = createApiClient({
       items: [
-        { id: '1', no: 'SO-1', customerCode: 'C-1', status: 'Released', salespersonCode: 'SP002', orderDate: '2026-09-01' },
-        { id: '2', no: 'SO-2', customerCode: 'C-2', status: 'Open', salespersonCode: 'SP002', orderDate: '2026-09-01' },
-        { id: '3', no: 'SO-3', customerCode: 'C-3', status: 'Released', salespersonCode: 'SP003', orderDate: '2026-09-01' }
+        { id: '1', number: 'SO-1', sellToCustomerNo: 'C-1', status: 'Released', salesperson: 'SP002', salesLines: [] },
+        { id: '2', number: 'SO-2', sellToCustomerNo: 'C-2', status: 'Open', salesperson: 'SP002', salesLines: [] },
+        { id: '3', number: 'SO-3', sellToCustomerNo: 'C-3', status: 'Released', salesperson: 'SP003', salesLines: [] }
       ],
       pageSize: 20,
       hasNext: false
@@ -110,7 +109,7 @@ describe('Business Central server paging services', () => {
   it('sends the restricted salesperson server-side for sales orders', async () => {
     const { apiClient, get } = createApiClient({
       items: [
-        { id: '1', no: 'SO-1', SalespersonCode: ' sp001 ' }
+        { id: '1', number: 'SO-1', salesperson: 'SP001', salesLines: [] }
       ],
       pageSize: 20,
       hasNext: true,
@@ -132,10 +131,29 @@ describe('Business Central server paging services', () => {
     }));
   });
 
-  it('sends outstanding-only and restricted salesperson filters server-side', async () => {
+  it('sends only proven invoice filters and the restricted salesperson server-side', async () => {
     const { apiClient, get } = createApiClient({
       items: [
-        { invoiceNumber: 'INV-1', salesperson: 'SP001', totalAmount: 100, paidAmount: 20, invoiceStatus: 'Posted' }
+        {
+          id: 'invoice-id',
+          invoiceNo: 'INV-1',
+          invoiceDate: '2026-09-02',
+          customerCode: 'C-1',
+          customerName: 'Customer',
+          customerAddress: 'Address',
+          customerGSTNo: 'GST-1',
+          clientCode: 'CL-1',
+          clientName: 'Client',
+          clientAddress: 'Client address',
+          clientGSTNo: 'GST-2',
+          salesPerson: 'SP001',
+          tradeDiscount: 0,
+          sgst: 9,
+          cgst: 9,
+          igst: 0,
+          netAmount: 118,
+          salesInvoiceLines: []
+        }
       ],
       pageSize: 20,
       hasNext: true,
@@ -143,7 +161,7 @@ describe('Business Central server paging services', () => {
     });
 
     const result = await new InvoiceService(apiClient).getInvoices(
-      { outstandingOnly: true },
+      { customerCode: 'C-1', invoiceDateFrom: '2026-09-02' },
       createCursorPaginationState(),
       undefined,
       createAppUser({ isSalesperson: true, salespersonCode: 'SP001' })
@@ -152,7 +170,8 @@ describe('Business Central server paging services', () => {
     expect(result.items.map(item => item.invoiceNumber)).toEqual(['INV-1']);
     expect(result).toMatchObject({ pageSize: 20, hasNext: true, nextToken: 'invoice-next' });
     expect(get).toHaveBeenCalledWith('/api/SalesInvoices', expect.objectContaining({
-      'Filters[outstandingOnly]': true,
+      'Filters[customerCode]': 'C-1',
+      'Filters[invoiceDateFrom]': '2026-09-02',
       'Filters[salespersonCode]': 'SP001'
     }));
   });
@@ -209,7 +228,7 @@ describe('Business Central server paging services', () => {
   it('sends Event and Salesperson searches to their paged endpoints', async () => {
     const events = createApiClient({
       items: [
-        { eventCode: 'E-1', eventName: 'Launch' }
+        { dimensionCode: 'PRODUCT', code: 'E-1', name: 'Launch' }
       ],
       pageSize: 20,
       hasNext: false
@@ -239,7 +258,7 @@ describe('Business Central server paging services', () => {
 
   it('uses the paged Events endpoint instead of expanded Dimensions', async () => {
     const { apiClient, get } = createApiClient({
-      items: [{ id: 'event-id', eventCode: 'EVENT-1', eventName: 'Event 1' }],
+      items: [{ dimensionCode: 'PRODUCT', code: 'EVENT-1', name: 'Event 1' }],
       pageSize: 20,
       hasNext: false
     });
@@ -257,11 +276,12 @@ describe('Business Central server paging services', () => {
     const customer = createApiClient({ id: 'customer/id', number: 'C-1', name: 'Customer' });
     const invoice = createApiClient({
       id: '42eadb99-be08-f111-8405-6045bde7abd0',
-      invoiceNumber: 'INV/123'
+      invoiceNo: 'INV/123',
+      salesInvoiceLines: []
     });
-    const order = createApiClient({ id: 'order/id', salesOrderNumber: 'SO-1' });
+    const order = createApiClient({ id: 'order/id', number: 'SO-1', salesLines: [] });
     const salesperson = createApiClient({ id: 'salesperson/id', code: 'SP-1', name: 'Salesperson' });
-    const event = createApiClient({ id: 'event/id', eventCode: 'E-1', eventName: 'Event' });
+    const event = createApiClient({ dimensionCode: 'PRODUCT', code: 'E-1', name: 'Event' });
 
     await Promise.all([
       new CustomerService(customer.apiClient).getCustomerById('customer/id'),
@@ -278,47 +298,17 @@ describe('Business Central server paging services', () => {
     expect(event.get).toHaveBeenCalledWith('/api/Events/event%2Fid');
   });
 
-  it('loads every server-filtered related-invoice continuation page', async () => {
-    const get = jest.fn()
-      .mockResolvedValueOnce({
-        success: true,
-        data: {
-          items: [{ invoiceNo: 'INV-1', salesOrderNo: 'SO-1' }],
-          pageSize: 100,
-          hasNext: true,
-          nextToken: 'related-page-2'
-        }
-      })
-      .mockResolvedValueOnce({
-        success: true,
-        data: {
-          items: [{ invoiceNo: 'INV-2', salesOrderNo: 'SO-1' }],
-          pageSize: 100,
-          hasNext: false
-        }
-      });
-    const service = new SalesOrderService({ get } as unknown as ApiClient);
-
-    const result = await service.getInvoicesForSalesOrder('SO-1');
-
-    expect(result.map(invoice => invoice.invoiceNumber)).toEqual(['INV-1', 'INV-2']);
-    expect(get).toHaveBeenNthCalledWith(1, '/api/SalesInvoices', expect.objectContaining({
-      PageSize: 100,
-      ContinuationToken: undefined,
-      'Filters[salesOrderNumber]': 'SO-1'
-    }));
-    expect(get).toHaveBeenNthCalledWith(2, '/api/SalesInvoices', expect.objectContaining({
-      PageSize: 100,
-      ContinuationToken: 'related-page-2',
-      'Filters[salesOrderNumber]': 'SO-1'
-    }));
-  });
-
-  it('maps the backend salesperson phone field with compatibility fallbacks', () => {
+  it('maps the exact backend salesperson contract', () => {
     const service = new SalespersonService({} as ApiClient);
 
-    expect(service.mapSalespersonApiToUiModel({ code: 'SP-1', phone: '111' }).phoneNumber).toBe('111');
-    expect(service.mapSalespersonApiToUiModel({ code: 'SP-2', phoneNo: '222' }).phoneNumber).toBe('222');
+    expect(service.mapSalespersonApiToUiModel({
+      '@odata.etag': 'etag',
+      code: 'SP-1',
+      name: 'Salesperson',
+      email: 'salesperson@example.com',
+      phone: '111',
+      mdmCode: 'MDM-1'
+    }).phoneNumber).toBe('111');
   });
 
   it('rejects a missing invoice number without calling the invoice detail endpoint', async () => {

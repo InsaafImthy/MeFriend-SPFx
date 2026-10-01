@@ -2,7 +2,7 @@ import * as React from 'react';
 import { invoicesModuleConfig } from '../../../config/modules/invoicesModuleConfig';
 import type { IFormFieldConfig } from '../../../../../shared/models/IFormFieldConfig';
 import type { ITableColumn } from '../../../../../shared/models/ITableColumn';
-import type { IInvoiceDetail, IInvoiceLineItem, IInvoicePaymentRecord } from '../../../models/invoices';
+import type { IInvoiceDetail, IInvoiceLineItem } from '../../../models/invoices';
 import type { IAppUser } from '../../../models/settings/IAppAccessModels';
 import { getUserFriendlyError, normalizeError } from '../../../../../shared/api/apiErrorHandler';
 import type { InvoiceService } from '../../../services/invoices/invoiceService';
@@ -19,40 +19,19 @@ export interface IInvoiceDetailPageProps {
   onNavigate: (path: string) => void;
 }
 
-const normalizeInvoiceDescriptions = (invoice: IInvoiceDetail): IInvoiceDetail => ({
-  ...invoice,
-  lines: invoice.lines.map(line => ({
-    ...line,
-    description: line.description || line.itemCode || ''
-  }))
-});
-
 const lineColumns: readonly ITableColumn<IInvoiceLineItem>[] = [
   { key: 'lineNumber', header: 'Line', fieldName: 'lineNumber', sortable: false, renderType: 'text' },
-  { key: 'lineType', header: 'Type', fieldName: 'lineType', sortable: false, renderType: 'text' },
-  { key: 'description', header: 'Item', fieldName: 'description', sortable: false, renderType: 'custom', minWidth: 240, customRender: item => item.description || item.itemCode || '-' },
+  { key: 'itemCode', header: 'Item Code', fieldName: 'itemCode', sortable: false, renderType: 'text', minWidth: 160 },
   { key: 'hsnCode', header: 'HSN Code', fieldName: 'hsnCode', sortable: false, renderType: 'text' },
   { key: 'gstRate', header: 'GST Rate', fieldName: 'gstRate', sortable: false, renderType: 'text' },
   { key: 'quantity', header: 'Quantity', fieldName: 'quantity', sortable: false, renderType: 'text' },
   { key: 'unitPrice', header: 'Unit Price', fieldName: 'unitPrice', sortable: false, renderType: 'amount' },
-  { key: 'lineDiscountPercentage', header: 'Line Discount %', fieldName: 'lineDiscountPercentage', sortable: false, renderType: 'text' },
-  { key: 'lineAmount', header: 'Line Amount', fieldName: 'lineAmount', sortable: false, renderType: 'amount' },
-  { key: 'amountIncludingVAT', header: 'Amount Including VAT', fieldName: 'amountIncludingVAT', sortable: false, renderType: 'amount' }
-];
-
-const paymentColumns: readonly ITableColumn<IInvoicePaymentRecord>[] = [
-  { key: 'paymentDate', header: 'Payment Date', fieldName: 'paymentDate', sortable: false, renderType: 'date' },
-  { key: 'referenceNumber', header: 'Reference', fieldName: 'referenceNumber', sortable: false, renderType: 'text' },
-  { key: 'paymentMode', header: 'Mode', fieldName: 'paymentMode', sortable: false, renderType: 'text' },
-  { key: 'amount', header: 'Amount', fieldName: 'amount', sortable: false, renderType: 'amount' }
+  { key: 'lineAmount', header: 'Amount', fieldName: 'lineAmount', sortable: false, renderType: 'amount' }
 ];
 
 const invoiceHeaderFields: readonly IFormFieldConfig[] = [
   { key: 'invoiceNumber', label: 'Invoice Number', type: 'text', required: false, section: 'Invoice Header' },
-  { key: 'invoiceDate', label: 'Invoice Date', type: 'date', required: false, section: 'Invoice Header' },
-  { key: 'dueDate', label: 'Due Date', type: 'date', required: false, section: 'Invoice Header' },
-  { key: 'invoiceStatus', label: 'Status', type: 'text', required: false, section: 'Invoice Header' },
-  { key: 'paymentStatus', label: 'Payment Status', type: 'text', required: false, section: 'Invoice Header' }
+  { key: 'invoiceDate', label: 'Invoice Date', type: 'date', required: false, section: 'Invoice Header' }
 ];
 
 const invoiceCustomerFields: readonly IFormFieldConfig[] = [
@@ -64,11 +43,7 @@ const invoiceCustomerFields: readonly IFormFieldConfig[] = [
   { key: 'clientName', label: 'Client Name', type: 'text', required: false, section: 'Customer' },
   { key: 'clientAddress', label: 'Client Address', type: 'text', required: false, section: 'Customer' },
   { key: 'clientGSTNo', label: 'Client GST No.', type: 'text', required: false, section: 'Customer' },
-  { key: 'salesPerson', label: 'Salesperson', type: 'text', required: false, section: 'Customer' }
-];
-
-const invoiceReferenceFields: readonly IFormFieldConfig[] = [
-  { key: 'salesOrderNumber', label: 'Sales Order Number', type: 'text', required: false, section: 'Sales Order Reference' }
+  { key: 'salespersonCode', label: 'Salesperson', type: 'text', required: false, section: 'Customer' }
 ];
 
 const getDetailErrorMessage = (error: unknown): string => {
@@ -96,7 +71,7 @@ export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ currentUs
 
       try {
         const detail = await invoiceService.getInvoiceByNumber(invoiceNumber, currentUser);
-        setInvoice(normalizeInvoiceDescriptions(detail));
+        setInvoice(detail);
       } catch (loadError) {
         setInvoice(undefined);
         setError(getDetailErrorMessage(loadError));
@@ -111,10 +86,7 @@ export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ currentUs
   const invoiceHeaderValues = React.useMemo<EntityFormValues>(
     () => ({
       invoiceNumber: invoice?.invoiceNumber || '',
-      invoiceDate: invoice?.invoiceDate || '',
-      dueDate: invoice?.dueDate || '',
-      invoiceStatus: invoice?.invoiceStatus || '',
-      paymentStatus: invoice?.paymentStatus || ''
+      invoiceDate: invoice?.invoiceDate || ''
     }),
     [invoice]
   );
@@ -129,16 +101,9 @@ export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ currentUs
       clientName: invoice?.clientName || '',
       clientAddress: invoice?.clientAddress || '',
       clientGSTNo: invoice?.clientGSTNo || '',
-      salesPerson: invoice?.salesPerson || ''
+      salespersonCode: invoice?.salespersonCode || ''
     }),
     [invoice]
-  );
-
-  const invoiceReferenceValues = React.useMemo<EntityFormValues>(
-    () => ({
-      salesOrderNumber: invoice?.salesOrderNumber || ''
-    }),
-    [invoice?.salesOrderNumber]
   );
 
   return (
@@ -152,7 +117,6 @@ export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ currentUs
     >
       <ReadOnlyEntityForm fields={invoiceHeaderFields} values={invoiceHeaderValues} />
       <ReadOnlyEntityForm fields={invoiceCustomerFields} values={invoiceCustomerValues} />
-      <ReadOnlyEntityForm fields={invoiceReferenceFields} values={invoiceReferenceValues} />
       <EntityDetailSection ariaLabel="Financial summary">
         <FinancialSummaryCards
           cards={[
@@ -160,62 +124,31 @@ export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ currentUs
               key: 'netAmount',
               label: 'Net Amount',
               amount: invoice?.netAmount,
-              currencyCode: invoice?.currencyCode,
               type: 'total'
             },
             {
-              key: 'invoiceDiscountAmountExclVat',
-              label: 'Invoice Discount Excl. VAT',
-              amount: invoice?.invoiceDiscountAmountExclVat ?? invoice?.tradeDiscount,
-              currencyCode: invoice?.currencyCode,
+              key: 'tradeDiscount',
+              label: 'Trade Discount',
+              amount: invoice?.tradeDiscount,
               type: 'outstanding'
-            },
-            {
-              key: 'invoiceDiscountPercent',
-              label: 'Invoice Discount %',
-              value: invoice?.invoiceDiscountPercent !== undefined ? invoice.invoiceDiscountPercent : '-'
             },
             {
               key: 'sgst',
               label: 'SGST',
               amount: invoice?.sgst,
-              currencyCode: invoice?.currencyCode,
               type: 'total'
             },
             {
               key: 'cgst',
               label: 'CGST',
               amount: invoice?.cgst,
-              currencyCode: invoice?.currencyCode,
               type: 'total'
             },
             {
               key: 'igst',
               label: 'IGST',
               amount: invoice?.igst,
-              currencyCode: invoice?.currencyCode,
               type: 'total'
-            },
-            {
-              key: 'totalAmount',
-              label: 'Total Amount',
-              amount: invoice?.totalAmount,
-              currencyCode: invoice?.currencyCode,
-              type: 'total'
-            },
-            {
-              key: 'paidAmount',
-              label: 'Paid Amount',
-              amount: invoice?.paidAmount,
-              currencyCode: invoice?.currencyCode,
-              type: 'paid'
-            },
-            {
-              key: 'outstandingAmount',
-              label: 'Outstanding Amount',
-              amount: invoice?.outstandingAmount,
-              currencyCode: invoice?.currencyCode,
-              type: 'outstanding'
             }
           ]}
         />
@@ -230,18 +163,6 @@ export const InvoiceDetailPage: React.FC<IInvoiceDetailPageProps> = ({ currentUs
           getRowKey={(item, index) => item.lineNumber || String(index)}
         />
       </EntityDetailSection>
-      {invoice && invoice.payments.length > 0 ? (
-        <EntityDetailSection>
-          <RelatedRecordsSection<IInvoicePaymentRecord>
-            title="Payment Received Records"
-            items={invoice.payments}
-            columns={paymentColumns}
-            emptyTitle="No payments found"
-            emptyMessage="No payment received records are available for this invoice."
-            getRowKey={(item, index) => item.id || item.referenceNumber || String(index)}
-          />
-        </EntityDetailSection>
-      ) : null}
     </EntityDetailPage>
   );
 };

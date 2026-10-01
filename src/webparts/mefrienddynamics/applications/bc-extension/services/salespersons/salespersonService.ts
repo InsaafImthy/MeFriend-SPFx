@@ -11,19 +11,12 @@ import { buildBcPageQuery } from '../../../../shared/utilities/serverPagination'
 import { normalizeSalespersonCode } from '../../utils/salespersonDataScope';
 
 interface ISalespersonApiModel {
-  id?: string;
-  '@odata.etag'?: string;
-  code?: string;
-  name?: string;
-  phone?: string;
-  phoneNo?: string;
-  salespersonCode?: string;
-  salespersonName?: string;
-  email?: string;
-  status?: string;
-  phoneNumber?: string;
-  branch?: string;
-  department?: string;
+  '@odata.etag': string;
+  code: string;
+  name: string;
+  phone: string;
+  email: string;
+  mdmCode: string;
 }
 
 export interface ISalespersonLookupItem {
@@ -82,18 +75,14 @@ export class SalespersonService {
     return this.mapSalespersonApiToUiModel(response.data);
   }
 
-  public mapSalespersonApiToUiModel(api?: ISalespersonApiModel): ISalespersonDetail {
-    const salespersonCode = api?.code || api?.salespersonCode || '';
-
+  public mapSalespersonApiToUiModel(api: ISalespersonApiModel): ISalespersonDetail {
     return {
-      id: api?.id || salespersonCode,
-      salespersonCode,
-      salespersonName: api?.name || api?.salespersonName || '',
-      email: api?.email || '',
-      status: api?.status || '',
-      phoneNumber: api?.phone || api?.phoneNo || api?.phoneNumber || '',
-      branch: api?.branch || '',
-      department: api?.department || ''
+      id: api.code,
+      salespersonCode: api.code,
+      salespersonName: api.name,
+      email: api.email,
+      phoneNumber: api.phone,
+      mdmCode: api.mdmCode
     };
   }
 

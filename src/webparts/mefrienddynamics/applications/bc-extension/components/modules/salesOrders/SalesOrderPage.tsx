@@ -24,10 +24,7 @@ const toSalesOrderFilters = (values: EntityFilterValues): ISalesOrderFilters => 
   searchText: typeof values.searchText === 'string' ? values.searchText : undefined,
   customerCode: typeof values.customerCode === 'string' ? values.customerCode : undefined,
   salespersonCode: typeof values.salespersonCode === 'string' ? values.salespersonCode : undefined,
-  eventCode: typeof values.eventCode === 'string' ? values.eventCode : undefined,
-  status: typeof values.status === 'string' ? (values.status as SalesOrderStatus) : undefined,
-  orderDateFrom: typeof values.orderDateFrom === 'string' ? values.orderDateFrom : undefined,
-  orderDateTo: typeof values.orderDateTo === 'string' ? values.orderDateTo : undefined
+  status: typeof values.status === 'string' ? (values.status as SalesOrderStatus) : undefined
 });
 
 const getListErrorMessage = (error: unknown): string => {

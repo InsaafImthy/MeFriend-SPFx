@@ -14,10 +14,7 @@ export interface ISalespersonPageProps {
 }
 
 const toSalespersonFilters = (values: EntityFilterValues): ISalespersonFilters => ({
-  searchText: typeof values.searchText === 'string' ? values.searchText : undefined,
-  status: typeof values.status === 'string' ? values.status : undefined,
-  branch: typeof values.branch === 'string' ? values.branch : undefined,
-  department: typeof values.department === 'string' ? values.department : undefined
+  searchText: typeof values.searchText === 'string' ? values.searchText : undefined
 });
 
 const getListErrorMessage = (error: unknown): string => {

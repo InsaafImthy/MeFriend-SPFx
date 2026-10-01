@@ -90,9 +90,7 @@ export const SalespersonDetailPage: React.FC<ISalespersonDetailPageProps> = ({
             { key: 'salespersonName', label: 'Salesperson', value: salesperson?.salespersonName || salesperson?.salespersonCode },
             { key: 'email', label: 'Email', value: salesperson?.email },
             { key: 'phoneNumber', label: 'Phone Number', value: salesperson?.phoneNumber },
-            { key: 'branch', label: 'Branch', value: salesperson?.branch },
-            { key: 'department', label: 'Department', value: salesperson?.department },
-            { key: 'status', label: 'Status', value: salesperson?.status, renderType: 'status' }
+            { key: 'mdmCode', label: 'MDM Code', value: salesperson?.mdmCode }
           ]
         }
       ]}

@@ -7,7 +7,10 @@ import {
 
 const createInvoiceLine = (itemCode?: string): IInvoiceLineItem => ({
   lineNumber: itemCode || '',
-  itemCode,
+  documentNumber: '',
+  itemCode: itemCode || '',
+  hsnCode: '',
+  gstRate: '',
   description: 'BC description must not be printed',
   quantity: 1,
   unitPrice: 100,

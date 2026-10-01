@@ -2,7 +2,7 @@ import * as React from 'react';
 import { invoicesModuleConfig } from '../../../config/modules/invoicesModuleConfig';
 import type { ISortState, SortDirection } from '../../../../../shared/models/ISortState';
 import { useCursorPagination } from '../../../../../shared/hooks/useCursorPagination';
-import type { IInvoiceDetail, IInvoiceFilters, IInvoiceListItem, PaymentStatus } from '../../../models/invoices';
+import type { IInvoiceDetail, IInvoiceFilters, IInvoiceListItem } from '../../../models/invoices';
 import type { IAppUser } from '../../../models/settings/IAppAccessModels';
 import { isMefriendBusinessSolutionsCompany, type BcCompany } from '../../../config/bcCompanies';
 import { getUserFriendlyError, normalizeError } from '../../../../../shared/api/apiErrorHandler';
@@ -42,14 +42,8 @@ const toInvoiceFilters = (values: EntityFilterValues): IInvoiceFilters => ({
   searchText: typeof values.searchText === 'string' ? values.searchText : undefined,
   customerCode: typeof values.customerCode === 'string' ? values.customerCode : undefined,
   salespersonCode: typeof values.salespersonCode === 'string' ? values.salespersonCode : undefined,
-  salesOrderNumber: typeof values.salesOrderNumber === 'string' ? values.salesOrderNumber : undefined,
-  invoiceStatus: typeof values.invoiceStatus === 'string' ? values.invoiceStatus : undefined,
-  paymentStatus: typeof values.paymentStatus === 'string' ? (values.paymentStatus as PaymentStatus) : undefined,
   invoiceDateFrom: typeof values.invoiceDateFrom === 'string' ? values.invoiceDateFrom : undefined,
-  invoiceDateTo: typeof values.invoiceDateTo === 'string' ? values.invoiceDateTo : undefined,
-  dueDateFrom: typeof values.dueDateFrom === 'string' ? values.dueDateFrom : undefined,
-  dueDateTo: typeof values.dueDateTo === 'string' ? values.dueDateTo : undefined,
-  outstandingOnly: values.outstandingOnly === true
+  invoiceDateTo: typeof values.invoiceDateTo === 'string' ? values.invoiceDateTo : undefined
 });
 
 const getListErrorMessage = (error: unknown): string => {
@@ -66,7 +60,6 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
   currentUser,
   itemMasterService,
   invoiceService,
-  salesOrderRequestService,
   selectedCompany,
   salespersonService,
   onNavigate
@@ -130,16 +123,13 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
 
   const loadPrintableInvoice = React.useCallback(async (invoiceNumber: string): Promise<IInvoiceDetail> => {
     const invoice = await invoiceService.getInvoiceByNumber(invoiceNumber, currentUser);
-    const [requestLines, itemMasters] = await Promise.all([
-      salesOrderRequestService.getRequestLinesByBcSalesOrderNumber(invoice.salesOrderNumber),
-      getItemMasterLookup().catch(() => [])
-    ]);
+    const itemMasters = await getItemMasterLookup().catch(() => []);
 
     return {
       ...invoice,
-      lines: enrichInvoiceLinesForPrint(invoice.lines, requestLines, itemMasters)
+      lines: enrichInvoiceLinesForPrint(invoice.lines, [], itemMasters)
     };
-  }, [currentUser, getItemMasterLookup, invoiceService, salesOrderRequestService]);
+  }, [currentUser, getItemMasterLookup, invoiceService]);
 
   const handleFilterChange = React.useCallback((key: string, value: FilterValue): void => {
     if (key === 'salespersonCode' && currentUser?.isSalesperson === true) {
@@ -248,7 +238,6 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
     }
   }, [onNavigate, toast]);
 
-  const outstandingOnlyActive = appliedFilterValues.outstandingOnly === true;
   const showDocumentActions = isMefriendBusinessSolutionsCompany(selectedCompany);
 
   return (
@@ -293,13 +282,9 @@ export const InvoicePage: React.FC<IInvoicePageProps> = ({
       onPageChange={changePage}
       sorting={sorting}
       onSort={handleSort}
-      getRowKey={(item, index) => item.id || item.invoiceNumber || String(index)}
-      emptyTitle={outstandingOnlyActive ? 'No outstanding invoices found.' : 'No invoices found'}
-      emptyMessage={
-        outstandingOnlyActive
-          ? 'No outstanding invoices found.'
-          : 'No invoice records are available from the configured service.'
-      }
+      getRowKey={item => item.id}
+      emptyTitle="No invoices found"
+      emptyMessage="No invoice records are available from the configured service."
     />
   );
 };

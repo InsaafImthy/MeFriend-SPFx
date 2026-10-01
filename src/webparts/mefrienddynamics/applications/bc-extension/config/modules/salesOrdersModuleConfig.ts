@@ -15,25 +15,22 @@ export const salesOrdersModuleConfig: IModuleConfig<ISalesOrderListItem> = {
   title: 'Sales Orders',
   route: 'sales-orders',
   icon: 'SalesOrder',
-  description: 'Sales order listing, detail, creation, lines, and related invoices.',
+  description: 'Sales order listing, detail, creation, and lines.',
   createEnabled: true,
   detailEnabled: true,
   order: 5,
   visible: true,
   tableColumns: [
     { key: 'salesOrderNumber', header: 'Sales Order Number', fieldName: 'salesOrderNumber', sortable: true, renderType: 'text' },
-    { key: 'customerName', header: 'Customer', fieldName: 'customerName', sortable: true, renderType: 'text', minWidth: 180 },
-    { key: 'clientName', header: 'Client', fieldName: 'clientName', sortable: true, renderType: 'text', minWidth: 160 },
-    { key: 'orderDate', header: 'Order Date', fieldName: 'orderDate', sortable: true, renderType: 'date' },
-    { key: 'postingDate', header: 'Posting Date', fieldName: 'postingDate', sortable: true, renderType: 'date' },
+    { key: 'customerCode', header: 'Sell-to Customer No.', fieldName: 'customerCode', sortable: false, renderType: 'text', minWidth: 160 },
+    { key: 'clientCode', header: 'Bill-to Customer No.', fieldName: 'clientCode', sortable: false, renderType: 'text', minWidth: 160 },
+    { key: 'orderDate', header: 'RO Date', fieldName: 'orderDate', sortable: false, renderType: 'date' },
+    { key: 'postingDate', header: 'Posting Date', fieldName: 'postingDate', sortable: false, renderType: 'date' },
     { key: 'status', header: 'Status', fieldName: 'status', sortable: true, renderType: 'status' },
-    { key: 'totalAmount', header: 'Amount', fieldName: 'totalAmount', sortable: true, renderType: 'amount' },
-    { key: 'invoiceDiscountAmountExclVat', header: 'Invoice Discount', fieldName: 'invoiceDiscountAmountExclVat', sortable: true, renderType: 'amount' },
-    { key: 'amountIncludingVAT', header: 'Amount Including VAT', fieldName: 'amountIncludingVAT', sortable: true, renderType: 'amount' }
+    { key: 'invoiceDiscountAmountExclVat', header: 'Invoice Discount', fieldName: 'invoiceDiscountAmountExclVat', sortable: false, renderType: 'amount' }
   ],
   filters: [
-    { key: 'searchText', label: 'Search', type: 'text' },
-    { key: 'orderDate', label: 'Order Date', type: 'dateRange' },
+    { key: 'searchText', label: 'Search by sales order number', type: 'text' },
     { key: 'customerCode', label: 'Customer', type: 'text' },
     { key: 'status', label: 'Status', type: 'status', options: salesOrderStatusOptions },
     { key: 'salespersonCode', label: 'Salesperson', type: 'dropdown', searchable: true }

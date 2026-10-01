@@ -387,15 +387,14 @@ export const customersModuleConfig: IModuleConfig<ICustomerListItem> = {
     { key: 'customerCode', header: 'Customer Code', fieldName: 'customerCode', sortable: true, renderType: 'text' },
     { key: 'customerName', header: 'Customer Name', fieldName: 'customerName', sortable: true, renderType: 'text', minWidth: 180 },
     { key: 'city', header: 'City', fieldName: 'city', sortable: true, renderType: 'text' },
-    { key: 'stateCode', header: 'State', fieldName: 'stateCode', sortable: true, renderType: 'text' },
+    { key: 'stateCode', header: 'State', fieldName: 'stateCode', sortable: false, renderType: 'text' },
     { key: 'countryCode', header: 'Country', fieldName: 'countryCode', sortable: true, renderType: 'text' },
     { key: 'phoneNumber', header: 'Phone', fieldName: 'phoneNumber', sortable: true, renderType: 'text' },
-    { key: 'gstCustomerType', header: 'GST Type', fieldName: 'gstCustomerType', sortable: true, renderType: 'status' }
+    { key: 'gstCustomerType', header: 'GST Type', fieldName: 'gstCustomerType', sortable: false, renderType: 'status' }
   ],
   filters: [
-    { key: 'searchText', label: 'Search', type: 'text' },
+    { key: 'searchText', label: 'Search by customer number', type: 'text' },
     { key: 'city', label: 'City', type: 'text' },
-    { key: 'stateCode', label: 'State', type: 'text' },
     { key: 'gstCustomerType', label: 'GST Type', type: 'text' }
   ],
   formFields: getCustomerFormFields(indiaCountryCode)

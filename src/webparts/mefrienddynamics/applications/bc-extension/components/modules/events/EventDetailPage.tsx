@@ -68,7 +68,7 @@ export const EventDetailPage: React.FC<IEventDetailPageProps> = ({ eventId, even
   return (
     <DetailViewLayout
       title="Event Detail"
-      subtitle={event ? event.eventName || event.eventCode : eventId ? `Event reference: ${eventId}` : undefined}
+      subtitle={event ? event.eventName : eventId ? `Event reference: ${eventId}` : undefined}
       backLabel="Back to Events"
       onBack={() => onNavigate(eventsModuleConfig.route)}
       loading={loading}
@@ -79,8 +79,7 @@ export const EventDetailPage: React.FC<IEventDetailPageProps> = ({ eventId, even
           fields: [
             { key: 'eventCode', label: 'Event Code', value: event?.eventCode },
             { key: 'eventName', label: 'Event Name', value: event?.eventName },
-            { key: 'venue', label: 'Venue', value: event?.venue },
-            { key: 'description', label: 'Description', value: event?.description }
+            { key: 'dimensionCode', label: 'Dimension Code', value: event?.dimensionCode }
           ]
         }
       ]}

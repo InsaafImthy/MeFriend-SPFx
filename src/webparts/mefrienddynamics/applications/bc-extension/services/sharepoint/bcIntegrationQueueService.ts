@@ -133,8 +133,8 @@ export class BCIntegrationQueueService {
 
       if (request.requestType === 'Customer') {
         const response = await this.options.customerService.postCustomerToBusinessCentral(payload as ICustomerCreateFormState);
-        const documentNumber = this.getFirstText(response, ['customerCode', 'number', 'businessCentralDocumentNumber', 'id']);
-        const systemId = this.getFirstText(response, ['systemId', 'bcSystemId', 'id']);
+        const documentNumber = response.number;
+        const systemId = response.id;
 
         await this.markQueueSucceeded(queueItem.id, response, documentNumber, systemId, new Date().toISOString());
         await this.customerRequestService.updateWorkflowState(request.id, {

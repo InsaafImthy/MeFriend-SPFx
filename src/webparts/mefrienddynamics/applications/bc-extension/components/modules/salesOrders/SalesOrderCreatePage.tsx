@@ -184,15 +184,15 @@ const toSalesOrderFormState = (
 
 const toCustomerOptions = (items: readonly ICustomerLookupItem[]): readonly ILookupOption[] =>
   items.map(item => ({
-    key: item.no,
-    text: item.name ? `${item.no} - ${item.name}` : item.no,
-    value: item.no,
+    key: item.number,
+    text: item.name ? `${item.number} - ${item.name}` : item.number,
+    value: item.number,
     description: item.name
   }));
 
 const toEventOptions = (items: readonly IEventListItem[]): readonly ILookupOption[] =>
   items.map(item => ({
-    key: item.eventCode || item.id,
+    key: item.eventCode,
     text: item.eventName ? `${item.eventName} (${item.eventCode})` : item.eventCode,
     value: item.eventCode
   }));

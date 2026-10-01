@@ -12,11 +12,12 @@ export const salespersonsModuleConfig: IModuleConfig<ISalespersonListItem> = {
   order: 3,
   visible: true,
   tableColumns: [
+    { key: 'salespersonCode', header: 'Code', fieldName: 'salespersonCode', sortable: true, renderType: 'text' },
     { key: 'salespersonName', header: 'Salesperson', fieldName: 'salespersonName', sortable: true, renderType: 'text', minWidth: 180 },
-    { key: 'phoneNumber', header: 'Phone No.', fieldName: 'phoneNumber', sortable: true, renderType: 'text', minWidth: 140 },
+    { key: 'phoneNumber', header: 'Phone No.', fieldName: 'phoneNumber', sortable: false, renderType: 'text', minWidth: 140 },
     { key: 'email', header: 'Email', fieldName: 'email', sortable: true, renderType: 'text', minWidth: 220 }
   ],
   filters: [
-    { key: 'searchText', label: 'Search', type: 'text' }
+    { key: 'searchText', label: 'Search by code', type: 'text' }
   ]
 };

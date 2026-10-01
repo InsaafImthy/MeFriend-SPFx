@@ -5,14 +5,10 @@ import type { ISortState } from '../../../../shared/models/ISortState';
 import { buildBcPageQuery } from '../../../../shared/utilities/serverPagination';
 
 interface IEventApiModel {
-  id?: string;
-  eventCode?: string;
-  eventName?: string;
-  code?: string;
-  name?: string;
-  status?: string;
-  description?: string;
-  venue?: string;
+  '@odata.etag': string;
+  dimensionCode: string;
+  code: string;
+  name: string;
 }
 
 type EventApiResponse = IBcPagedResult<IEventApiModel>;
@@ -50,16 +46,12 @@ export class EventService {
     return this.mapEventApiToUiModel(response.data);
   }
 
-  public mapEventApiToUiModel(api?: IEventApiModel): IEventDetail {
-    const eventCode = api?.eventCode || api?.code || '';
-    const eventName = api?.eventName || api?.name || eventCode;
-
+  public mapEventApiToUiModel(api: IEventApiModel): IEventDetail {
     return {
-      id: api?.id || eventCode,
-      eventCode,
-      eventName,
-      description: api?.description || eventName,
-      venue: api?.venue || ''
+      id: api.code,
+      dimensionCode: api.dimensionCode,
+      eventCode: api.code,
+      eventName: api.name
     };
   }
 }

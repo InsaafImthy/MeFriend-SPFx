@@ -17,10 +17,7 @@ export interface ICustomerPageProps {
 
 const toCustomerFilters = (values: EntityFilterValues): ICustomerFilters => ({
   searchText: typeof values.searchText === 'string' ? values.searchText : undefined,
-  branch: typeof values.branch === 'string' ? values.branch : undefined,
-  department: typeof values.department === 'string' ? values.department : undefined,
   city: typeof values.city === 'string' ? values.city : undefined,
-  stateCode: typeof values.stateCode === 'string' ? values.stateCode : undefined,
   gstCustomerType: typeof values.gstCustomerType === 'string' ? values.gstCustomerType : undefined
 });
 
@@ -114,7 +111,7 @@ export const CustomerPage: React.FC<ICustomerPageProps> = ({ canCreateCustomer, 
       onPageChange={changePage}
       sorting={sorting}
       onSort={handleSort}
-      getRowKey={(item, index) => item.id || item.customerCode || String(index)}
+      getRowKey={item => item.id}
       emptyTitle="No customers found"
       emptyMessage="No customer records are available from the configured service."
     />

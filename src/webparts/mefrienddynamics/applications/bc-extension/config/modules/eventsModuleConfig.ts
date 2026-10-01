@@ -16,6 +16,6 @@ export const eventsModuleConfig: IModuleConfig<IEventListItem> = {
     { key: 'eventName', header: 'Event Name', fieldName: 'eventName', sortable: true, renderType: 'text', minWidth: 180 }
   ],
   filters: [
-    { key: 'searchText', label: 'Search', type: 'text' }
+    { key: 'searchText', label: 'Search by code', type: 'text' }
   ]
 };
